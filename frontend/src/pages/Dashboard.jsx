@@ -86,8 +86,8 @@ export function Dashboard() {
 
       {/* Hero Section */}
       <div className="mx-auto max-w-7xl px-6 py-12">
-        <h1 className="text-5xl font-bold mb-4">
-          LionWeather <span className="text-blue-400">Lab</span>
+        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-blue-400 bg-clip-text text-transparent">
+          LionWeather Lab
         </h1>
         <p className="text-slate-400 text-lg mb-8">
           AI-powered weather forecasting for Singapore, Malaysia, and Indonesia
