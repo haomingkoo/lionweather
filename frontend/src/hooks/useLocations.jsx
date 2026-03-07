@@ -330,13 +330,19 @@ export function useCreateLocation() {
       // Fetch weather data and location name in parallel
       const [weatherData, locationName] = await Promise.all([
         fetchWeatherForLocation(payload.latitude, payload.longitude),
-        reverseGeocode(payload.latitude, payload.longitude),
+        payload.name
+          ? Promise.resolve(payload.name)
+          : reverseGeocode(payload.latitude, payload.longitude),
       ]);
 
-      // Override area with reverse geocoded name if weather API didn't provide one
-      if (weatherData.area === "Unknown Area" || !weatherData.area) {
+      // Use provided name or reverse geocoded name
+      if (payload.name) {
+        weatherData.area = payload.name;
+      } else if (weatherData.area === "Unknown Area" || !weatherData.area) {
         weatherData.area = locationName;
       }
+
+      console.log("Creating location with name:", weatherData.area);
 
       const newLocation = {
         id: generateId(),

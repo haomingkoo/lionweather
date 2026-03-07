@@ -32,7 +32,14 @@ function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
   const [overlayLayer, setOverlayLayer] = useState(null);
 
   useEffect(() => {
-    if (!map || isLoading || !radarFrames || radarFrames.length === 0) return;
+    if (!map || isLoading || !radarFrames || radarFrames.length === 0) {
+      console.log("PrecipitationOverlay: Waiting for data", {
+        map: !!map,
+        isLoading,
+        framesCount: radarFrames?.length,
+      });
+      return;
+    }
 
     // Remove previous overlay
     if (overlayLayer) {
@@ -41,7 +48,18 @@ function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
 
     // Get current frame
     const currentFrame = radarFrames[timeIndex % radarFrames.length];
-    if (!currentFrame || !currentFrame.loaded) return;
+    if (!currentFrame || !currentFrame.loaded) {
+      console.log("PrecipitationOverlay: Frame not loaded", {
+        timeIndex,
+        currentFrame,
+      });
+      return;
+    }
+
+    console.log("PrecipitationOverlay: Adding overlay", {
+      url: currentFrame.url,
+      timeIndex,
+    });
 
     // Singapore bounds for radar overlay
     const bounds = [
@@ -49,8 +67,11 @@ function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
       [1.5, 104.1], // Northeast
     ];
 
-    // Create image overlay with 50% opacity
-    const overlay = L.imageOverlay(currentFrame.url, bounds, { opacity: 0.5 });
+    // Create image overlay with 70% opacity for better visibility
+    const overlay = L.imageOverlay(currentFrame.url, bounds, {
+      opacity: 0.7,
+      crossOrigin: true,
+    });
     overlay.addTo(map);
     setOverlayLayer(overlay);
 
@@ -59,7 +80,7 @@ function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
         map.removeLayer(overlay);
       }
     };
-  }, [map, timeIndex, radarFrames, isLoading]);
+  }, [map, timeIndex, radarFrames, isLoading, overlayLayer]);
 
   return null;
 }
@@ -94,14 +115,25 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
       const minute = String(timestamp.getMinutes()).padStart(2, "0");
 
       const formattedTimestamp = `${year}${month}${day}${hour}${minute}`;
+
+      // Use the correct weather.gov.sg radar image URL
+      const url = `https://www.weather.gov.sg/files/rainarea/50km/v2/dpsri_70km_${formattedTimestamp}0000dBR.dpsri.png`;
+
       timestamps.push({
         timestamp: formattedTimestamp,
         date: timestamp,
-        url: `https://www.weather.gov.sg/files/rainarea/50km/v2/dpsri_70km_${formattedTimestamp}0000dBR.dpsri.png`,
+        url: url,
         loaded: false,
       });
     }
 
+    console.log(
+      "Generated radar timestamps:",
+      timestamps.map((t) => ({
+        time: t.date.toLocaleTimeString(),
+        url: t.url,
+      })),
+    );
     return timestamps;
   };
 
@@ -111,23 +143,34 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
       setIsLoading(true);
       const timestamps = generateRadarTimestamps();
 
+      console.log("Fetching radar frames:", timestamps.length);
+
       // Preload all radar images
-      const loadPromises = timestamps.map((frame) => {
+      const loadPromises = timestamps.map((frame, index) => {
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
             frame.loaded = true;
+            console.log(`Radar frame ${index} loaded:`, frame.url);
             resolve(frame);
           };
-          img.onerror = () => {
+          img.onerror = (err) => {
+            console.error(
+              `Radar frame ${index} failed to load:`,
+              frame.url,
+              err,
+            );
             // Silently skip failed frames
             resolve(frame);
           };
+          img.crossOrigin = "anonymous";
           img.src = frame.url;
         });
       });
 
       await Promise.all(loadPromises);
+      const loadedCount = timestamps.filter((f) => f.loaded).length;
+      console.log(`Loaded ${loadedCount}/${timestamps.length} radar frames`);
       setRadarFrames(timestamps);
       setIsLoading(false);
     };
@@ -312,10 +355,10 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
                   className={`text-sm font-semibold mb-2 ${isDark ? "text-slate-300" : "text-slate-700"}`}
                 >
                   {isLoading
-                    ? "Loading..."
+                    ? "Loading radar data..."
                     : currentFrame
-                      ? formatTimestamp(currentFrame)
-                      : "No data"}
+                      ? `${formatTimestamp(currentFrame)} - Radar Animation`
+                      : "No radar data available"}
                 </div>
                 <input
                   type="range"
@@ -323,8 +366,9 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
                   max={Math.max(0, radarFrames.length - 1)}
                   value={selectedHour}
                   onChange={(e) => {
-                    setSelectedHour(parseInt(e.target.value));
-                    setTimeIndex(parseInt(e.target.value));
+                    const newIndex = parseInt(e.target.value);
+                    setSelectedHour(newIndex);
+                    setTimeIndex(newIndex);
                     setIsPlaying(false);
                   }}
                   disabled={isLoading || radarFrames.length === 0}
@@ -338,6 +382,13 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
                           : "#e2e8f0",
                   }}
                 />
+                <div
+                  className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"} mt-1`}
+                >
+                  Drag slider to see different times •{" "}
+                  {radarFrames.filter((f) => f.loaded).length}/
+                  {radarFrames.length} frames loaded
+                </div>
               </div>
             </div>
 

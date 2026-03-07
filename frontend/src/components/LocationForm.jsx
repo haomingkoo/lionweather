@@ -81,9 +81,13 @@ export function LocationForm({ isDark = false }) {
 
   const handleSelectResult = async (result) => {
     try {
+      // Extract location name from display_name
+      const locationName = result.display_name.split(",")[0].trim();
+
       await create({
         latitude: result.lat,
         longitude: result.lon,
+        name: locationName,
       });
       setSearchQuery("");
       setSearchResults([]);
