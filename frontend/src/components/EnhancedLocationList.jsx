@@ -5,6 +5,7 @@ import {
   useDeleteLocation,
 } from "../hooks/useLocations.jsx";
 import { DetailedWeatherCard } from "./DetailedWeatherCard";
+import { AnimatedBackground } from "./AnimatedBackground";
 import { RefreshCw, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 
 // Helper function to format timestamps as relative time
@@ -102,6 +103,14 @@ export function EnhancedLocationList({ isDark = false }) {
 
   return (
     <div className="space-y-4 md:space-y-6 xl:space-y-3 max-w-4xl">
+      {/* Animated Background */}
+      {locations.length > 0 && (
+        <AnimatedBackground
+          condition={locations[0].weather.condition}
+          isDark={isDark}
+        />
+      )}
+
       {locations.map((location, index) => {
         const isExpanded = expandedId === location.id;
 
