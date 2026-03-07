@@ -1,15 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LocationForm } from "../components/LocationForm";
 import { EnhancedLocationList } from "../components/EnhancedLocationList";
 import { WeatherMap } from "../components/WeatherMap";
 import { MLDashboard } from "../components/MLDashboard";
 import { ViewToggle } from "../components/ViewToggle";
+import { GeolocationPrompt } from "../components/GeolocationPrompt";
 import { useLocations } from "../hooks/useLocations";
 import { Github } from "lucide-react";
 
 export function Dashboard() {
   const [view, setView] = useState("list");
-  const { locations } = useLocations();
+  const [showGeolocationPrompt, setShowGeolocationPrompt] = useState(false);
+  const {
+    locations,
+    getGeolocationPermissionState,
+    addLocationFromGeolocation,
+  } = useLocations();
+
+  // Check if we should show the geolocation prompt on mount
+  useEffect(() => {
+    const permissionState = getGeolocationPermissionState();
+    // Show prompt only if no permission state exists (first visit)
+    if (!permissionState) {
+      setShowGeolocationPrompt(true);
+    }
+  }, [getGeolocationPermissionState]);
+
+  const handleLocationDetected = async (coords) => {
+    try {
+      await addLocationFromGeolocation(coords);
+      setShowGeolocationPrompt(false);
+    } catch (error) {
+      console.error("Failed to add location from geolocation:", error);
+      // Keep prompt open so user can try again or dismiss
+    }
+  };
+
+  const handleDismissPrompt = () => {
+    setShowGeolocationPrompt(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0e1a] text-white">
+      {/* Geolocation Prompt */}
+      {showGeolocationPrompt && (
+        <GeolocationPrompt
+          onLocationDetected={handleLocationDetected}
+          onDismiss={handleDismissPrompt}
+        />
+      )}
 
   return (
     <div className="min-h-screen bg-[#0a0e1a] text-white">

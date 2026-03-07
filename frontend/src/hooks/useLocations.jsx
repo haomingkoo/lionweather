@@ -31,12 +31,50 @@ export function LocationsProvider({ children }) {
     }
   }, []);
 
+  // Geolocation permission state management
+  const getGeolocationPermissionState = useCallback(() => {
+    return localStorage.getItem("geolocation_permission");
+  }, []);
+
+  const setGeolocationPermissionState = useCallback((state) => {
+    localStorage.setItem("geolocation_permission", state);
+  }, []);
+
+  // Add location from geolocation coordinates
+  const addLocationFromGeolocation = useCallback(
+    async (coords) => {
+      try {
+        const newLocation = await apiCreateLocation({
+          latitude: coords.lat,
+          longitude: coords.lng,
+        });
+        setGeolocationPermissionState("granted");
+        await reload();
+        return newLocation;
+      } catch (err) {
+        setError(err);
+        throw err;
+      }
+    },
+    [reload],
+  );
+
   useEffect(() => {
     reload();
   }, [reload]);
 
   return (
-    <LocationsContext.Provider value={{ locations, isLoading, error, reload }}>
+    <LocationsContext.Provider
+      value={{
+        locations,
+        isLoading,
+        error,
+        reload,
+        getGeolocationPermissionState,
+        setGeolocationPermissionState,
+        addLocationFromGeolocation,
+      }}
+    >
       {children}
     </LocationsContext.Provider>
   );
