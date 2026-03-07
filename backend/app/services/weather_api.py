@@ -11,6 +11,11 @@ class WeatherProviderError(Exception):
 class SingaporeWeatherClient:
     base_url: str = "https://api-open.data.gov.sg"
     two_hour_path: str = "/v2/real-time/api/two-hr-forecast"
+    rainfall_path: str = "/v2/real-time/api/rainfall"
+    temperature_path: str = "/v2/real-time/api/air-temperature"
+    wind_speed_path: str = "/v2/real-time/api/wind-speed"
+    wind_direction_path: str = "/v2/real-time/api/wind-direction"
+    humidity_path: str = "/v2/real-time/api/relative-humidity"
     timeout_seconds: float = 8.0
     user_agent: str = "weather-starter/0.1 (educational project)"
     api_key: str | None = None
@@ -21,10 +26,22 @@ class SingaporeWeatherClient:
             "User-Agent": self.user_agent,
         }
         if self.api_key:
-            headers["x-api-key"] = self.api_key
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
 
         with httpx.Client(timeout=self.timeout_seconds, headers=headers) as client:
             return self._fetch_json(client, f"{self.base_url}{self.two_hour_path}")
+
+    def fetch_rainfall_data(self) -> dict:
+        """Fetch real-time rainfall data from Singapore weather API"""
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent,
+        }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
+
+        with httpx.Client(timeout=self.timeout_seconds, headers=headers) as client:
+            return self._fetch_json(client, f"{self.base_url}{self.rainfall_path}")
 
     def get_current_weather(self, latitude: float, longitude: float) -> dict:
         payload = self.fetch_latest_forecast_payload()
@@ -116,3 +133,51 @@ class SingaporeWeatherClient:
                 nearest_name = name
 
         return nearest_name
+
+    def fetch_temperature_data(self) -> dict:
+        """Fetch real-time temperature data"""
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent,
+        }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
+
+        with httpx.Client(timeout=self.timeout_seconds, headers=headers) as client:
+            return self._fetch_json(client, f"{self.base_url}{self.temperature_path}")
+
+    def fetch_wind_data(self) -> dict:
+        """Fetch real-time wind speed and direction data"""
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent,
+        }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
+
+        with httpx.Client(timeout=self.timeout_seconds, headers=headers) as client:
+            speed_data = self._fetch_json(client, f"{self.base_url}{self.wind_speed_path}")
+            direction_data = self._fetch_json(client, f"{self.base_url}{self.wind_direction_path}")
+            return {"speed": speed_data, "direction": direction_data}
+
+    def fetch_humidity_data(self) -> dict:
+        """Fetch real-time humidity data"""
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent,
+        }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
+
+        with httpx.Client(timeout=self.timeout_seconds, headers=headers) as client:
+            return self._fetch_json(client, f"{self.base_url}{self.humidity_path}")
+
+    def _get_client(self):
+        """Get an HTTP client with proper headers"""
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": self.user_agent,
+        }
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key  # Changed from x-api-key to X-Api-Key
+        return httpx.Client(timeout=self.timeout_seconds, headers=headers)

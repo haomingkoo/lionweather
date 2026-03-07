@@ -83,6 +83,20 @@ def get_location(location_id: int):
     return row_to_dict(row)
 
 
+@router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_location(location_id: int):
+    con = get_db()
+    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
+    if row is None:
+        con.close()
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    con.execute("DELETE FROM locations WHERE id = ?", (location_id,))
+    con.commit()
+    con.close()
+    return None
+
+
 @router.post("/{location_id}/refresh")
 def refresh_location(location_id: int):
     con = get_db()
@@ -91,7 +105,7 @@ def refresh_location(location_id: int):
         con.close()
         raise HTTPException(status_code=404, detail="Location not found")
 
-    api_key = os.getenv("WEATHER_API_KEY")
+    api_key = os.getenv("WEATHERAPI_KEY")  # Fixed: was WEATHER_API_KEY
     client = SingaporeWeatherClient(api_key=api_key)
 
     try:

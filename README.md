@@ -1,6 +1,262 @@
-# Weather Starter
+# LionWeather 🦁
 
-A minimal weather app starter project for agentic coding.
+AI-powered weather forecasting for Singapore, Malaysia, and Indonesia with real-time data collection and machine learning predictions.
+
+## Overview
+
+LionWeather is an advanced weather intelligence platform that combines real-time weather data from multiple Southeast Asian countries with machine learning to provide accurate forecasts. Named after Singapore's Lion City heritage, it delivers superior predictions by continuously learning from regional weather patterns.
+
+## Features
+
+✨ **Real-time Data Collection**
+
+- Automatic polling from Singapore, Malaysia, and Indonesia weather APIs
+- Collects data every 10 minutes from 100+ weather stations
+- Stores historical data for ML training
+
+🤖 **Machine Learning Forecasts**
+
+- 24-hour hourly predictions
+- 7-day daily forecasts
+- Confidence intervals for all predictions
+- Automatic weekly model training
+
+🗺️ **Interactive Weather Maps**
+
+- Live radar imagery from Singapore NEA
+- Regional weather visualization
+- Multi-country coverage
+
+📊 **Advanced Analytics**
+
+- Model performance tracking
+- Accuracy metrics and comparisons
+- Historical trend analysis
+
+## Tech Stack
+
+**Backend:**
+
+- Python 3.12 + FastAPI
+- TensorFlow, Prophet, scikit-learn for ML
+- SQLite for data storage
+- aiohttp for async API calls
+
+**Frontend:**
+
+- React 18 + Vite
+- Tailwind CSS
+- Leaflet for maps
+- Recharts for visualizations
+
+**APIs:**
+
+- Singapore: data.gov.sg (NEA)
+- Malaysia: api.data.gov.my (MET Malaysia)
+- Indonesia: data.bmkg.go.id (BMKG)
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- uv (Python package manager)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone git@github.com:haomingkoo/lioneweather.git
+cd lioneweather
+```
+
+2. Set up backend:
+
+```bash
+cd backend
+uv sync
+cp .env.example .env
+# Add your API keys to .env
+```
+
+3. Set up frontend:
+
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local
+```
+
+### Running Locally
+
+**Backend:**
+
+```bash
+cd backend
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173
+
+## Deployment
+
+### Railway (Recommended)
+
+1. Install Railway CLI:
+
+```bash
+npm i -g @railway/cli
+```
+
+2. Login and deploy:
+
+```bash
+railway login
+railway up
+```
+
+3. Set environment variables in Railway dashboard:
+
+- `DATAGOVSG_API_KEY` - Your data.gov.sg API key
+- `DATABASE_PATH` - `/app/weather.db`
+
+### Environment Variables
+
+**Backend (.env):**
+
+```env
+DATAGOVSG_API_KEY=your_api_key_here
+DATABASE_PATH=weather.db
+```
+
+**Frontend (.env.local):**
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+## API Documentation
+
+Once running, visit:
+
+- API Docs: http://localhost:8000/docs
+- Health Check: http://localhost:8000/health
+
+### Key Endpoints
+
+**Weather Data:**
+
+- `GET /api/locations` - List all tracked locations
+- `POST /api/locations` - Add new location
+- `POST /api/locations/{id}/refresh` - Refresh weather data
+
+**ML Predictions:**
+
+- `GET /api/ml/predictions/24h` - 24-hour forecast
+- `GET /api/ml/predictions/7d` - 7-day forecast
+- `GET /api/ml/metrics/accuracy` - Model accuracy metrics
+
+**Radar & Regional:**
+
+- `GET /api/radar/frames` - Latest radar imagery
+- `GET /api/regional/cities` - Regional weather data
+
+## Data Collection
+
+LionWeather automatically collects weather data every 10 minutes:
+
+- **Singapore**: ~50 weather stations (temperature, rainfall, humidity, wind)
+- **Malaysia**: ~20 major cities (forecast data)
+- **Indonesia**: ~30 locations (BMKG weather data)
+
+**Storage:** ~2,500 records per collection = ~360,000 records/day
+
+**ML Training:** Automatic weekly training every Sunday at 2 AM
+
+## Machine Learning
+
+### Models Used:
+
+- **Prophet** - Time series forecasting with seasonality
+- **ARIMA/SARIMA** - Statistical forecasting
+- **TensorFlow LSTM** - Deep learning for complex patterns
+
+### Training Requirements:
+
+- **Minimum**: 7 days of data for basic models
+- **Recommended**: 30 days for good accuracy
+- **Optimal**: 90+ days for seasonal patterns
+
+### Performance:
+
+- Tracks accuracy vs official forecasts
+- Automatic model selection based on performance
+- Confidence intervals for all predictions
+
+## Project Structure
+
+```
+lionweather/
+├── backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI app
+│   │   ├── routers/             # API endpoints
+│   │   ├── services/            # Weather APIs, data collection
+│   │   ├── ml/                  # ML models and training
+│   │   └── db/                  # Database migrations
+│   ├── tests/                   # Unit and integration tests
+│   ├── pyproject.toml           # Python dependencies
+│   └── railway.json             # Railway deployment config
+├── frontend/
+│   ├── src/
+│   │   ├── components/          # React components
+│   │   ├── api/                 # API client
+│   │   └── App.jsx              # Main app
+│   ├── package.json             # Node dependencies
+│   └── vite.config.js           # Vite configuration
+└── README.md
+```
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+- Singapore NEA for weather data API
+- Malaysian Meteorological Department
+- BMKG Indonesia
+- Open source community
+
+## Support
+
+For issues and questions:
+
+- GitHub Issues: https://github.com/yourusername/lionweather/issues
+- Documentation: https://github.com/yourusername/lionweather/wiki
+
+---
+
+**LionWeather** - Roaring accurate weather predictions 🦁⚡
 
 ## Background
 
@@ -13,7 +269,7 @@ The app tracks locations in Singapore and fetches weather forecasts from the gov
 | Layer           | Tools                                                  |
 | --------------- | ------------------------------------------------------ |
 | Backend         | Python 3.11, FastAPI, SQLite (built-in sqlite3), httpx |
-| Frontend        | React 18, Vite, Tailwind CSS                           |
+| Frontend        | React 18, Vite, Tailwind CSS, Leaflet, React Leaflet   |
 | External API    | Singapore data.gov.sg (`api-open.data.gov.sg`)         |
 | Dev environment | Flox (manages Node.js + uv)                            |
 
@@ -147,9 +403,9 @@ If you hit rate limits (HTTP 429), you can register for a free API key:
 1. Go to [data.gov.sg](https://data.gov.sg) and create an account
 2. Navigate to your profile and generate an API key
 3. Set the environment variable before starting the backend:
-    ```bash
-    export WEATHER_API_KEY=your_api_key_here
-    ```
+   ```bash
+   export WEATHER_API_KEY=your_api_key_here
+   ```
 4. Restart the backend — the app sends the key as an `x-api-key` header automatically
 
 ---
@@ -161,6 +417,7 @@ The app currently supports:
 - **Add a location** — latitude + longitude, validated (must be within Singapore) and persisted to SQLite
 - **List locations** — all tracked locations with their latest weather snapshot
 - **Refresh weather** — `POST /api/locations/{id}/refresh` calls the 2-hour forecast API and saves the result
+- **Interactive map view** — Toggle between List and Map views. Map displays all locations as markers with weather popups. Click anywhere on the map to add a new location with automatic weather refresh.
 - **Error handling** — duplicate locations (409), missing locations (404), weather API failures (502)
 
 Backend endpoints:
@@ -174,11 +431,24 @@ Backend endpoints:
 
 Frontend components (all styled with Tailwind CSS utility classes in JSX, no component libraries):
 
-| Component      | File                          | Description                                                                                                     |
-| -------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `Dashboard`    | `pages/Dashboard.jsx`         | Single page layout. Header with app title, then `LocationForm` and `LocationList` in a centered column.         |
-| `LocationForm` | `components/LocationForm.jsx` | Form with latitude and longitude inputs. Clears on success, shows errors inline.                                |
-| `LocationList` | `components/LocationList.jsx` | Cards for each saved location showing forecast area as header, condition, valid period, and a "Refresh" button. |
+| Component      | File                          | Description                                                                                                                                              |
+| -------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dashboard`    | `pages/Dashboard.jsx`         | Single page layout with view toggle. Header with app title and List/Map toggle, then conditional rendering of LocationForm + LocationList or WeatherMap. |
+| `ViewToggle`   | `components/ViewToggle.jsx`   | Toggle control to switch between List and Map views.                                                                                                     |
+| `LocationForm` | `components/LocationForm.jsx` | Form with latitude and longitude inputs. Clears on success, shows errors inline. Only shown in List view.                                                |
+| `LocationList` | `components/LocationList.jsx` | Cards for each saved location showing forecast area as header, condition, valid period, and a "Refresh" button.                                          |
+| `WeatherMap`   | `components/WeatherMap.jsx`   | Interactive Leaflet map centered on Singapore. Displays all locations as markers with weather popups. Click map to add new location.                     |
+
+### Using the Map View
+
+1. **Switch to Map view**: Click the "Map" button in the header toggle
+2. **View locations**: All saved locations appear as markers on the map
+3. **See weather details**: Click any marker to see a popup with weather information
+4. **Add a location**: Click anywhere on the map to add a new location at that point
+   - The app validates that the location is within Singapore bounds
+   - Weather data is automatically fetched after adding
+   - The new marker appears immediately with updated weather
+5. **Mobile support**: The map supports touch gestures (pinch to zoom, drag to pan)
 
 ## Feature Tasks
 

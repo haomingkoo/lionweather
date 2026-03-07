@@ -1,10 +1,13 @@
-import { LocationsProvider } from './hooks/useLocations.jsx';
-import { Dashboard } from './pages/Dashboard';
+import { LocationsProvider } from "./hooks/useLocations.jsx";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { Dashboard } from "./pages/Dashboard";
 
 export function App() {
   return (
-    <LocationsProvider>
-      <Dashboard />
-    </LocationsProvider>
+    <ThemeProvider>
+      <LocationsProvider>
+        <Dashboard />
+      </LocationsProvider>
+    </ThemeProvider>
   );
 }

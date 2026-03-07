@@ -2,6 +2,164 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* CSS Custom Properties for Light Mode (Default) */
+  :root {
+    /* Background colors */
+    --color-background: 255 255 255; /* white */
+    --color-foreground: 15 23 42; /* slate-900 */
+
+    /* Card colors */
+    --color-card: 248 250 252; /* slate-50 */
+    --color-card-foreground: 15 23 42; /* slate-900 */
+
+    /* Primary colors */
+    --color-primary: 3 105 161; /* sky-700 - darker for better contrast */
+    --color-primary-foreground: 255 255 255; /* white */
+
+    /* Secondary colors */
+    --color-secondary: 226 232 240; /* slate-200 */
+    --color-secondary-foreground: 30 41 59; /* slate-800 */
+
+    /* Muted colors */
+    --color-muted: 241 245 249; /* slate-100 */
+    --color-muted-foreground: 100 116 139; /* slate-500 */
+
+    /* Accent colors */
+    --color-accent: 240 249 255; /* sky-50 */
+    --color-accent-foreground: 3 105 161; /* sky-700 */
+
+    /* Border color */
+    --color-border: 226 232 240; /* slate-200 */
+  }
+
+  /* CSS Custom Properties for Dark Mode */
+  .dark {
+    /* Background colors */
+    --color-background: 15 23 42; /* slate-900 */
+    --color-foreground: 248 250 252; /* slate-50 */
+
+    /* Card colors */
+    --color-card: 30 41 59; /* slate-800 */
+    --color-card-foreground: 248 250 252; /* slate-50 */
+
+    /* Primary colors */
+    --color-primary: 56 189 248; /* sky-400 - brighter for dark mode */
+    --color-primary-foreground: 15 23 42; /* slate-900 */
+
+    /* Secondary colors */
+    --color-secondary: 51 65 85; /* slate-700 */
+    --color-secondary-foreground: 226 232 240; /* slate-200 */
+
+    /* Muted colors */
+    --color-muted: 51 65 85; /* slate-700 */
+    --color-muted-foreground: 148 163 184; /* slate-400 */
+
+    /* Accent colors */
+    --color-accent: 30 58 138; /* blue-900 */
+    --color-accent-foreground: 224 242 254; /* sky-100 */
+
+    /* Border color */
+    --color-border: 51 65 85; /* slate-700 */
+  }
+
+  /* Smooth transitions for theme changes */
+  * {
+    @apply transition-theme duration-theme ease-theme;
+  }
+
+  /* Disable transitions for elements that shouldn't animate */
+  *:where(:not(.animate-fade-in)) {
+    transition-property:
+      background-color, border-color, color, fill, stroke, opacity, box-shadow,
+      transform;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Smooth backdrop blur support */
+  @supports (backdrop-filter: blur(20px)) {
+    .backdrop-blur-xl {
+      backdrop-filter: blur(20px);
+    }
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Dark mode scrollbar adjustments */
+.dark ::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Smooth font rendering */
 body {
-  @apply bg-slate-50 text-slate-900;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism styling for Leaflet popups */
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+/* Dark mode glassmorphism adjustments */
+.dark .leaflet-popup-content-wrapper {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border: 1px solid rgba(148, 163, 184, 0.3) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .leaflet-popup-tip {
+  background: rgba(30, 41, 59, 0.8) !important;
 }
