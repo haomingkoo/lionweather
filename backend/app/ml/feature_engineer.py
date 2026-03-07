@@ -223,6 +223,9 @@ class FeatureEngineer:
         For each column and window size, calculates rolling statistics over the
         specified window. This helps models understand trends and variability
         over different time horizons.
+        
+        CRITICAL: Applies .shift(1) to prevent data leakage and maintain temporal causality.
+        The rolling feature at time t should only use data from times < t, never from t itself.
 
         Args:
             df: DataFrame with time-ordered data
@@ -239,10 +242,15 @@ class FeatureEngineer:
         Example:
             If df has a 'temperature' column, create_rolling_features(df, ['temperature'], [3])
             will add columns for 3-period rolling mean, std, min, and max.
+            
+            TEMPORAL CAUSALITY:
+            Without .shift(1): rolling_mean at time t includes value at time t (DATA LEAKAGE!)
+            With .shift(1): rolling_mean at time t only uses values from times < t (CORRECT)
 
         Requirements:
             - Validates Requirements 13.1, 13.2
             - Property 41: Rolling Average Calculation
+            - Property 43: Data Leakage Prevention
         """
         # Make a copy to avoid modifying the original
         df = df.copy()
@@ -259,11 +267,14 @@ class FeatureEngineer:
                 # min_periods=1 allows calculation even with fewer than 'window' values
                 rolling = df[col].rolling(window=window, min_periods=1)
 
-                # Create feature columns
-                df[f"{col}_rolling_mean_{window}"] = rolling.mean()
-                df[f"{col}_rolling_std_{window}"] = rolling.std()
-                df[f"{col}_rolling_min_{window}"] = rolling.min()
-                df[f"{col}_rolling_max_{window}"] = rolling.max()
+                # CRITICAL: Apply .shift(1) to prevent data leakage
+                # This ensures that the rolling feature at time t only uses data from times < t
+                # Without shift(1), the rolling mean at time t would include the value at time t,
+                # which is the target we're trying to predict (data leakage!)
+                df[f"{col}_rolling_mean_{window}"] = rolling.mean().shift(1)
+                df[f"{col}_rolling_std_{window}"] = rolling.std().shift(1)
+                df[f"{col}_rolling_min_{window}"] = rolling.min().shift(1)
+                df[f"{col}_rolling_max_{window}"] = rolling.max().shift(1)
 
         return df
 

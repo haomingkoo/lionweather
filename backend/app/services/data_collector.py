@@ -314,29 +314,50 @@ class DataCollector:
             # Apply rate limiting
             await self.singapore_rate_limiter.acquire()
             
+            logger.info("🇸🇬 Starting Singapore data collection...")
+            
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
                 # Fetch all required data in parallel
-                tasks = [
-                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/air-temperature"),
-                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/rainfall"),
-                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/relative-humidity"),
-                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/wind-speed"),
-                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/wind-direction"),
+                endpoints = [
+                    "air-temperature",
+                    "rainfall",
+                    "relative-humidity",
+                    "wind-speed",
+                    "wind-direction"
                 ]
                 
+                tasks = [
+                    self._fetch_json(session, f"{self.singapore_base_url}/v2/real-time/api/{endpoint}")
+                    for endpoint in endpoints
+                ]
+                
+                logger.info(f"Fetching data from {len(endpoints)} Singapore API endpoints...")
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 temp_data, rainfall_data, humidity_data, wind_speed_data, wind_dir_data = results
                 
-                # Check for errors
-                for i, result in enumerate(results):
+                # Check for errors and log response structure
+                for i, (result, endpoint) in enumerate(zip(results, endpoints)):
                     if isinstance(result, Exception):
+                        logger.error(f"❌ Singapore {endpoint} API failed: {str(result)}")
                         raise result
+                    else:
+                        logger.info(f"✓ Singapore {endpoint} API success: {type(result).__name__}")
+                        # Log response structure for debugging
+                        if isinstance(result, dict):
+                            logger.debug(f"  Response keys: {list(result.keys())}")
+                            if 'data' in result:
+                                logger.debug(f"  data keys: {list(result['data'].keys())}")
+                                if 'records' in result['data']:
+                                    logger.debug(f"  records count: {len(result['data']['records'])}")
                 
                 # Parse and normalize data
+                logger.info("Parsing Singapore API responses...")
                 records = self._parse_singapore_data(
                     temp_data, rainfall_data, humidity_data, 
                     wind_speed_data, wind_dir_data
                 )
+                
+                logger.info(f"Parsed {len(records)} Singapore weather records")
                 
                 # Validate records
                 valid_records = []
@@ -346,12 +367,13 @@ class DataCollector:
                     else:
                         logger.warning(f"Excluding invalid record for {record.location}")
                 
+                logger.info(f"✓ Singapore data collection complete: {len(valid_records)} valid records")
                 return valid_records
         
         try:
             return await self.retry_with_backoff(_fetch_with_rate_limit)
         except Exception as e:
-            logger.error(f"Failed to fetch Singapore data after retries: {str(e)}")
+            logger.error(f"❌ Failed to fetch Singapore data after retries: {str(e)}", exc_info=True)
             # Gracefully continue - return empty list
             return []
     
@@ -370,11 +392,27 @@ class DataCollector:
             # Apply rate limiting
             await self.malaysia_rate_limiter.acquire()
             
+            logger.info("🇲🇾 Starting Malaysia data collection...")
+            
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
                 # Fetch forecast data from Malaysia API
                 url = f"{self.malaysia_base_url}/weather/forecast"
-                data = await self._fetch_json(session, url)
+                logger.info(f"Fetching Malaysia data from: {url}")
+                
+                try:
+                    data = await self._fetch_json(session, url)
+                    logger.info(f"✓ Malaysia API success: {type(data).__name__}")
+                    if isinstance(data, list):
+                        logger.info(f"  Response is list with {len(data)} items")
+                    elif isinstance(data, dict):
+                        logger.info(f"  Response keys: {list(data.keys())}")
+                except Exception as e:
+                    logger.error(f"❌ Malaysia API failed: {str(e)}")
+                    raise
+                
+                logger.info("Parsing Malaysia API response...")
                 records = self._parse_malaysia_data(data)
+                logger.info(f"Parsed {len(records)} Malaysia weather records")
                 
                 # Validate records
                 valid_records = []
@@ -384,12 +422,13 @@ class DataCollector:
                     else:
                         logger.warning(f"Excluding invalid record for {record.location}")
                 
+                logger.info(f"✓ Malaysia data collection complete: {len(valid_records)} valid records")
                 return valid_records
         
         try:
             return await self.retry_with_backoff(_fetch_with_rate_limit)
         except Exception as e:
-            logger.error(f"Failed to fetch Malaysia data after retries: {str(e)}")
+            logger.error(f"❌ Failed to fetch Malaysia data after retries: {str(e)}", exc_info=True)
             # Gracefully continue - return empty list
             return []
     
@@ -408,12 +447,25 @@ class DataCollector:
             # Apply rate limiting
             await self.indonesia_rate_limiter.acquire()
             
+            logger.info("🇮🇩 Starting Indonesia data collection...")
+            
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
                 # Fetch XML weather data from BMKG
                 # Using the weather observation XML feed
                 url = f"{self.indonesia_base_url}/DataMKG/MEWS/DigitalForecast/DigitalForecast-Indonesia.xml"
-                xml_data = await self._fetch_xml(session, url)
+                logger.info(f"Fetching Indonesia XML from: {url}")
+                
+                try:
+                    xml_data = await self._fetch_xml(session, url)
+                    logger.info(f"✓ Indonesia XML fetched: {len(xml_data)} characters")
+                    logger.debug(f"  First 500 chars: {xml_data[:500]}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to fetch Indonesia XML: {str(e)}")
+                    raise
+                
+                logger.info("Parsing Indonesia XML data...")
                 records = self._parse_indonesia_data(xml_data)
+                logger.info(f"Parsed {len(records)} Indonesia weather records")
                 
                 # Validate records
                 valid_records = []
@@ -423,12 +475,13 @@ class DataCollector:
                     else:
                         logger.warning(f"Excluding invalid record for {record.location}")
                 
+                logger.info(f"✓ Indonesia data collection complete: {len(valid_records)} valid records")
                 return valid_records
         
         try:
             return await self.retry_with_backoff(_fetch_with_rate_limit)
         except Exception as e:
-            logger.error(f"Failed to fetch Indonesia data after retries: {str(e)}")
+            logger.error(f"❌ Failed to fetch Indonesia data after retries: {str(e)}", exc_info=True)
             # Gracefully continue - return empty list
             return []
     

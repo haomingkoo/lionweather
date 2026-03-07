@@ -182,7 +182,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         </p>
       </div>
 
-      {/* Hourly Forecast */}
+      {/* Hourly Forecast - Horizontal Slider */}
       <div
         className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
       >
@@ -201,23 +201,32 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-sm ${textColor}`}>Precipitation Map</span>
           </button>
         </div>
-        <div className="flex gap-6 overflow-x-auto pb-2">
+        {/* Horizontal scrolling container */}
+        <div
+          className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
+          }}
+        >
           {hourlyForecast.map((hour, i) => (
             <div
               key={i}
-              className="flex flex-col items-center gap-2 min-w-[60px]"
+              className={`flex flex-col items-center gap-2 min-w-[70px] p-3 rounded-2xl transition-all hover:scale-105 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
             >
-              <span className={`text-sm ${secondaryTextColor}`}>
+              <span
+                className={`text-sm font-medium ${i === 0 ? textColor : secondaryTextColor}`}
+              >
                 {hour.time}
               </span>
               {IconComponent && (
                 <IconComponent
-                  className={`h-6 w-6 ${textColor}`}
+                  className={`h-7 w-7 ${textColor}`}
                   strokeWidth={1.5}
                   aria-label={`${hour.condition} weather icon`}
                 />
               )}
-              <span className={`text-lg font-medium ${textColor}`}>
+              <span className={`text-lg font-semibold ${textColor}`}>
                 {hour.temperature}°
               </span>
             </div>
@@ -263,68 +272,68 @@ export function DetailedWeatherCard({ location, isDark = false }) {
       <MLForecastComparison location={location} isDark={isDark} />
 
       {/* Weather Details Grid */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 xl:gap-4">
         {/* Feels Like */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <ThermometerSun className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <ThermometerSun className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Feels Like
             </span>
           </div>
-          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+          <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
             {feelsLike}°
           </div>
         </div>
 
         {/* Humidity */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Droplets className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Droplets className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Humidity
             </span>
           </div>
-          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+          <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
             {comprehensiveData?.humidity || 75}%
           </div>
         </div>
 
         {/* Wind */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Wind className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Wind className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Wind
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
               {comprehensiveData?.wind_speed || 12}
             </div>
-            <span className={`text-lg ${secondaryTextColor}`}>km/h</span>
+            <span className={`text-base ${secondaryTextColor}`}>km/h</span>
           </div>
           {comprehensiveData?.wind_direction && (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-1">
               <Navigation
-                className={`h-4 w-4 ${tertiaryTextColor}`}
+                className={`h-3 w-3 ${tertiaryTextColor}`}
                 style={{
                   transform: `rotate(${comprehensiveData.wind_direction}deg)`,
                 }}
               />
-              <span className={`text-sm ${tertiaryTextColor}`}>
+              <span className={`text-xs ${tertiaryTextColor}`}>
                 {comprehensiveData.wind_direction}°
               </span>
             </div>
@@ -333,94 +342,94 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Rainfall */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <CloudRain className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <CloudRain className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Rainfall
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
               {comprehensiveData?.rainfall || 0}
             </div>
-            <span className={`text-lg ${secondaryTextColor}`}>mm</span>
+            <span className={`text-base ${secondaryTextColor}`}>mm</span>
           </div>
         </div>
 
         {/* Visibility */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Eye className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Eye className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Visibility
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
               10
             </div>
-            <span className={`text-lg ${secondaryTextColor}`}>km</span>
+            <span className={`text-base ${secondaryTextColor}`}>km</span>
           </div>
         </div>
 
         {/* Pressure */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Gauge className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Gauge className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Pressure
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
               1013
             </div>
-            <span className={`text-lg ${secondaryTextColor}`}>hPa</span>
+            <span className={`text-base ${secondaryTextColor}`}>hPa</span>
           </div>
         </div>
 
         {/* Sunrise */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Sunrise className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Sunrise className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Sunrise
             </span>
           </div>
-          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+          <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
             7:00 AM
           </div>
         </div>
 
         {/* Sunset */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <Sunset className={`h-5 w-5 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-2 mb-2">
+            <Sunset className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span
-              className={`text-sm ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Sunset
             </span>
           </div>
-          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+          <div className={`text-3xl xl:text-2xl font-light ${textColor}`}>
             7:15 PM
           </div>
         </div>

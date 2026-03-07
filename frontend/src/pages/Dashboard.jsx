@@ -17,6 +17,11 @@ export function Dashboard() {
     addLocationFromGeolocation,
   } = useLocations();
 
+  // Check if user has a current location (from geolocation)
+  const hasCurrentLocation = locations.some(
+    (loc) => loc.source === "geolocation",
+  );
+
   // Check if we should show the geolocation prompt on mount
   useEffect(() => {
     const permissionState = getGeolocationPermissionState();
@@ -38,6 +43,10 @@ export function Dashboard() {
 
   const handleDismissPrompt = () => {
     setShowGeolocationPrompt(false);
+  };
+
+  const handleAddCurrentLocation = () => {
+    setShowGeolocationPrompt(true);
   };
 
   return (
@@ -133,6 +142,16 @@ export function Dashboard() {
           {view === "list" && (
             <>
               <LocationForm />
+              {!hasCurrentLocation && locations.length > 0 && (
+                <div className="flex justify-center">
+                  <button
+                    onClick={handleAddCurrentLocation}
+                    className="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all hover:scale-105 active:scale-95 shadow-lg"
+                  >
+                    📍 Add Current Location
+                  </button>
+                </div>
+              )}
               <EnhancedLocationList isDark={true} />
             </>
           )}

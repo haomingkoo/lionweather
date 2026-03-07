@@ -125,7 +125,9 @@ export function EnhancedLocationList({ isDark = false }) {
                   >
                     {location.weather.area || "Singapore"}
                   </h3>
-                  <p className={`text-xs md:text-sm ${secondaryTextColor}`}>
+                  <p
+                    className={`text-sm md:text-base ${textColor} font-medium opacity-90`}
+                  >
                     {location.latitude.toFixed(4)},{" "}
                     {location.longitude.toFixed(4)}
                   </p>
