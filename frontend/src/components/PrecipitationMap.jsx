@@ -26,89 +26,40 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Precipitation overlay component
-function PrecipitationOverlay({ timeIndex }) {
-  const [rainfallData, setRainfallData] = useState(null);
+// Precipitation overlay component with animated radar
+function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
   const map = useMap();
+  const [overlayLayer, setOverlayLayer] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const data = await getRainfallData();
-        setRainfallData(data);
-      } catch (err) {
-        console.error("Failed to fetch rainfall:", err);
-      }
-    };
-    fetchData();
-  }, []);
+    if (!map || isLoading || !radarFrames || radarFrames.length === 0) return;
 
-  useEffect(() => {
-    if (!rainfallData || !map) return;
+    // Remove previous overlay
+    if (overlayLayer) {
+      map.removeLayer(overlayLayer);
+    }
 
-    // Create canvas overlay for precipitation
-    const canvas = document.createElement("canvas");
-    const bounds = map.getBounds();
-    const size = map.getSize();
+    // Get current frame
+    const currentFrame = radarFrames[timeIndex % radarFrames.length];
+    if (!currentFrame || !currentFrame.loaded) return;
 
-    canvas.width = size.x;
-    canvas.height = size.y;
+    // Singapore bounds for radar overlay
+    const bounds = [
+      [1.15, 103.6], // Southwest
+      [1.5, 104.1], // Northeast
+    ];
 
-    const ctx = canvas.getContext("2d");
-
-    // Draw precipitation gradient
-    rainfallData.stations?.forEach((station) => {
-      if (station.rainfall > 0) {
-        const point = map.latLngToContainerPoint([
-          station.latitude,
-          station.longitude,
-        ]);
-        const radius = Math.min(station.rainfall * 10, 100);
-
-        // Create radial gradient
-        const gradient = ctx.createRadialGradient(
-          point.x,
-          point.y,
-          0,
-          point.x,
-          point.y,
-          radius,
-        );
-
-        // Color based on intensity
-        if (station.rainfall < 2) {
-          gradient.addColorStop(0, "rgba(100, 200, 255, 0.6)");
-          gradient.addColorStop(1, "rgba(100, 200, 255, 0)");
-        } else if (station.rainfall < 5) {
-          gradient.addColorStop(0, "rgba(50, 150, 255, 0.7)");
-          gradient.addColorStop(1, "rgba(50, 150, 255, 0)");
-        } else if (station.rainfall < 10) {
-          gradient.addColorStop(0, "rgba(255, 200, 50, 0.8)");
-          gradient.addColorStop(1, "rgba(255, 200, 50, 0)");
-        } else {
-          gradient.addColorStop(0, "rgba(255, 100, 100, 0.9)");
-          gradient.addColorStop(1, "rgba(255, 100, 100, 0)");
-        }
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(
-          point.x - radius,
-          point.y - radius,
-          radius * 2,
-          radius * 2,
-        );
-      }
-    });
-
-    // Add canvas as overlay
-    const imageUrl = canvas.toDataURL();
-    const overlay = L.imageOverlay(imageUrl, bounds, { opacity: 0.6 });
+    // Create image overlay with 50% opacity
+    const overlay = L.imageOverlay(currentFrame.url, bounds, { opacity: 0.5 });
     overlay.addTo(map);
+    setOverlayLayer(overlay);
 
     return () => {
-      map.removeLayer(overlay);
+      if (overlay) {
+        map.removeLayer(overlay);
+      }
     };
-  }, [rainfallData, map, timeIndex]);
+  }, [map, timeIndex, radarFrames, isLoading]);
 
   return null;
 }
@@ -117,32 +68,105 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
   const [timeIndex, setTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedHour, setSelectedHour] = useState(0);
+  const [radarFrames, setRadarFrames] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const textColor = isDark ? "text-white" : "text-slate-900";
-  const hours = Array.from({ length: 24 }, (_, i) => {
-    const date = new Date();
-    date.setHours(date.getHours() + i);
-    return {
-      time: date.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
-      hour: date.getHours(),
-    };
-  });
 
+  // Generate timestamps for last 12 frames (1 hour at 5-minute intervals)
+  const generateRadarTimestamps = () => {
+    const timestamps = [];
+    const now = new Date();
+
+    // Round down to nearest 5 minutes
+    const minutes = Math.floor(now.getMinutes() / 5) * 5;
+    now.setMinutes(minutes);
+    now.setSeconds(0);
+    now.setMilliseconds(0);
+
+    // Generate 12 timestamps going back 1 hour
+    for (let i = 11; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
+      const year = timestamp.getFullYear();
+      const month = String(timestamp.getMonth() + 1).padStart(2, "0");
+      const day = String(timestamp.getDate()).padStart(2, "0");
+      const hour = String(timestamp.getHours()).padStart(2, "0");
+      const minute = String(timestamp.getMinutes()).padStart(2, "0");
+
+      const formattedTimestamp = `${year}${month}${day}${hour}${minute}`;
+      timestamps.push({
+        timestamp: formattedTimestamp,
+        date: timestamp,
+        url: `https://www.weather.gov.sg/files/rainarea/50km/v2/dpsri_70km_${formattedTimestamp}0000dBR.dpsri.png`,
+        loaded: false,
+      });
+    }
+
+    return timestamps;
+  };
+
+  // Fetch radar frames on mount
   useEffect(() => {
-    if (!isPlaying) return;
+    const fetchRadarFrames = async () => {
+      setIsLoading(true);
+      const timestamps = generateRadarTimestamps();
+
+      // Preload all radar images
+      const loadPromises = timestamps.map((frame) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            frame.loaded = true;
+            resolve(frame);
+          };
+          img.onerror = () => {
+            // Silently skip failed frames
+            resolve(frame);
+          };
+          img.src = frame.url;
+        });
+      });
+
+      await Promise.all(loadPromises);
+      setRadarFrames(timestamps);
+      setIsLoading(false);
+    };
+
+    fetchRadarFrames();
+  }, []);
+
+  // Animation loop - 12 frames at 500ms per frame
+  useEffect(() => {
+    if (!isPlaying || radarFrames.length === 0) return;
 
     const interval = setInterval(() => {
-      setTimeIndex((prev) => (prev + 1) % 24);
-      setSelectedHour((prev) => (prev + 1) % 24);
-    }, 1000);
+      setTimeIndex((prev) => (prev + 1) % radarFrames.length);
+      setSelectedHour((prev) => (prev + 1) % radarFrames.length);
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, radarFrames.length]);
+
+  // Format timestamp for display
+  const formatTimestamp = (frame) => {
+    if (!frame || !frame.date) return "";
+    return frame.date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const currentFrame = radarFrames[timeIndex] || null;
 
   return (
-    <div className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300"
+      onClick={onClose}
+    >
       <div
-        className={`relative w-full max-w-4xl h-[80vh] rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden ${isDark ? "bg-slate-900/95 border border-slate-700/40" : "bg-white/95 border border-white/40"}`}
+        className={`relative w-full max-w-4xl h-[80vh] rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-transform duration-300 ${isDark ? "bg-slate-900/95 border border-slate-700/40" : "bg-white/95 border border-white/40"}`}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
@@ -161,7 +185,7 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
             </div>
             <button
               onClick={onClose}
-              className={`rounded-full p-2 hover:brightness-110 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${isDark ? "bg-slate-700/80 hover:bg-slate-600 focus:ring-slate-500" : "bg-slate-200/80 hover:bg-slate-300 focus:ring-slate-400"}`}
+              className={`rounded-full p-2 hover:brightness-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${isDark ? "bg-slate-700/80 hover:bg-slate-600 focus:ring-slate-500" : "bg-slate-200/80 hover:bg-slate-300 focus:ring-slate-400"}`}
               aria-label="Close precipitation map"
             >
               <X
@@ -184,7 +208,11 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
             attribution="&copy; OpenStreetMap contributors"
           />
 
-          <PrecipitationOverlay timeIndex={timeIndex} />
+          <PrecipitationOverlay
+            timeIndex={timeIndex}
+            radarFrames={radarFrames}
+            isLoading={isLoading}
+          />
 
           <Marker position={[location.latitude, location.longitude]}>
             <Popup>
@@ -197,6 +225,18 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
             </Popup>
           </Marker>
         </MapContainer>
+
+        {/* Loading Spinner */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10">
+            <div
+              className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"
+              role="status"
+              data-testid="loading-spinner"
+              aria-label="Loading radar data"
+            />
+          </div>
+        )}
 
         {/* Legend */}
         <div
@@ -253,8 +293,9 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
             <div className="flex items-center gap-4 mb-4">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="rounded-full bg-blue-500 p-3 hover:bg-blue-600 transition-all shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                className="rounded-full bg-blue-500 p-3 hover:bg-blue-600 transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
                 aria-label={isPlaying ? "Pause animation" : "Play animation"}
+                disabled={isLoading}
               >
                 {isPlaying ? (
                   <Pause className="h-5 w-5 text-white" fill="white" />
@@ -267,51 +308,48 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
                 <div
                   className={`text-sm font-semibold mb-2 ${isDark ? "text-slate-300" : "text-slate-700"}`}
                 >
-                  Forecast: {hours[selectedHour]?.time}
+                  {isLoading
+                    ? "Loading..."
+                    : currentFrame
+                      ? formatTimestamp(currentFrame)
+                      : "No data"}
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="23"
+                  max={Math.max(0, radarFrames.length - 1)}
                   value={selectedHour}
                   onChange={(e) => {
                     setSelectedHour(parseInt(e.target.value));
                     setTimeIndex(parseInt(e.target.value));
                     setIsPlaying(false);
                   }}
+                  disabled={isLoading || radarFrames.length === 0}
                   className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${isDark ? "bg-slate-700" : "bg-slate-200"}`}
                   style={{
-                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(selectedHour / 23) * 100}%, ${isDark ? "#334155" : "#e2e8f0"} ${(selectedHour / 23) * 100}%, ${isDark ? "#334155" : "#e2e8f0"} 100%)`,
+                    background:
+                      radarFrames.length > 0
+                        ? `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(selectedHour / Math.max(1, radarFrames.length - 1)) * 100}%, ${isDark ? "#334155" : "#e2e8f0"} ${(selectedHour / Math.max(1, radarFrames.length - 1)) * 100}%, ${isDark ? "#334155" : "#e2e8f0"} 100%)`
+                        : isDark
+                          ? "#334155"
+                          : "#e2e8f0",
                   }}
                 />
               </div>
+            </div>
 
-              <div className="flex gap-1">
-                <button
-                  className="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
-                  aria-label="1 hour view"
-                >
-                  1h
-                </button>
-                <button
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${isDark ? "bg-slate-700 text-slate-300 hover:bg-slate-600 focus:ring-slate-500" : "bg-slate-200 text-slate-700 hover:bg-slate-300 focus:ring-slate-400"}`}
-                  aria-label="12 hour view"
-                >
-                  12h
-                </button>
+            {/* Time markers */}
+            {radarFrames.length > 0 && (
+              <div
+                className={`flex justify-between text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
+              >
+                {radarFrames
+                  .filter((_, i) => i % 3 === 0)
+                  .map((frame, i) => (
+                    <span key={i}>{formatTimestamp(frame)}</span>
+                  ))}
               </div>
-            </div>
-
-            {/* Hour markers */}
-            <div
-              className={`flex justify-between text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}
-            >
-              {hours
-                .filter((_, i) => i % 3 === 0)
-                .map((h, i) => (
-                  <span key={i}>{h.time}</span>
-                ))}
-            </div>
+            )}
           </div>
         </div>
       </div>
