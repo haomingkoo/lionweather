@@ -9,6 +9,9 @@ import {
 const LocationsContext = createContext(null);
 
 const STORAGE_KEY = "lionweather_locations";
+const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+const MAX_LOCATIONS = 10;
+const MAX_CONCURRENT_REQUESTS = 5;
 
 // Helper functions for localStorage
 const getStoredLocations = () => {
@@ -34,10 +37,17 @@ const generateId = () => {
   return `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Fetch weather data from API (still needed for actual weather info)
+// Check if cache is still valid
+const isCacheValid = (lastFetched) => {
+  if (!lastFetched) return false;
+  const now = Date.now();
+  const fetchedTime = new Date(lastFetched).getTime();
+  return now - fetchedTime < CACHE_DURATION;
+};
+
+// Fetch weather data from API
 const fetchWeatherForLocation = async (latitude, longitude) => {
   try {
-    // Call your weather API endpoint
     const response = await fetch(
       `/api/weather?lat=${latitude}&lng=${longitude}`,
     );
@@ -55,17 +65,123 @@ const fetchWeatherForLocation = async (latitude, longitude) => {
   }
 };
 
+// Check for weather alerts and show notifications
+const checkWeatherAlerts = (locations) => {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  locations.forEach((location) => {
+    const weather = location.weather;
+    if (!weather) return;
+
+    // Check for rain
+    const condition = weather.condition?.toLowerCase() || "";
+    if (
+      condition.includes("rain") ||
+      condition.includes("shower") ||
+      condition.includes("thunderstorm")
+    ) {
+      new Notification("LionWeather Alert 🌧️", {
+        body: `${weather.area || "Your location"}: ${weather.condition}`,
+        icon: "/favicon.ico",
+        tag: `weather-${location.id}`,
+      });
+    }
+
+    // Check for extreme temperatures
+    if (weather.temperature && weather.temperature > 35) {
+      new Notification("LionWeather Alert 🌡️", {
+        body: `${weather.area || "Your location"}: Very hot (${weather.temperature}°C)`,
+        icon: "/favicon.ico",
+        tag: `temp-${location.id}`,
+      });
+    }
+  });
+};
+
+// Request notification permission
+const requestNotificationPermission = async () => {
+  if (!("Notification" in window)) {
+    console.log("This browser does not support notifications");
+    return false;
+  }
+
+  if (Notification.permission === "granted") {
+    return true;
+  }
+
+  if (Notification.permission !== "denied") {
+    const permission = await Notification.requestPermission();
+    return permission === "granted";
+  }
+
+  return false;
+};
+
 export function LocationsProvider({ children }) {
   const [locations, setLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load locations from localStorage on mount
+  // Load locations and refresh stale data
   const reload = useCallback(async () => {
     try {
       setIsLoading(true);
       const stored = getStoredLocations();
+
+      // Check which locations need refresh
+      const locationsToRefresh = stored.filter(
+        (loc) => !isCacheValid(loc.lastFetched),
+      );
+
+      if (locationsToRefresh.length === 0) {
+        // All cached, no API calls
+        setLocations(stored);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Show stale data immediately
       setLocations(stored);
+      setIsLoading(false);
+
+      // Batch refresh stale locations
+      const refreshPromises = [];
+      for (
+        let i = 0;
+        i < locationsToRefresh.length;
+        i += MAX_CONCURRENT_REQUESTS
+      ) {
+        const batch = locationsToRefresh.slice(i, i + MAX_CONCURRENT_REQUESTS);
+        const batchPromises = batch.map(async (loc) => {
+          const weatherData = await fetchWeatherForLocation(
+            loc.latitude,
+            loc.longitude,
+          );
+          return {
+            ...loc,
+            weather: weatherData,
+            lastFetched: new Date().toISOString(),
+          };
+        });
+        refreshPromises.push(...batchPromises);
+      }
+
+      const refreshedLocations = await Promise.all(refreshPromises);
+
+      // Merge refreshed data
+      const updated = stored.map((loc) => {
+        const refreshed = refreshedLocations.find((r) => r.id === loc.id);
+        return refreshed || loc;
+      });
+
+      saveLocations(updated);
+      setLocations(updated);
+
+      // Check for weather alerts
+      checkWeatherAlerts(updated);
+
       setError(null);
     } catch (err) {
       setError(err);
@@ -74,7 +190,6 @@ export function LocationsProvider({ children }) {
     }
   }, []);
 
-  // Geolocation permission state management
   const getGeolocationPermissionState = useCallback(() => {
     return localStorage.getItem("geolocation_permission");
   }, []);
@@ -83,10 +198,16 @@ export function LocationsProvider({ children }) {
     localStorage.setItem("geolocation_permission", state);
   }, []);
 
-  // Add location from geolocation coordinates
   const addLocationFromGeolocation = useCallback(async (coords) => {
     try {
-      // Fetch weather data for the coordinates
+      const stored = getStoredLocations();
+
+      if (stored.length >= MAX_LOCATIONS) {
+        throw new Error(
+          `Maximum ${MAX_LOCATIONS} locations allowed. Please delete a location first.`,
+        );
+      }
+
       const weatherData = await fetchWeatherForLocation(coords.lat, coords.lng);
 
       const newLocation = {
@@ -95,9 +216,9 @@ export function LocationsProvider({ children }) {
         longitude: coords.lng,
         weather: weatherData,
         created_at: new Date().toISOString(),
+        lastFetched: new Date().toISOString(),
       };
 
-      const stored = getStoredLocations();
       const updated = [...stored, newLocation];
       saveLocations(updated);
       setLocations(updated);
@@ -110,6 +231,12 @@ export function LocationsProvider({ children }) {
     }
   }, []);
 
+  // Request notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  // Auto-refresh on mount
   useEffect(() => {
     reload();
   }, [reload]);
@@ -144,7 +271,14 @@ export function useCreateLocation() {
     setIsPending(true);
     setError(null);
     try {
-      // Fetch weather data for the new location
+      const stored = getStoredLocations();
+
+      if (stored.length >= MAX_LOCATIONS) {
+        throw new Error(
+          `Maximum ${MAX_LOCATIONS} locations allowed. Please delete a location first.`,
+        );
+      }
+
       const weatherData = await fetchWeatherForLocation(
         payload.latitude,
         payload.longitude,
@@ -156,9 +290,9 @@ export function useCreateLocation() {
         longitude: payload.longitude,
         weather: weatherData,
         created_at: new Date().toISOString(),
+        lastFetched: new Date().toISOString(),
       };
 
-      const stored = getStoredLocations();
       const updated = [...stored, newLocation];
       saveLocations(updated);
       await reload();
@@ -193,19 +327,17 @@ export function useRefreshLocation() {
         throw new Error("Location not found");
       }
 
-      // Fetch fresh weather data
       const weatherData = await fetchWeatherForLocation(
         location.latitude,
         location.longitude,
       );
 
-      // Update the location with new weather data
       const updated = stored.map((loc) =>
         loc.id === locationId
           ? {
               ...loc,
               weather: weatherData,
-              updated_at: new Date().toISOString(),
+              lastFetched: new Date().toISOString(),
             }
           : loc,
       );
