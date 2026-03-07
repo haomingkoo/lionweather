@@ -161,7 +161,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           {location.weather.area || "Singapore"}
         </h2>
         <div
-          className={`text-6xl md:text-8xl font-extralight ${textColor} my-6`}
+          className={`text-6xl md:text-8xl xl:text-6xl font-extralight ${textColor} my-6`}
         >
           {temperature}°
         </div>
@@ -184,7 +184,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* Hourly Forecast */}
       <div
-        className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+        className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
       >
         <div className="flex items-center justify-between mb-4">
           <h3
@@ -227,7 +227,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* 10-Day Forecast */}
       <div
-        className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+        className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
       >
         <h3
           className={`text-sm font-semibold ${tertiaryTextColor} uppercase tracking-wide mb-4`}
@@ -266,7 +266,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
       <div className="grid grid-cols-2 gap-4">
         {/* Feels Like */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <ThermometerSun className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -276,12 +276,14 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               Feels Like
             </span>
           </div>
-          <div className={`text-4xl font-light ${textColor}`}>{feelsLike}°</div>
+          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            {feelsLike}°
+          </div>
         </div>
 
         {/* Humidity */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Droplets className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -291,14 +293,14 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               Humidity
             </span>
           </div>
-          <div className={`text-4xl font-light ${textColor}`}>
+          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
             {comprehensiveData?.humidity || 75}%
           </div>
         </div>
 
         {/* Wind */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Wind className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -309,7 +311,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl font-light ${textColor}`}>
+            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
               {comprehensiveData?.wind_speed || 12}
             </div>
             <span className={`text-lg ${secondaryTextColor}`}>km/h</span>
@@ -331,7 +333,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Rainfall */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <CloudRain className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -342,7 +344,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl font-light ${textColor}`}>
+            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
               {comprehensiveData?.rainfall || 0}
             </div>
             <span className={`text-lg ${secondaryTextColor}`}>mm</span>
@@ -351,7 +353,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Visibility */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Eye className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -362,14 +364,16 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl font-light ${textColor}`}>10</div>
+            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+              10
+            </div>
             <span className={`text-lg ${secondaryTextColor}`}>km</span>
           </div>
         </div>
 
         {/* Pressure */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Gauge className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -380,14 +384,16 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`text-4xl font-light ${textColor}`}>1013</div>
+            <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+              1013
+            </div>
             <span className={`text-lg ${secondaryTextColor}`}>hPa</span>
           </div>
         </div>
 
         {/* Sunrise */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Sunrise className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -397,12 +403,14 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               Sunrise
             </span>
           </div>
-          <div className={`text-4xl font-light ${textColor}`}>7:00 AM</div>
+          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            7:00 AM
+          </div>
         </div>
 
         {/* Sunset */}
         <div
-          className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+          className={`rounded-3xl backdrop-blur-xl p-6 xl:p-4 2xl:p-5 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
         >
           <div className="flex items-center gap-2 mb-3">
             <Sunset className={`h-5 w-5 ${tertiaryTextColor}`} />
@@ -412,7 +420,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               Sunset
             </span>
           </div>
-          <div className={`text-4xl font-light ${textColor}`}>7:15 PM</div>
+          <div className={`text-4xl xl:text-3xl font-light ${textColor}`}>
+            7:15 PM
+          </div>
         </div>
       </div>
 

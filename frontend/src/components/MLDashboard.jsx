@@ -123,14 +123,14 @@ export function MLDashboard({ isDark = false }) {
   }
 
   return (
-    <div className="space-y-4 max-w-6xl">
+    <div className="space-y-4 xl:space-y-3 max-w-4xl">
       {/* Header */}
-      <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
+      <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Brain className={`h-7 w-7 ${textColor}`} strokeWidth={1.5} />
             <div>
-              <h2 className={`text-2xl font-semibold ${textColor}`}>
+              <h2 className={`text-2xl xl:text-xl font-semibold ${textColor}`}>
                 ML Forecasting
               </h2>
               <p className={`text-sm ${tertiaryTextColor}`}>
@@ -177,7 +177,7 @@ export function MLDashboard({ isDark = false }) {
 
       {/* Model Performance */}
       {accuracy?.rankings && accuracy.rankings.length > 0 && (
-        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
           <div className="flex items-center gap-2 mb-4">
             <Award className={`h-5 w-5 ${tertiaryTextColor}`} />
             <h3 className={`text-lg font-semibold ${textColor}`}>
@@ -208,7 +208,7 @@ export function MLDashboard({ isDark = false }) {
       {/* Predictions */}
       {currentPredictions?.forecasts &&
         currentPredictions.forecasts.length > 0 && (
-          <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
+          <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className={`h-5 w-5 ${tertiaryTextColor}`} />
               <h3 className={`text-lg font-semibold ${textColor}`}>
@@ -259,7 +259,7 @@ export function MLDashboard({ isDark = false }) {
 
       {/* Model Comparison */}
       {comparison && (
-        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className={`h-5 w-5 ${tertiaryTextColor}`} />
             <h3 className={`text-lg font-semibold ${textColor}`}>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useLocations,
   useRefreshLocation,
@@ -6,6 +6,31 @@ import {
 } from "../hooks/useLocations.jsx";
 import { DetailedWeatherCard } from "./DetailedWeatherCard";
 import { RefreshCw, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+
+// Helper function to format timestamps as relative time
+function getRelativeTime(isoTimestamp) {
+  if (!isoTimestamp) return "Unknown";
+
+  const now = Date.now();
+  const fetchedTime = new Date(isoTimestamp).getTime();
+  const diffMs = now - fetchedTime;
+
+  if (diffMs < 0) return "Just now"; // Future timestamp edge case
+  if (diffMs < 60000) return "Just now"; // Less than 1 minute
+
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
 
 export function EnhancedLocationList({ isDark = false }) {
   const { locations, isLoading, error } = useLocations();
@@ -17,9 +42,20 @@ export function EnhancedLocationList({ isDark = false }) {
   } = useRefreshLocation();
   const { deleteLocation, isPending: isDeleting } = useDeleteLocation();
   const [expandedId, setExpandedId] = useState(null);
+  const [, setUpdateTrigger] = useState(0);
 
   const textColor = isDark ? "text-white" : "text-slate-900";
   const secondaryTextColor = isDark ? "text-white/80" : "text-slate-700";
+  const tertiaryTextColor = isDark ? "text-white/60" : "text-slate-600";
+
+  // Auto-update timestamps every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUpdateTrigger((prev) => prev + 1);
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (isLoading) {
     return (
@@ -65,7 +101,7 @@ export function EnhancedLocationList({ isDark = false }) {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-6xl">
+    <div className="space-y-4 md:space-y-6 xl:space-y-3 max-w-4xl">
       {locations.map((location, index) => {
         const isExpanded = expandedId === location.id;
 
@@ -77,7 +113,7 @@ export function EnhancedLocationList({ isDark = false }) {
           >
             {/* Collapsed Header */}
             <button
-              className="w-full p-4 md:p-6 lg:p-8 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
+              className="w-full p-4 md:p-6 lg:p-8 xl:p-4 2xl:p-5 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
               onClick={() => setExpandedId(isExpanded ? null : location.id)}
               aria-expanded={isExpanded}
               aria-label={`${isExpanded ? "Collapse" : "Expand"} weather details for ${location.weather.area || "Singapore"}`}
@@ -98,7 +134,7 @@ export function EnhancedLocationList({ isDark = false }) {
                 <div className="flex items-center gap-3 md:gap-6">
                   <div className="text-right">
                     <div
-                      className={`text-3xl md:text-4xl lg:text-5xl font-extralight ${textColor}`}
+                      className={`text-3xl md:text-4xl lg:text-5xl xl:text-3xl 2xl:text-4xl font-extralight ${textColor}`}
                     >
                       {location.weather.temperature || "29"}°
                     </div>
@@ -121,33 +157,26 @@ export function EnhancedLocationList({ isDark = false }) {
             {/* Expanded Details */}
             {isExpanded && (
               <div
-                className={`px-4 md:px-6 lg:px-8 pb-4 md:pb-6 lg:pb-8 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
+                className={`px-4 md:px-6 lg:px-8 xl:px-4 2xl:px-5 pb-4 md:pb-6 lg:pb-8 xl:pb-4 2xl:pb-5 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
               >
                 <div className="pt-4 md:pt-6">
                   <DetailedWeatherCard location={location} isDark={isDark} />
                 </div>
 
-                {/* Action Buttons */}
+                {/* Timestamp and Delete Button */}
                 <div
-                  className={`flex gap-3 mt-8 pt-6 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
+                  className={`flex items-center justify-between gap-3 mt-8 pt-6 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      refresh(location.id);
-                    }}
-                    disabled={isPending || isDeleting}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-2xl backdrop-blur-sm px-5 py-3.5 text-base font-medium ${textColor} hover:brightness-110 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-transparent ${isDark ? "bg-white/15 border border-white/25 hover:bg-white/20" : "bg-white/30 border border-white/40 hover:bg-white/40"}`}
-                  >
-                    <RefreshCw
-                      className={`h-5 w-5 ${isPending && refreshingId === location.id ? "animate-spin" : ""}`}
-                    />
-                    <span>
-                      {isPending && refreshingId === location.id
-                        ? "Updating..."
-                        : "Refresh Weather"}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm ${tertiaryTextColor}`}>
+                      Last updated: {getRelativeTime(location.lastFetched)}
                     </span>
-                  </button>
+                    {isPending && refreshingId === location.id && (
+                      <RefreshCw
+                        className={`h-4 w-4 ${tertiaryTextColor} animate-spin`}
+                      />
+                    )}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

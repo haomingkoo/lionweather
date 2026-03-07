@@ -52,7 +52,7 @@ export function Dashboard() {
 
       {/* Header matching Handwriting Lab style */}
       <header className="border-b border-slate-800">
-        <div className="mx-auto max-w-7xl px-6 py-4">
+        <div className="mx-auto max-w-6xl px-6 py-4">
           <div className="flex items-center justify-between">
             {/* HK Logo - links to kooexperience.com */}
             <a
@@ -85,7 +85,7 @@ export function Dashboard() {
       </header>
 
       {/* Hero Section */}
-      <div className="mx-auto max-w-7xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-6 py-12">
         <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-blue-400 bg-clip-text text-transparent">
           LionWeather Lab
         </h1>
