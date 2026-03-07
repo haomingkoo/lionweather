@@ -141,38 +141,37 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
   useEffect(() => {
     const fetchRadarFrames = async () => {
       setIsLoading(true);
-      const timestamps = generateRadarTimestamps();
 
-      console.log("Fetching radar frames:", timestamps.length);
+      try {
+        console.log("Fetching radar frames from backend API...");
 
-      // Preload all radar images
-      const loadPromises = timestamps.map((frame, index) => {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            frame.loaded = true;
-            console.log(`Radar frame ${index} loaded:`, frame.url);
-            resolve(frame);
-          };
-          img.onerror = (err) => {
-            console.error(
-              `Radar frame ${index} failed to load:`,
-              frame.url,
-              err,
-            );
-            // Silently skip failed frames
-            resolve(frame);
-          };
-          img.crossOrigin = "anonymous";
-          img.src = frame.url;
-        });
-      });
+        // Fetch from backend API instead of directly from weather.gov.sg
+        const response = await fetch("/api/radar/frames?count=12");
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch radar frames: ${response.statusText}`,
+          );
+        }
 
-      await Promise.all(loadPromises);
-      const loadedCount = timestamps.filter((f) => f.loaded).length;
-      console.log(`Loaded ${loadedCount}/${timestamps.length} radar frames`);
-      setRadarFrames(timestamps);
-      setIsLoading(false);
+        const data = await response.json();
+        console.log("Received radar frames:", data);
+
+        // Transform backend response to our format
+        const frames = data.frames.map((frame) => ({
+          timestamp: frame.timestamp,
+          date: new Date(frame.timestamp),
+          url: frame.imageUrl,
+          loaded: true, // Backend already has the images
+        }));
+
+        console.log(`Loaded ${frames.length} radar frames from backend`);
+        setRadarFrames(frames);
+      } catch (error) {
+        console.error("Failed to fetch radar frames:", error);
+        setRadarFrames([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchRadarFrames();

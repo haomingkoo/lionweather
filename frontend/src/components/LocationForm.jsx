@@ -5,9 +5,18 @@ import { MapPin, Plus, Search } from "lucide-react";
 // Geocode postal code or place name to coordinates
 const geocodeLocation = async (query) => {
   try {
+    // Try Singapore postal code format first (6 digits)
+    const isSingaporePostal = /^\d{6}$/.test(query.trim());
+
+    let searchQuery = query;
+    if (isSingaporePostal) {
+      // Add "Singapore" to postal code for better results
+      searchQuery = `${query}, Singapore`;
+    }
+
     // Use Nominatim for geocoding (supports postal codes and place names)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=sg,my,id&limit=5`,
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=sg,my,id&limit=5`,
       {
         headers: {
           "User-Agent": "LionWeather/1.0",
@@ -29,6 +38,8 @@ const geocodeLocation = async (query) => {
       lat: parseFloat(result.lat),
       lon: parseFloat(result.lon),
       display_name: result.display_name,
+      // Extract clean name (first part before comma)
+      name: result.display_name.split(",")[0].trim(),
     }));
   } catch (err) {
     console.error("Geocoding error:", err);
@@ -81,13 +92,10 @@ export function LocationForm({ isDark = false }) {
 
   const handleSelectResult = async (result) => {
     try {
-      // Extract location name from display_name
-      const locationName = result.display_name.split(",")[0].trim();
-
       await create({
         latitude: result.lat,
         longitude: result.lon,
-        name: locationName,
+        name: result.name || result.display_name.split(",")[0].trim(),
       });
       setSearchQuery("");
       setSearchResults([]);
