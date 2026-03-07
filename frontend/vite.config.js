@@ -20,8 +20,14 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       port: 5173,
-      host: "0.0.0.0", // Bind to all interfaces
+      host: "0.0.0.0",
       strictPort: true,
+      // Allow Railway domains and custom domain
+      allowedHosts: [
+        "lionweather-frontend-production.up.railway.app",
+        "lionweather.kooexperience.com",
+        ".railway.app",
+      ],
     },
   };
 });
