@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 5173,
-      host: true, // Allow external access
+      host: true,
       proxy: {
         "/api": {
           target: apiTarget,
@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       port: 5173,
-      host: true, // Allow external access in preview mode (Railway uses this)
-      allowedHosts: ["all"], // Allow all hosts for Railway deployment
+      host: "0.0.0.0", // Bind to all interfaces
+      strictPort: true,
     },
   };
 });
