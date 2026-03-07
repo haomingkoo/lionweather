@@ -5,6 +5,7 @@ import { WeatherMap } from "../components/WeatherMap";
 import { MLDashboard } from "../components/MLDashboard";
 import { ViewToggle } from "../components/ViewToggle";
 import { GeolocationPrompt } from "../components/GeolocationPrompt";
+import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
 import { Github } from "lucide-react";
 
@@ -50,7 +51,15 @@ export function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0e1a] text-white">
+    <div className="min-h-screen bg-[#0a0e1a] text-white relative">
+      {/* Animated Background */}
+      {locations.length > 0 && locations[0]?.weather?.forecast && (
+        <AnimatedBackground
+          condition={locations[0].weather.forecast}
+          isDark={true}
+        />
+      )}
+
       {/* Geolocation Prompt */}
       {showGeolocationPrompt && (
         <GeolocationPrompt

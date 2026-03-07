@@ -31,7 +31,7 @@ from app.routers.performance import router as performance_router
 from app.routers.ml import router as ml_api_router
 from app.routers.radar import router as radar_router
 from app.routers.regional import router as regional_router
-from app.routers.alerts import router as alerts_router
+from app.routers.data_health import router as data_health_router
 from app.db.migrations import migrate_ml_tables
 from app.db.database import execute_sql, get_database_url
 from app.services.radar_service import get_radar_service
@@ -163,7 +163,7 @@ app.include_router(performance_router, prefix="/api")
 app.include_router(ml_api_router)
 app.include_router(radar_router, prefix="/api")
 app.include_router(regional_router, prefix="/api")
-app.include_router(alerts_router)
+app.include_router(data_health_router)
 
 
 @app.get("/health")

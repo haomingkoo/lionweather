@@ -184,7 +184,10 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
               className={`rounded-full p-2 hover:brightness-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${isDark ? "bg-slate-700/80 hover:bg-slate-600 focus:ring-slate-500" : "bg-slate-200/80 hover:bg-slate-300 focus:ring-slate-400"}`}
               aria-label="Close precipitation map"
             >
