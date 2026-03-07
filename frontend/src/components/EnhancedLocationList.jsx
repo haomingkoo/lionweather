@@ -102,7 +102,7 @@ export function EnhancedLocationList({ isDark = false }) {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 xl:space-y-3 max-w-4xl">
+    <div className="max-w-7xl mx-auto">
       {/* Animated Background */}
       {locations.length > 0 && (
         <AnimatedBackground
@@ -111,108 +111,109 @@ export function EnhancedLocationList({ isDark = false }) {
         />
       )}
 
-      {locations.map((location, index) => {
-        const isExpanded = expandedId === location.id;
+      {/* Grid layout: 1 column mobile, 2 columns tablet, 3 columns desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 xl:gap-4">
+        {locations.map((location, index) => {
+          const isExpanded = expandedId === location.id;
 
-        return (
-          <article
-            key={location.id}
-            style={{ animationDelay: `${index * 50}ms` }}
-            className={`rounded-[2rem] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 animate-fade-in hover:scale-[1.02] ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/25 border border-white/40 hover:bg-white/30"}`}
-          >
-            {/* Collapsed Header */}
-            <button
-              className="w-full p-4 md:p-6 lg:p-8 xl:p-4 2xl:p-5 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
-              onClick={() => setExpandedId(isExpanded ? null : location.id)}
-              aria-expanded={isExpanded}
-              aria-label={`${isExpanded ? "Collapse" : "Expand"} weather details for ${location.weather.area || "Singapore"}`}
+          return (
+            <article
+              key={location.id}
+              style={{ animationDelay: `${index * 50}ms` }}
+              className={`rounded-[2rem] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 animate-fade-in hover:scale-[1.02] ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/25 border border-white/40 hover:bg-white/30"}`}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3
-                    className={`text-xl md:text-2xl font-semibold ${textColor} mb-1`}
-                  >
-                    {location.weather.area || "Singapore"}
-                  </h3>
-                  <p
-                    className={`text-sm md:text-base ${textColor} font-medium opacity-90`}
-                  >
-                    {location.latitude.toFixed(4)},{" "}
-                    {location.longitude.toFixed(4)}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 md:gap-6">
-                  <div className="text-right">
-                    <div
-                      className={`text-3xl md:text-4xl lg:text-5xl xl:text-3xl 2xl:text-4xl font-extralight ${textColor}`}
+              {/* Collapsed Header */}
+              <button
+                className="w-full p-3 xl:p-3 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
+                onClick={() => setExpandedId(isExpanded ? null : location.id)}
+                aria-expanded={isExpanded}
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} weather details for ${location.weather.area || "Singapore"}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h3
+                      className={`text-lg xl:text-xl font-semibold ${textColor} mb-1`}
                     >
-                      {location.weather.temperature || "29"}°
-                    </div>
-                    <div
-                      className={`text-sm md:text-base ${secondaryTextColor} mt-1`}
-                    >
-                      {location.weather.condition}
-                    </div>
+                      {location.weather.area || "Singapore"}
+                    </h3>
+                    <p className={`text-xs xl:text-sm ${tertiaryTextColor}`}>
+                      {location.latitude.toFixed(4)},{" "}
+                      {location.longitude.toFixed(4)}
+                    </p>
                   </div>
 
-                  {isExpanded ? (
-                    <ChevronUp className={`h-6 w-6 ${textColor}`} />
-                  ) : (
-                    <ChevronDown className={`h-6 w-6 ${textColor}`} />
-                  )}
-                </div>
-              </div>
-            </button>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div
+                        className={`text-2xl xl:text-3xl font-extralight ${textColor}`}
+                      >
+                        {location.weather.temperature || "29"}°
+                      </div>
+                      <div
+                        className={`text-xs xl:text-sm ${secondaryTextColor} mt-1`}
+                      >
+                        {location.weather.condition}
+                      </div>
+                    </div>
 
-            {/* Expanded Details */}
-            {isExpanded && (
-              <div
-                className={`px-4 md:px-6 lg:px-8 xl:px-4 2xl:px-5 pb-4 md:pb-6 lg:pb-8 xl:pb-4 2xl:pb-5 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
-              >
-                <div className="pt-4 md:pt-6">
-                  <DetailedWeatherCard location={location} isDark={isDark} />
-                </div>
-
-                {/* Timestamp and Delete Button */}
-                <div
-                  className={`flex items-center justify-between gap-3 mt-8 pt-6 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm ${tertiaryTextColor}`}>
-                      Last updated: {getRelativeTime(location.lastFetched)}
-                    </span>
-                    {isPending && refreshingId === location.id && (
-                      <RefreshCw
-                        className={`h-4 w-4 ${tertiaryTextColor} animate-spin`}
-                      />
+                    {isExpanded ? (
+                      <ChevronUp className={`h-5 w-5 ${textColor}`} />
+                    ) : (
+                      <ChevronDown className={`h-5 w-5 ${textColor}`} />
                     )}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteLocation(location.id);
-                    }}
-                    disabled={isPending || isDeleting}
-                    className={`rounded-2xl backdrop-blur-sm px-5 py-3.5 text-base font-medium text-white hover:brightness-110 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400/80 focus:ring-offset-2 focus:ring-offset-transparent ${isDark ? "bg-red-500/50 border border-red-400/60 hover:bg-red-500/70" : "bg-red-500/40 border border-red-400/50 hover:bg-red-500/60"}`}
-                    aria-label="Delete location"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
                 </div>
+              </button>
 
-                {refreshError && refreshingId === null && (
-                  <p
-                    className={`mt-4 text-sm backdrop-blur-sm rounded-2xl px-4 py-3 ${isDark ? "bg-red-500/40 border border-red-400/50 text-red-100" : "bg-red-500/30 border border-red-400/40 text-red-900"}`}
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div
+                  className={`px-3 xl:px-3 pb-3 xl:pb-3 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
+                >
+                  <div className="pt-3">
+                    <DetailedWeatherCard location={location} isDark={isDark} />
+                  </div>
+
+                  {/* Timestamp and Delete Button */}
+                  <div
+                    className={`flex items-center justify-between gap-3 mt-4 pt-3 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
                   >
-                    {refreshError.message}
-                  </p>
-                )}
-              </div>
-            )}
-          </article>
-        );
-      })}
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs ${tertiaryTextColor}`}>
+                        Last updated: {getRelativeTime(location.lastFetched)}
+                      </span>
+                      {isPending && refreshingId === location.id && (
+                        <RefreshCw
+                          className={`h-3 w-3 ${tertiaryTextColor} animate-spin`}
+                        />
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteLocation(location.id);
+                      }}
+                      disabled={isPending || isDeleting}
+                      className={`rounded-xl backdrop-blur-sm px-3 py-2 text-sm font-medium text-white hover:brightness-110 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-red-400/80 focus:ring-offset-2 focus:ring-offset-transparent ${isDark ? "bg-red-500/50 border border-red-400/60 hover:bg-red-500/70" : "bg-red-500/40 border border-red-400/50 hover:bg-red-500/60"}`}
+                      aria-label="Delete location"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {refreshError && refreshingId === null && (
+                    <p
+                      className={`mt-4 text-sm backdrop-blur-sm rounded-2xl px-4 py-3 ${isDark ? "bg-red-500/40 border border-red-400/50 text-red-100" : "bg-red-500/30 border border-red-400/40 text-red-900"}`}
+                    >
+                      {refreshError.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }

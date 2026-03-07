@@ -153,56 +153,56 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const feelsLike = comprehensiveData?.temperature || parseInt(temperature) - 2;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="space-y-3">
       {/* Main Weather Display */}
-      <div className="text-center py-4">
-        <h2 className={`text-3xl font-semibold mb-2 ${textColor}`}>
+      <div className="text-center py-2">
+        <h2 className={`text-xl font-semibold mb-1 ${textColor}`}>
           {location.weather.area || "Singapore"}
         </h2>
         <div
-          className={`text-5xl md:text-6xl xl:text-5xl 2xl:text-6xl font-extralight ${textColor} my-4`}
+          className={`text-4xl xl:text-5xl font-extralight ${textColor} my-2`}
         >
           {temperature}°
         </div>
-        <div className="flex items-center justify-center gap-3 mb-2">
+        <div className="flex items-center justify-center gap-2 mb-1">
           {IconComponent && (
             <IconComponent
-              className={`h-8 w-8 ${textColor}`}
+              className={`h-6 w-6 ${textColor}`}
               strokeWidth={1.5}
               aria-label={`${location.weather.condition} weather icon`}
             />
           )}
-          <span className={`text-2xl ${textColor}`}>
+          <span className={`text-lg ${textColor}`}>
             {location.weather.condition}
           </span>
         </div>
-        <p className={`text-lg ${secondaryTextColor}`}>
+        <p className={`text-sm ${secondaryTextColor}`}>
           H:{parseInt(temperature) + 3}° L:{parseInt(temperature) - 5}°
         </p>
       </div>
 
       {/* Hourly Forecast - Horizontal Slider */}
       <div
-        className={`rounded-3xl backdrop-blur-2xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+        className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <h3
-            className={`text-sm font-semibold ${tertiaryTextColor} uppercase tracking-wide`}
+            className={`text-xs font-semibold ${tertiaryTextColor} uppercase tracking-wide`}
           >
             Hourly Forecast
           </h3>
           <button
             onClick={() => setShowPrecipMap(true)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-transparent ${isDark ? "bg-white/15 hover:bg-white/25" : "bg-white/30 hover:bg-white/40"}`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-transparent ${isDark ? "bg-white/15 hover:bg-white/25" : "bg-white/30 hover:bg-white/40"}`}
             aria-label="Open precipitation map"
           >
-            <MapPin className={`h-4 w-4 ${textColor}`} />
-            <span className={`text-sm ${textColor}`}>Precipitation Map</span>
+            <MapPin className={`h-3 w-3 ${textColor}`} />
+            <span className={`text-xs ${textColor}`}>Map</span>
           </button>
         </div>
         {/* Horizontal scrolling container */}
         <div
-          className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
+          className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
           style={{
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
@@ -211,21 +211,21 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           {hourlyForecast.map((hour, i) => (
             <div
               key={i}
-              className={`flex flex-col items-center gap-2 min-w-[70px] p-3 rounded-2xl transition-all duration-200 hover:scale-105 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
+              className={`flex flex-col items-center gap-1 min-w-[50px] p-2 rounded-xl transition-all duration-200 hover:scale-105 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
             >
               <span
-                className={`text-sm font-medium ${i === 0 ? textColor : secondaryTextColor}`}
+                className={`text-xs font-medium ${i === 0 ? textColor : secondaryTextColor}`}
               >
                 {hour.time}
               </span>
               {IconComponent && (
                 <IconComponent
-                  className={`h-7 w-7 ${textColor}`}
+                  className={`h-5 w-5 ${textColor}`}
                   strokeWidth={1.5}
                   aria-label={`${hour.condition} weather icon`}
                 />
               )}
-              <span className={`text-lg font-semibold ${textColor}`}>
+              <span className={`text-sm font-semibold ${textColor}`}>
                 {hour.temperature}°
               </span>
             </div>
@@ -235,32 +235,36 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* 10-Day Forecast */}
       <div
-        className={`rounded-3xl backdrop-blur-2xl p-4 xl:p-3 2xl:p-4 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+        className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
       >
         <h3
-          className={`text-sm font-semibold ${tertiaryTextColor} uppercase tracking-wide mb-3`}
+          className={`text-xs font-semibold ${tertiaryTextColor} uppercase tracking-wide mb-2`}
         >
           {dailyForecast.length}-Day Forecast
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-1">
           {dailyForecast.map((day, i) => (
             <div key={i} className="flex items-center justify-between">
-              <span className={`text-base font-medium ${textColor} w-16`}>
+              <span className={`text-sm font-medium ${textColor} w-12`}>
                 {day.dayName}
               </span>
-              <div className="flex items-center gap-3 flex-1 justify-center">
+              <div className="flex items-center gap-2 flex-1 justify-center">
                 {IconComponent && (
                   <IconComponent
-                    className={`h-5 w-5 ${textColor}`}
+                    className={`h-4 w-4 ${textColor}`}
                     strokeWidth={1.5}
                     aria-label={`${day.condition} weather icon`}
                   />
                 )}
-                <div className="h-1 w-32 bg-gradient-to-r from-blue-400 to-orange-400 rounded-full"></div>
+                <div className="h-1 w-24 bg-gradient-to-r from-blue-400 to-orange-400 rounded-full"></div>
               </div>
-              <div className="flex gap-3 w-20 justify-end">
-                <span className={`${tertiaryTextColor}`}>{day.low}°</span>
-                <span className={`${textColor} font-medium`}>{day.high}°</span>
+              <div className="flex gap-2 w-16 justify-end">
+                <span className={`text-xs ${tertiaryTextColor}`}>
+                  {day.low}°
+                </span>
+                <span className={`text-xs ${textColor} font-medium`}>
+                  {day.high}°
+                </span>
               </div>
             </div>
           ))}
@@ -271,25 +275,21 @@ export function DetailedWeatherCard({ location, isDark = false }) {
       <MLForecastComparison location={location} isDark={isDark} />
 
       {/* Weather Details Grid */}
-      <div className="grid grid-cols-2 gap-3 xl:gap-3">
+      <div className="grid grid-cols-2 gap-2">
         {/* Feels Like */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+          className={`rounded-2xl backdrop-blur-2xl p-2 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
           style={{ animationDelay: "0s" }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <ThermometerSun className={`h-4 w-4 ${tertiaryTextColor}`} />
+          <div className="flex items-center gap-1 mb-1">
+            <ThermometerSun className={`h-3 w-3 ${tertiaryTextColor}`} />
             <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
+              className={`text-[10px] ${tertiaryTextColor} uppercase tracking-wide`}
             >
               Feels Like
             </span>
           </div>
-          <div
-            className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-          >
-            {feelsLike}°
-          </div>
+          <div className={`text-xl font-light ${textColor}`}>{feelsLike}°</div>
         </div>
 
         {/* Humidity */}

@@ -138,7 +138,7 @@ export function Dashboard() {
         </div>
 
         {/* Content */}
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-4xl mx-auto">
           {view === "list" && (
             <>
               <LocationForm />

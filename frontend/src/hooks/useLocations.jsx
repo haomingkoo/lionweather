@@ -65,6 +65,41 @@ const fetchWeatherForLocation = async (latitude, longitude) => {
   }
 };
 
+// Reverse geocode to get location name
+const reverseGeocode = async (latitude, longitude) => {
+  try {
+    // Use OpenStreetMap Nominatim API for reverse geocoding (free, no API key needed)
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+      {
+        headers: {
+          "User-Agent": "LionWeather/1.0",
+        },
+      },
+    );
+    if (!response.ok) {
+      throw new Error("Failed to reverse geocode");
+    }
+    const data = await response.json();
+
+    // Extract meaningful location name
+    const address = data.address || {};
+    const locationName =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.county ||
+      address.state ||
+      address.country ||
+      "Unknown Area";
+
+    return locationName;
+  } catch (err) {
+    console.error("Reverse geocoding error:", err);
+    return "Unknown Area";
+  }
+};
+
 // Check for weather alerts and show notifications
 const checkWeatherAlerts = (locations) => {
   if (!("Notification" in window)) return;
@@ -198,38 +233,51 @@ export function LocationsProvider({ children }) {
     localStorage.setItem("geolocation_permission", state);
   }, []);
 
-  const addLocationFromGeolocation = useCallback(async (coords) => {
-    try {
-      const stored = getStoredLocations();
+  const addLocationFromGeolocation = useCallback(
+    async (coords) => {
+      try {
+        const stored = getStoredLocations();
 
-      if (stored.length >= MAX_LOCATIONS) {
-        throw new Error(
-          `Maximum ${MAX_LOCATIONS} locations allowed. Please delete a location first.`,
-        );
+        if (stored.length >= MAX_LOCATIONS) {
+          throw new Error(
+            `Maximum ${MAX_LOCATIONS} locations allowed. Please delete a location first.`,
+          );
+        }
+
+        // Fetch weather data and location name in parallel
+        const [weatherData, locationName] = await Promise.all([
+          fetchWeatherForLocation(coords.lat, coords.lng),
+          reverseGeocode(coords.lat, coords.lng),
+        ]);
+
+        // Override area with reverse geocoded name if weather API didn't provide one
+        if (weatherData.area === "Unknown Area" || !weatherData.area) {
+          weatherData.area = locationName;
+        }
+
+        const newLocation = {
+          id: generateId(),
+          latitude: coords.lat,
+          longitude: coords.lng,
+          weather: weatherData,
+          source: "geolocation",
+          created_at: new Date().toISOString(),
+          lastFetched: new Date().toISOString(),
+        };
+
+        const updated = [...stored, newLocation];
+        saveLocations(updated);
+        setLocations(updated);
+        setGeolocationPermissionState("granted");
+
+        return newLocation;
+      } catch (err) {
+        setError(err);
+        throw err;
       }
-
-      const weatherData = await fetchWeatherForLocation(coords.lat, coords.lng);
-
-      const newLocation = {
-        id: generateId(),
-        latitude: coords.lat,
-        longitude: coords.lng,
-        weather: weatherData,
-        created_at: new Date().toISOString(),
-        lastFetched: new Date().toISOString(),
-      };
-
-      const updated = [...stored, newLocation];
-      saveLocations(updated);
-      setLocations(updated);
-      setGeolocationPermissionState("granted");
-
-      return newLocation;
-    } catch (err) {
-      setError(err);
-      throw err;
-    }
-  }, []);
+    },
+    [setGeolocationPermissionState],
+  );
 
   // Request notification permission on mount
   useEffect(() => {
@@ -279,10 +327,16 @@ export function useCreateLocation() {
         );
       }
 
-      const weatherData = await fetchWeatherForLocation(
-        payload.latitude,
-        payload.longitude,
-      );
+      // Fetch weather data and location name in parallel
+      const [weatherData, locationName] = await Promise.all([
+        fetchWeatherForLocation(payload.latitude, payload.longitude),
+        reverseGeocode(payload.latitude, payload.longitude),
+      ]);
+
+      // Override area with reverse geocoded name if weather API didn't provide one
+      if (weatherData.area === "Unknown Area" || !weatherData.area) {
+        weatherData.area = locationName;
+      }
 
       const newLocation = {
         id: generateId(),
