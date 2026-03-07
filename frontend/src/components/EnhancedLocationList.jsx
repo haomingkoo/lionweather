@@ -65,7 +65,7 @@ export function EnhancedLocationList({ isDark = false }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 max-w-6xl">
       {locations.map((location, index) => {
         const isExpanded = expandedId === location.id;
 
@@ -77,30 +77,34 @@ export function EnhancedLocationList({ isDark = false }) {
           >
             {/* Collapsed Header */}
             <button
-              className="w-full p-8 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
+              className="w-full p-4 md:p-6 lg:p-8 cursor-pointer transition-all text-left focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-inset"
               onClick={() => setExpandedId(isExpanded ? null : location.id)}
               aria-expanded={isExpanded}
               aria-label={`${isExpanded ? "Collapse" : "Expand"} weather details for ${location.weather.area || "Singapore"}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <h3 className={`text-2xl font-semibold ${textColor} mb-1`}>
+                  <h3
+                    className={`text-xl md:text-2xl font-semibold ${textColor} mb-1`}
+                  >
                     {location.weather.area || "Singapore"}
                   </h3>
-                  <p className={`text-sm ${secondaryTextColor}`}>
+                  <p className={`text-xs md:text-sm ${secondaryTextColor}`}>
                     {location.latitude.toFixed(4)},{" "}
                     {location.longitude.toFixed(4)}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 md:gap-6">
                   <div className="text-right">
                     <div
-                      className={`text-4xl md:text-5xl font-extralight ${textColor}`}
+                      className={`text-3xl md:text-4xl lg:text-5xl font-extralight ${textColor}`}
                     >
                       {location.weather.temperature || "29"}°
                     </div>
-                    <div className={`text-base ${secondaryTextColor} mt-1`}>
+                    <div
+                      className={`text-sm md:text-base ${secondaryTextColor} mt-1`}
+                    >
                       {location.weather.condition}
                     </div>
                   </div>
@@ -117,9 +121,9 @@ export function EnhancedLocationList({ isDark = false }) {
             {/* Expanded Details */}
             {isExpanded && (
               <div
-                className={`px-8 pb-8 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
+                className={`px-4 md:px-6 lg:px-8 pb-4 md:pb-6 lg:pb-8 ${isDark ? "border-t border-white/10" : "border-t border-white/20"}`}
               >
-                <div className="pt-6">
+                <div className="pt-4 md:pt-6">
                   <DetailedWeatherCard location={location} isDark={isDark} />
                 </div>
 

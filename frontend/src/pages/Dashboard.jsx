@@ -133,11 +133,11 @@ export function Dashboard() {
           {view === "list" && (
             <>
               <LocationForm />
-              <EnhancedLocationList />
+              <EnhancedLocationList isDark={true} />
             </>
           )}
           {view === "map" && <WeatherMap />}
-          {view === "ml" && <MLDashboard />}
+          {view === "ml" && <MLDashboard isDark={true} />}
         </div>
       </div>
     </div>

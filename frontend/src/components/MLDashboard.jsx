@@ -123,9 +123,9 @@ export function MLDashboard({ isDark = false }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-w-6xl">
       {/* Header */}
-      <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-6">
+      <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Brain className={`h-7 w-7 ${textColor}`} strokeWidth={1.5} />
@@ -177,25 +177,25 @@ export function MLDashboard({ isDark = false }) {
 
       {/* Model Performance */}
       {accuracy?.rankings && accuracy.rankings.length > 0 && (
-        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-6">
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
           <div className="flex items-center gap-2 mb-4">
             <Award className={`h-5 w-5 ${tertiaryTextColor}`} />
             <h3 className={`text-lg font-semibold ${textColor}`}>
               Model Performance
             </h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
             {accuracy.rankings.slice(0, 4).map((model, i) => (
               <div
                 key={i}
-                className="rounded-2xl bg-white/20 backdrop-blur-md p-4 text-center"
+                className="rounded-2xl bg-white/20 backdrop-blur-md p-3 text-center"
               >
                 <div
                   className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
                 >
                   {model.model_name}
                 </div>
-                <div className={`text-xl font-bold ${textColor}`}>
+                <div className={`text-lg md:text-xl font-bold ${textColor}`}>
                   {model.mae?.toFixed(2) || "N/A"}
                 </div>
                 <div className={`text-xs ${tertiaryTextColor}`}>MAE</div>
@@ -208,20 +208,20 @@ export function MLDashboard({ isDark = false }) {
       {/* Predictions */}
       {currentPredictions?.forecasts &&
         currentPredictions.forecasts.length > 0 && (
-          <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-6">
+          <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
             <div className="flex items-center gap-2 mb-4">
               <Calendar className={`h-5 w-5 ${tertiaryTextColor}`} />
               <h3 className={`text-lg font-semibold ${textColor}`}>
                 {timeframe === "24h" ? "Hourly Forecast" : "Daily Forecast"}
               </h3>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-2">
+            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2">
               {currentPredictions.forecasts
                 .slice(0, timeframe === "24h" ? 12 : 7)
                 .map((forecast, i) => (
                   <div
                     key={i}
-                    className="flex flex-col items-center gap-2 min-w-[80px] rounded-2xl bg-white/20 backdrop-blur-md p-4"
+                    className="flex flex-col items-center gap-1 md:gap-2 min-w-[70px] md:min-w-[80px] rounded-2xl bg-white/20 backdrop-blur-md p-3"
                   >
                     <span
                       className={`text-xs ${secondaryTextColor} font-medium`}
@@ -237,7 +237,9 @@ export function MLDashboard({ isDark = false }) {
                             },
                       )}
                     </span>
-                    <div className={`text-2xl font-bold ${textColor}`}>
+                    <div
+                      className={`text-xl md:text-2xl font-bold ${textColor}`}
+                    >
                       {forecast.predicted_value?.toFixed(1)}°
                     </div>
                     <div className={`text-xs ${tertiaryTextColor}`}>
@@ -257,7 +259,7 @@ export function MLDashboard({ isDark = false }) {
 
       {/* Model Comparison */}
       {comparison && (
-        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-6">
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className={`h-5 w-5 ${tertiaryTextColor}`} />
             <h3 className={`text-lg font-semibold ${textColor}`}>
