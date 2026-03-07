@@ -111,8 +111,8 @@ export function EnhancedLocationList({ isDark = false }) {
         />
       )}
 
-      {/* Grid layout: 1 column mobile, 2 columns tablet, 3 columns desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 xl:gap-4">
+      {/* Grid layout: 1 column mobile, 2 columns desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {locations.map((location, index) => {
           const isExpanded = expandedId === location.id;
 
@@ -120,7 +120,7 @@ export function EnhancedLocationList({ isDark = false }) {
             <article
               key={location.id}
               style={{ animationDelay: `${index * 50}ms` }}
-              className={`rounded-[2rem] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 animate-fade-in hover:scale-[1.02] ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/25 border border-white/40 hover:bg-white/30"}`}
+              className={`rounded-[2rem] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 animate-fade-in ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/25 border border-white/40 hover:bg-white/30"}`}
             >
               {/* Collapsed Header */}
               <button

@@ -278,8 +278,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
       <div className="grid grid-cols-2 gap-2">
         {/* Feels Like */}
         <div
-          className={`rounded-2xl backdrop-blur-2xl p-2 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "0s" }}
+          className={`rounded-2xl backdrop-blur-2xl p-2 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-1 mb-1">
             <ThermometerSun className={`h-3 w-3 ${tertiaryTextColor}`} />
@@ -294,8 +293,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Humidity */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "0.5s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Droplets className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -314,8 +312,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Wind */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "1s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Wind className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -350,8 +347,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Rainfall */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "1.5s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <CloudRain className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -373,8 +369,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Visibility */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "2s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Eye className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -396,8 +391,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Pressure */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "2.5s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Gauge className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -419,8 +413,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Sunrise */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "3s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Sunrise className={`h-4 w-4 ${tertiaryTextColor}`} />
@@ -439,8 +432,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
         {/* Sunset */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200 hover:scale-105 animate-float ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-          style={{ animationDelay: "3.5s" }}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Sunset className={`h-4 w-4 ${tertiaryTextColor}`} />
