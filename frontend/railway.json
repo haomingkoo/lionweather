@@ -3,6 +3,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm run build && npm run preview -- --host 0.0.0.0 --port $PORT --strictPort"
+    "startCommand": "npm run build && npx serve -s dist -l $PORT"
   }
 }
