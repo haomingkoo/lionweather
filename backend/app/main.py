@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import logging
 import asyncio
 import sys
@@ -34,16 +33,28 @@ from app.routers.radar import router as radar_router
 from app.routers.regional import router as regional_router
 from app.routers.alerts import router as alerts_router
 from app.db.migrations import migrate_ml_tables
+from app.db.database import execute_sql, get_database_url
 from app.services.radar_service import get_radar_service
-
-DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
 
 
 def init_db():
-    con = sqlite3.connect(DB_PATH)
-    con.execute("""
+    """Initialize database tables (works with both SQLite and PostgreSQL)"""
+    logger.info(f"Initializing database: {get_database_url()}")
+    
+    # Use SERIAL for PostgreSQL, INTEGER PRIMARY KEY AUTOINCREMENT for SQLite
+    # SQLAlchemy handles this automatically
+    database_url = get_database_url()
+    is_postgres = database_url.startswith("postgresql")
+    
+    # Auto-increment syntax differs between SQLite and PostgreSQL
+    if is_postgres:
+        id_column = "id SERIAL PRIMARY KEY"
+    else:
+        id_column = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    
+    execute_sql(f"""
         CREATE TABLE IF NOT EXISTS locations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
             created_at TEXT NOT NULL,
@@ -58,46 +69,40 @@ def init_db():
     """)
     
     # Performance tracking table
-    con.execute("""
+    execute_sql(f"""
         CREATE TABLE IF NOT EXISTS forecast_performance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             location_id INTEGER NOT NULL,
             prediction_timestamp TEXT NOT NULL,
             target_timestamp TEXT NOT NULL,
             hours_ahead INTEGER NOT NULL,
             
-            -- Our ML predictions
             ml_temperature REAL,
             ml_condition TEXT,
             ml_rain_probability REAL,
             ml_confidence REAL,
             
-            -- Official predictions
             official_temperature REAL,
             official_condition TEXT,
             official_source TEXT,
             
-            -- Actual weather (recorded later)
             actual_temperature REAL,
             actual_condition TEXT,
             actual_rainfall REAL,
             actual_recorded_at TEXT,
             
-            -- Performance metrics
             ml_temp_error REAL,
             official_temp_error REAL,
             ml_condition_correct INTEGER,
             official_condition_correct INTEGER,
-            ml_wins INTEGER DEFAULT 0,
-            
-            FOREIGN KEY (location_id) REFERENCES locations (id)
+            ml_wins INTEGER DEFAULT 0
         )
     """)
     
     # Model training data table
-    con.execute("""
+    execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sensor_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             timestamp TEXT NOT NULL,
             temperature_mean REAL,
             temperature_std REAL,
@@ -117,9 +122,9 @@ def init_db():
     """)
     
     # Benchmark summary table
-    con.execute("""
+    execute_sql(f"""
         CREATE TABLE IF NOT EXISTS model_benchmarks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             date TEXT NOT NULL,
             model_version TEXT NOT NULL,
             total_predictions INTEGER,
@@ -133,8 +138,7 @@ def init_db():
         )
     """)
     
-    con.commit()
-    con.close()
+    logger.info("Database tables initialized successfully")
 
 
 init_db()

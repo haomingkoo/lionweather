@@ -1,21 +1,26 @@
 """Database migration scripts for ML weather forecasting system."""
 
-import sqlite3
-import os
-
-
-DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
+from app.db.database import get_connection, get_database_url
 
 
 def migrate_ml_tables():
     """Create new tables for ML weather forecasting system."""
-    con = sqlite3.connect(DB_PATH)
+    database_url = get_database_url()
+    is_postgres = database_url.startswith("postgresql")
+    
+    # Auto-increment syntax differs between SQLite and PostgreSQL
+    if is_postgres:
+        id_column = "id SERIAL PRIMARY KEY"
+    else:
+        id_column = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    
+    con = get_connection()
     cursor = con.cursor()
     
     # Create weather_records table
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS weather_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             timestamp TEXT NOT NULL,
             country TEXT NOT NULL,
             location TEXT NOT NULL,
@@ -50,9 +55,9 @@ def migrate_ml_tables():
     """)
     
     # Create model_metadata table
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS model_metadata (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             model_type TEXT NOT NULL,
             weather_parameter TEXT NOT NULL,
             country TEXT NOT NULL,
@@ -70,9 +75,9 @@ def migrate_ml_tables():
     """)
     
     # Create predictions table
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             model_id INTEGER NOT NULL,
             prediction_timestamp TEXT NOT NULL,
             target_timestamp TEXT NOT NULL,
@@ -82,8 +87,7 @@ def migrate_ml_tables():
             weather_parameter TEXT NOT NULL,
             predicted_value REAL NOT NULL,
             confidence_lower REAL NOT NULL,
-            confidence_upper REAL NOT NULL,
-            FOREIGN KEY (model_id) REFERENCES model_metadata(id)
+            confidence_upper REAL NOT NULL
         )
     """)
     
@@ -94,9 +98,9 @@ def migrate_ml_tables():
     """)
     
     # Create evaluation_metrics table
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS evaluation_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            {id_column},
             model_id INTEGER NOT NULL,
             evaluation_timestamp TEXT NOT NULL,
             target_timestamp TEXT NOT NULL,
@@ -108,8 +112,7 @@ def migrate_ml_tables():
             actual_value REAL NOT NULL,
             absolute_error REAL NOT NULL,
             squared_error REAL NOT NULL,
-            percentage_error REAL NOT NULL,
-            FOREIGN KEY (model_id) REFERENCES model_metadata(id)
+            percentage_error REAL NOT NULL
         )
     """)
     

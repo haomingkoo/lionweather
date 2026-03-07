@@ -157,6 +157,8 @@ prophet==1.3.0
     # via lionweather-backend (backend/pyproject.toml)
 protobuf==7.34.0
     # via tensorflow
+psycopg2-binary==2.9.11
+    # via lionweather-backend (backend/pyproject.toml)
 pydantic==2.12.5
     # via fastapi
 pydantic-core==2.41.5
@@ -204,6 +206,8 @@ six==1.17.0
     #   tensorflow
 sortedcontainers==2.4.0
     # via hypothesis
+sqlalchemy==2.0.48
+    # via lionweather-backend (backend/pyproject.toml)
 stanio==0.5.1
     # via cmdstanpy
 starlette==0.52.1
@@ -230,6 +234,7 @@ typing-extensions==4.15.0
     #   pydantic
     #   pydantic-core
     #   pytest-asyncio
+    #   sqlalchemy
     #   starlette
     #   tensorflow
     #   typing-inspection
