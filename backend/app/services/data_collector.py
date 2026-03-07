@@ -6,7 +6,7 @@ Singapore, Malaysia, and Indonesia APIs and normalizes them into a unified forma
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Callable, Any
 import asyncio
 import logging
@@ -844,29 +844,82 @@ class DataCollector:
         records = []
         
         try:
+            # Log raw XML response for debugging (first 1000 characters)
+            logger.info(f"📄 Raw Indonesia XML (first 1000 chars): {xml_data[:1000]}")
+            logger.debug(f"📄 Full XML length: {len(xml_data)} characters")
+            
             # Attempt to repair common XML issues before parsing
             cleaned_xml = xml_data
+            
+            # Strip BOM (Byte Order Mark) if present
+            if cleaned_xml.startswith('\ufeff'):
+                cleaned_xml = cleaned_xml[1:]
+                logger.info("Stripped BOM from XML")
+            
+            # Strip leading/trailing whitespace
+            cleaned_xml = cleaned_xml.strip()
             
             # Fix common tag mismatches (e.g., </areas> instead of </area>)
             cleaned_xml = re.sub(r'</areas>', '</area>', cleaned_xml)
             cleaned_xml = re.sub(r'</parameters>', '</parameter>', cleaned_xml)
             cleaned_xml = re.sub(r'</timeranges>', '</timerange>', cleaned_xml)
+            cleaned_xml = re.sub(r'</values>', '</value>', cleaned_xml)
+            
+            # Fix unclosed tags (basic pattern)
+            cleaned_xml = re.sub(r'<(\w+)([^>]*)>([^<]*)<\/(?!\1)', r'<\1\2>\3</\1></', cleaned_xml)
             
             # Strip invalid XML characters (control characters except tab, newline, carriage return)
             cleaned_xml = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', cleaned_xml)
             
+            # Handle encoding issues - replace common problematic characters
+            cleaned_xml = cleaned_xml.replace('\x00', '')
+            
+            # Add XML validation - check if XML is well-formed
+            if not cleaned_xml.startswith('<?xml') and not cleaned_xml.startswith('<'):
+                logger.error("XML does not start with valid XML declaration or root element")
+                return records
+            
             # Parse XML
             try:
                 root = ET.fromstring(cleaned_xml)
+                logger.info(f"✓ XML parsed successfully. Root element: <{root.tag}>")
+                
+                # Log XML root element and immediate children
+                immediate_children = [child.tag for child in root]
+                logger.info(f"📊 XML structure - Root: <{root.tag}>, Immediate children: {immediate_children}")
+                logger.debug(f"  Root attributes: {root.attrib}")
+                
             except ET.ParseError as e:
                 logger.error(f"Failed to parse Indonesia XML even after cleaning: {str(e)}")
+                logger.error(f"  Error at line {e.position[0] if hasattr(e, 'position') else 'unknown'}")
+                logger.debug(f"  Cleaned XML (first 500 chars): {cleaned_xml[:500]}")
                 return records
             
             # Get current timestamp
             current_time = datetime.now()
             
+            # Use flexible XPath queries to find area elements
+            # Try multiple patterns to handle different XML structures
+            areas = root.findall(".//area")
+            if not areas:
+                logger.warning("No areas found with './/area', trying '//area'")
+                areas = root.findall("//area")
+            if not areas:
+                logger.warning("No areas found with '//area', trying './forecast/area'")
+                forecast = root.find("forecast")
+                if forecast is not None:
+                    areas = forecast.findall("area")
+            if not areas:
+                logger.warning("No areas found with './forecast/area', trying direct children")
+                areas = root.findall("area")
+            
+            logger.info(f"🔍 Found {len(areas)} area elements in XML")
+            
+            # Collect all unique parameter IDs for debugging
+            all_param_ids = set()
+            
             # Find all area elements (locations)
-            for area in root.findall(".//area"):
+            for area in areas:
                 try:
                     # Extract location information
                     location_id = area.get("id", "")
@@ -892,6 +945,10 @@ class DataCollector:
                     # Extract parameters
                     for param in area.findall("parameter"):
                         param_id = param.get("id", "")
+                        param_desc = param.get("description", "")
+                        
+                        # Log parameter ID for debugging
+                        all_param_ids.add(f"{param_id} ({param_desc})")
                         
                         # Get the first timerange (current/latest data)
                         timerange = param.find("timerange")
@@ -917,27 +974,29 @@ class DataCollector:
                             continue
                         
                         # Map parameter IDs to weather fields
-                        # Common BMKG parameter IDs:
-                        # t/temp = temperature (Celsius)
-                        # hu/humidity = humidity (%)
-                        # ws/wind_speed = wind speed (km/h or m/s)
-                        # wd/wind_direction = wind direction (degrees)
-                        # tp/rainfall = rainfall (mm)
-                        # p/pressure = pressure (hPa)
+                        # Extended BMKG parameter IDs with Indonesian language names and numeric IDs:
+                        # Temperature: t, temp, temperature, suhu, 1
+                        # Humidity: hu, humidity, kelembapan, kelembaban, rh, 2
+                        # Wind Speed: ws, wind_speed, kecepatan_angin, kec_angin, 3
+                        # Wind Direction: wd, wind_direction, arah_angin, 4
+                        # Rainfall: tp, rainfall, hujan, ch, curah_hujan, 5
+                        # Pressure: p, pressure, tekanan, 6
                         
-                        if param_id in ["t", "temp", "temperature"]:
+                        param_id_lower = param_id.lower()
+                        
+                        if param_id_lower in ["t", "temp", "temperature", "suhu", "1"]:
                             temperature = value
-                        elif param_id in ["hu", "humidity", "kelembapan"]:
+                        elif param_id_lower in ["hu", "humidity", "kelembapan", "kelembaban", "rh", "2"]:
                             humidity = value
-                        elif param_id in ["ws", "wind_speed", "kecepatan_angin"]:
+                        elif param_id_lower in ["ws", "wind_speed", "kecepatan_angin", "kec_angin", "3"]:
                             # Convert m/s to km/h if needed (BMKG often uses m/s)
                             # Assuming the value is in m/s, convert to km/h
                             wind_speed = value * 3.6 if value < 100 else value
-                        elif param_id in ["wd", "wind_direction", "arah_angin"]:
+                        elif param_id_lower in ["wd", "wind_direction", "arah_angin", "4"]:
                             wind_direction = value
-                        elif param_id in ["tp", "rainfall", "hujan", "ch"]:
+                        elif param_id_lower in ["tp", "rainfall", "hujan", "ch", "curah_hujan", "5"]:
                             rainfall = value
-                        elif param_id in ["p", "pressure", "tekanan"]:
+                        elif param_id_lower in ["p", "pressure", "tekanan", "6"]:
                             pressure = value
                     
                     # Create WeatherRecord
@@ -962,6 +1021,8 @@ class DataCollector:
                     logger.warning(f"Error parsing Indonesia area data: {str(e)}")
                     continue
             
+            # Log all parameter IDs found in XML for debugging
+            logger.info(f"🔍 All parameter IDs found in XML: {sorted(all_param_ids)}")
             logger.info(f"Parsed {len(records)} Indonesia weather records")
             
         except ET.ParseError as e:
@@ -970,3 +1031,200 @@ class DataCollector:
             logger.error(f"Unexpected error parsing Indonesia data: {str(e)}")
         
         return records
+
+
+    async def fetch_nea_forecast(self) -> List[dict]:
+        """
+        Fetch NEA (National Environment Agency) 24-hour weather forecast.
+
+        Fetches official NEA forecasts from Singapore's data.gov.sg API for comparison
+        against ML predictions. The forecast includes temperature ranges, weather conditions,
+        and forecast periods.
+
+        API: https://api-open.data.gov.sg/v2/real-time/api/twenty-four-hour-weather-forecast
+
+        Returns:
+            List of forecast dictionaries containing:
+            - prediction_time: When the forecast was made
+            - target_time_start: Start of forecast period
+            - target_time_end: End of forecast period
+            - temperature_low: Minimum temperature forecast
+            - temperature_high: Maximum temperature forecast
+            - forecast: Weather condition description
+            - relative_humidity_low: Minimum humidity forecast
+            - relative_humidity_high: Maximum humidity forecast
+            - wind_speed_low: Minimum wind speed forecast
+            - wind_speed_high: Maximum wind speed forecast
+            - wind_direction: Wind direction forecast
+        """
+        async def _fetch_with_rate_limit():
+            # Apply rate limiting
+            await self.singapore_rate_limiter.acquire()
+
+            logger.info("🌤️ Starting NEA forecast collection...")
+
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
+                url = f"{self.singapore_base_url}/v2/real-time/api/twenty-four-hour-weather-forecast"
+                logger.info(f"Fetching NEA forecast from: {url}")
+
+                try:
+                    data = await self._fetch_json(session, url)
+                    logger.info(f"✓ NEA forecast API success: {type(data).__name__}")
+                    if isinstance(data, dict):
+                        logger.debug(f"  Response keys: {list(data.keys())}")
+                except Exception as e:
+                    logger.error(f"❌ NEA forecast API failed: {str(e)}")
+                    raise
+
+                logger.info("Parsing NEA forecast response...")
+                forecasts = self._parse_nea_forecast(data)
+                logger.info(f"Parsed {len(forecasts)} NEA forecast records")
+
+                logger.info(f"✓ NEA forecast collection complete: {len(forecasts)} forecasts")
+                return forecasts
+
+        try:
+            return await self.retry_with_backoff(_fetch_with_rate_limit)
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch NEA forecast after retries: {str(e)}", exc_info=True)
+            # Gracefully continue - return empty list
+            return []
+
+    def _parse_nea_forecast(self, data: dict) -> List[dict]:
+        """
+        Parse NEA 24-hour forecast API response.
+
+        NEA API v2 returns data in format:
+        {
+            "data": {
+                "records": [
+                    {
+                        "timestamp": "2024-01-15T14:00:00+08:00",
+                        "general": {
+                            "forecast": "Partly Cloudy (Day)",
+                            "relative_humidity": {"low": 60, "high": 90},
+                            "temperature": {"low": 25, "high": 33},
+                            "wind": {
+                                "speed": {"low": 10, "high": 20},
+                                "direction": "NE"
+                            }
+                        },
+                        "periods": [
+                            {
+                                "time": {"start": "2024-01-15T18:00:00+08:00", "end": "2024-01-16T06:00:00+08:00"},
+                                "regions": {...}
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        Args:
+            data: NEA forecast API response
+
+        Returns:
+            List of forecast dictionaries
+        """
+        forecasts = []
+
+        try:
+            records = data.get("data", {}).get("records", [])
+            if not records:
+                logger.warning("No forecast records found in NEA API response")
+                return forecasts
+
+            # Get the latest forecast record
+            latest_record = records[0]
+
+            # Parse prediction timestamp
+            timestamp_str = latest_record.get("timestamp")
+            if timestamp_str:
+                try:
+                    prediction_time = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    prediction_time = datetime.now()
+            else:
+                prediction_time = datetime.now()
+
+            # Parse general forecast
+            general = latest_record.get("general", {})
+            forecast_text = general.get("forecast", "")
+
+            # Parse temperature
+            temp = general.get("temperature", {})
+            temp_low = temp.get("low", 0)
+            temp_high = temp.get("high", 0)
+
+            # Parse humidity
+            humidity = general.get("relative_humidity", {})
+            humidity_low = humidity.get("low", 0)
+            humidity_high = humidity.get("high", 0)
+
+            # Parse wind
+            wind = general.get("wind", {})
+            wind_speed = wind.get("speed", {})
+            wind_speed_low = wind_speed.get("low", 0)
+            wind_speed_high = wind_speed.get("high", 0)
+            wind_direction = wind.get("direction", "")
+
+            # Parse forecast periods
+            periods = latest_record.get("periods", [])
+
+            if periods:
+                # Create a forecast entry for each period
+                for period in periods:
+                    time_info = period.get("time", {})
+                    start_str = time_info.get("start")
+                    end_str = time_info.get("end")
+
+                    if start_str and end_str:
+                        try:
+                            target_time_start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                            target_time_end = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                        except (ValueError, AttributeError):
+                            continue
+
+                        forecast_entry = {
+                            "prediction_time": prediction_time,
+                            "target_time_start": target_time_start,
+                            "target_time_end": target_time_end,
+                            "temperature_low": temp_low,
+                            "temperature_high": temp_high,
+                            "forecast": forecast_text,
+                            "relative_humidity_low": humidity_low,
+                            "relative_humidity_high": humidity_high,
+                            "wind_speed_low": wind_speed_low,
+                            "wind_speed_high": wind_speed_high,
+                            "wind_direction": wind_direction,
+                        }
+
+                        forecasts.append(forecast_entry)
+            else:
+                # No periods, create a single forecast entry for 24 hours ahead
+                target_time_start = prediction_time
+                target_time_end = prediction_time + timedelta(hours=24)
+
+                forecast_entry = {
+                    "prediction_time": prediction_time,
+                    "target_time_start": target_time_start,
+                    "target_time_end": target_time_end,
+                    "temperature_low": temp_low,
+                    "temperature_high": temp_high,
+                    "forecast": forecast_text,
+                    "relative_humidity_low": humidity_low,
+                    "relative_humidity_high": humidity_high,
+                    "wind_speed_low": wind_speed_low,
+                    "wind_speed_high": wind_speed_high,
+                    "wind_direction": wind_direction,
+                }
+
+                forecasts.append(forecast_entry)
+
+            logger.info(f"Parsed {len(forecasts)} NEA forecast periods")
+
+        except Exception as e:
+            logger.error(f"Error parsing NEA forecast data: {str(e)}")
+
+        return forecasts
+

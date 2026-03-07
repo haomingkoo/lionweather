@@ -171,6 +171,212 @@ def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/status")
+def status_check():
+    """Detailed status check including background tasks and database"""
+    import os
+    db_path = os.getenv("DATABASE_PATH", "weather.db")
+    db_exists = os.path.exists(db_path)
+    
+    # Get database stats if it exists
+    db_stats = {}
+    if db_exists:
+        try:
+            from app.db.database import execute_sql
+            result = execute_sql("SELECT COUNT(*) FROM weather_records")
+            db_stats["total_records"] = result[0][0] if result else 0
+            
+            # Get recent activity (last hour)
+            from datetime import datetime, timedelta
+            cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
+            result = execute_sql(
+                "SELECT COUNT(*) FROM weather_records WHERE timestamp >= ?",
+                (cutoff,)
+            )
+            db_stats["records_last_hour"] = result[0][0] if result else 0
+        except Exception as e:
+            db_stats["error"] = str(e)
+    
+    return {
+        "status": "healthy",
+        "background_tasks": {
+            "data_collector": "configured (runs every 10 minutes)",
+            "radar_service": "configured (runs every 5 minutes)",
+            "ml_scheduler": "configured (runs Sundays at 2 AM)"
+        },
+        "database": {
+            "path": db_path,
+            "exists": db_exists,
+            "stats": db_stats
+        }
+    }
+
+
+@app.post("/admin/collect-now")
+async def trigger_collection():
+    """
+    Manually trigger data collection (for testing/debugging).
+    
+    Note: The database uses ON CONFLICT handling to automatically prevent duplicates.
+    Records with the same (timestamp, country, location) will be updated instead of duplicated.
+    """
+    from app.services.data_collector import DataCollector
+    from app.services.data_store import DataStore
+    import asyncio
+    
+    logger.info("Manual data collection triggered via /admin/collect-now")
+    
+    collector = DataCollector()
+    store = DataStore()
+    
+    try:
+        # Collect data from all sources
+        records = await collector.collect_all_sources()
+        logger.info(f"Manual collection: Collected {len(records)} records")
+        
+        # Store records (duplicates are automatically handled by ON CONFLICT clause)
+        stored = 0
+        updated = 0
+        errors = []
+        
+        for record in records:
+            try:
+                # save_weather_record uses INSERT OR REPLACE for upsert logic
+                # This automatically handles duplicates by updating existing records
+                record_id = await asyncio.to_thread(store.store_record, record)
+                stored += 1
+            except Exception as e:
+                errors.append(f"{record.location}: {str(e)}")
+                logger.error(f"Failed to store record: {e}")
+        
+        # Count by country
+        by_country = {
+            "singapore": len([r for r in records if r.country == "singapore"]),
+            "malaysia": len([r for r in records if r.country == "malaysia"]),
+            "indonesia": len([r for r in records if r.country == "indonesia"])
+        }
+        
+        result = {
+            "success": True,
+            "collected": len(records),
+            "stored": stored,
+            "by_country": by_country,
+            "note": "Duplicates are automatically handled - existing records are updated",
+            "errors": errors[:10] if errors else []  # First 10 errors only
+        }
+        
+        logger.info(f"Manual collection complete: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Manual collection failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/admin/remove-duplicates")
+async def remove_duplicates(dry_run: bool = True):
+    """
+    Remove duplicate weather records from the database.
+    
+    Duplicates are defined as records with the same (timestamp, country, location).
+    When duplicates are found, keeps the most recent record and removes older ones.
+    
+    Args:
+        dry_run: If True (default), only reports what would be deleted without actually deleting
+        
+    Returns:
+        Summary of duplicates found and removed
+    """
+    from app.db.database import execute_sql
+    
+    logger.info(f"Duplicate removal triggered (dry_run={dry_run})")
+    
+    try:
+        # Find duplicates
+        duplicates = execute_sql("""
+            SELECT timestamp, country, location, COUNT(*) as count
+            FROM weather_records
+            GROUP BY timestamp, country, location
+            HAVING COUNT(*) > 1
+            ORDER BY count DESC
+        """)
+        
+        if not duplicates:
+            return {
+                "success": True,
+                "duplicates_found": 0,
+                "records_removed": 0,
+                "message": "No duplicates found - database is clean!"
+            }
+        
+        duplicate_groups = len(duplicates)
+        total_to_remove = sum(row[3] - 1 for row in duplicates)  # count - 1 for each group
+        
+        if dry_run:
+            # Just report what would be deleted
+            sample_duplicates = [
+                {
+                    "timestamp": row[0],
+                    "country": row[1],
+                    "location": row[2],
+                    "count": row[3]
+                }
+                for row in duplicates[:10]  # Show first 10
+            ]
+            
+            return {
+                "success": True,
+                "dry_run": True,
+                "duplicates_found": duplicate_groups,
+                "records_to_remove": total_to_remove,
+                "sample": sample_duplicates,
+                "message": f"Found {duplicate_groups} groups of duplicates. Set dry_run=false to remove them."
+            }
+        
+        # Actually remove duplicates
+        removed_count = 0
+        
+        for timestamp, country, location, count in duplicates:
+            # Get all records in this duplicate group, ordered by created_at DESC
+            records = execute_sql("""
+                SELECT id FROM weather_records
+                WHERE timestamp = ? AND country = ? AND location = ?
+                ORDER BY created_at DESC
+            """, (timestamp, country, location))
+            
+            # Keep the first one (most recent), delete the rest
+            if len(records) > 1:
+                delete_ids = [r[0] for r in records[1:]]
+                
+                # Delete duplicates
+                placeholders = ','.join('?' * len(delete_ids))
+                execute_sql(
+                    f"DELETE FROM weather_records WHERE id IN ({placeholders})",
+                    delete_ids
+                )
+                
+                removed_count += len(delete_ids)
+                logger.info(f"Removed {len(delete_ids)} duplicates for {country}/{location} at {timestamp}")
+        
+        return {
+            "success": True,
+            "dry_run": False,
+            "duplicates_found": duplicate_groups,
+            "records_removed": removed_count,
+            "message": f"Successfully removed {removed_count} duplicate records from {duplicate_groups} groups"
+        }
+        
+    except Exception as e:
+        logger.error(f"Duplicate removal failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @app.on_event("startup")
 async def startup_event():
     """Start background services on application startup"""
