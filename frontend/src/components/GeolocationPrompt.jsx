@@ -81,10 +81,9 @@ export function GeolocationPrompt({ onLocationDetected, onDismiss }) {
         {/* Privacy Message */}
         <div className="mb-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
           <p className="text-sm text-slate-300">
-            🔒{" "}
-            <span className="font-medium">We won't store your location.</span>{" "}
-            Your coordinates are only used to fetch weather data and are not
-            saved on our servers.
+            🔒 <span className="font-medium">Complete Privacy.</span> Your
+            locations are stored only in your browser and never sent to our
+            servers. We only fetch weather data for the coordinates you provide.
           </p>
         </div>
 

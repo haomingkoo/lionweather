@@ -50,8 +50,6 @@ export function Dashboard() {
         />
       )}
 
-  return (
-    <div className="min-h-screen bg-[#0a0e1a] text-white">
       {/* Header matching Handwriting Lab style */}
       <header className="border-b border-slate-800">
         <div className="mx-auto max-w-7xl px-6 py-4">
