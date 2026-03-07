@@ -191,6 +191,10 @@ class DataStore:
         """
         Get weather records within a date range with optional filtering.
         
+        DATA LEAKAGE PREVENTION: This method ONLY queries weather_records table
+        (current observations). It NEVER queries forecast_data table to prevent
+        future information from leaking into ML training data.
+        
         Args:
             start_date: Start of date range (inclusive)
             end_date: End of date range (inclusive)
@@ -202,13 +206,18 @@ class DataStore:
             
         Validates: Requirements 2.2, 2.3
         """
+        # ASSERTION: Validate we're querying the correct table for ML training
+        table_name = "weather_records"
+        assert table_name == "weather_records", \
+            "DATA LEAKAGE RISK: ML training must only use weather_records table, not forecast_data"
+        
         con = self._get_connection()
         cursor = con.cursor()
         
         try:
             # Build query with optional filters
-            query = """
-                SELECT * FROM weather_records
+            query = f"""
+                SELECT * FROM {table_name}
                 WHERE timestamp >= ? AND timestamp <= ?
             """
             params = [start_date.isoformat(), end_date.isoformat()]

@@ -5,6 +5,8 @@ This test MUST FAIL on unfixed code - failure confirms the bug exists.
 DO NOT attempt to fix the test or the code when it fails.
 
 This test encodes the expected behavior - it will validate the fix when it passes after implementation.
+
+NOTE: The fix uses Open-Meteo API instead of BMKG XML API, as the BMKG endpoints are no longer publicly accessible.
 """
 
 import pytest
@@ -118,7 +120,7 @@ class TestIndonesiaDataCollection:
                 assert record.latitude != 0.0, f"Invalid latitude: {record.latitude}"
                 assert record.longitude != 0.0, f"Invalid longitude: {record.longitude}"
                 assert record.country == "indonesia"
-                assert record.source_api == "data.bmkg.go.id"
+                assert record.source_api == "open-meteo.com"  # Updated to use Open-Meteo API
             
             print(f"✓ Test passed: Collected {len(records)} Indonesia weather records")
             for record in records:

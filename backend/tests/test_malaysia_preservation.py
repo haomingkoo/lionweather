@@ -40,6 +40,7 @@ class TestMalaysiaPreservation:
         - Malaysia API calls succeed
         - Parsing returns non-zero records
         - All records have valid data
+        - After fix: Returns ~284 records (1 per location, current observations only)
         
         EXPECTED OUTCOME: Test PASSES on unfixed code
         """
@@ -88,9 +89,17 @@ class TestMalaysiaPreservation:
             records = await collector.fetch_malaysia_data()
             
             # PRESERVATION REQUIREMENT: Malaysia data collection must continue to work
+            # After fix: Should return ~284 records (1 per location, current observations only)
             assert len(records) > 0, (
                 f"Malaysia data collection failed: expected non-zero records, got {len(records)}. "
                 f"This baseline behavior must be preserved after fixes."
+            )
+            
+            # Verify we get 1 record per location (not multiple forecast periods)
+            unique_locations = set(record.location for record in records)
+            assert len(records) == len(unique_locations), (
+                f"Expected 1 record per location, got {len(records)} records for {len(unique_locations)} locations. "
+                f"Should only return current observations, not forecast periods."
             )
             
             # Verify all records have valid data (baseline behavior)
@@ -102,7 +111,7 @@ class TestMalaysiaPreservation:
                 assert record.country == "malaysia"
                 assert record.source_api == "api.data.gov.my"
             
-            print(f"✓ Baseline test passed: Collected {len(records)} Malaysia weather records")
+            print(f"✓ Baseline test passed: Collected {len(records)} Malaysia weather records (current observations only)")
             for record in records:
                 print(f"  - {record.location}: {record.temperature}°C at ({record.latitude}, {record.longitude})")
     

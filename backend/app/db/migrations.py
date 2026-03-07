@@ -128,5 +128,82 @@ def migrate_ml_tables():
     print("ML weather forecasting tables created successfully")
 
 
+def migrate_forecast_tables():
+    """Create forecast_data table for official weather forecasts."""
+    database_url = get_database_url()
+    is_postgres = database_url.startswith("postgresql")
+    
+    # Auto-increment syntax differs between SQLite and PostgreSQL
+    if is_postgres:
+        id_column = "id SERIAL PRIMARY KEY"
+    else:
+        id_column = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    
+    con = get_connection()
+    cursor = con.cursor()
+    
+    # Create forecast_data table
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS forecast_data (
+            {id_column},
+            
+            prediction_time TEXT NOT NULL,
+            target_time_start TEXT NOT NULL,
+            target_time_end TEXT NOT NULL,
+            
+            country TEXT NOT NULL,
+            location TEXT,
+            latitude REAL,
+            longitude REAL,
+            
+            temperature_low REAL,
+            temperature_high REAL,
+            humidity_low REAL,
+            humidity_high REAL,
+            wind_speed_low REAL,
+            wind_speed_high REAL,
+            wind_direction TEXT,
+            forecast_description TEXT,
+            
+            source_api TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            
+            UNIQUE(prediction_time, target_time_start, target_time_end, country, location)
+        )
+    """)
+    
+    # Create indexes for forecast_data
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_forecast_country 
+        ON forecast_data(country)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_forecast_location 
+        ON forecast_data(country, location)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_forecast_target_time 
+        ON forecast_data(target_time_start)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_forecast_prediction_time 
+        ON forecast_data(prediction_time)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_forecast_composite 
+        ON forecast_data(country, location, target_time_start)
+    """)
+    
+    con.commit()
+    con.close()
+    
+    print("Forecast data table created successfully")
+
+
 if __name__ == "__main__":
     migrate_ml_tables()
+    migrate_forecast_tables()

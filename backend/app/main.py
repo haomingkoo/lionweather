@@ -32,7 +32,7 @@ from app.routers.ml import router as ml_api_router
 from app.routers.radar import router as radar_router
 from app.routers.regional import router as regional_router
 from app.routers.data_health import router as data_health_router
-from app.db.migrations import migrate_ml_tables
+from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
 from app.db.database import execute_sql, get_database_url
 from app.services.radar_service import get_radar_service
 
@@ -146,6 +146,9 @@ init_db()
 # Run ML table migrations
 migrate_ml_tables()
 
+# Run forecast table migrations
+migrate_forecast_tables()
+
 app = FastAPI(
     title="LionWeather API",
     description="AI-powered weather forecasting for Singapore, Malaysia, and Indonesia",
@@ -210,6 +213,64 @@ def status_check():
             "stats": db_stats
         }
     }
+
+
+@app.post("/admin/collect-forecasts")
+async def trigger_forecast_collection():
+    """
+    Manually trigger forecast collection (for testing/debugging).
+    
+    Collects official forecasts from Singapore, Malaysia, and Indonesia APIs
+    and stores them in the forecast_data table.
+    """
+    from app.services.forecast_collector import ForecastCollector
+    from app.services.forecast_store import ForecastStore
+    
+    logger.info("Manual forecast collection triggered via /admin/collect-forecasts")
+    
+    collector = ForecastCollector()
+    store = ForecastStore()
+    
+    try:
+        # Collect forecasts from all sources
+        forecasts = await collector.collect_all_forecasts()
+        logger.info(f"Manual forecast collection: Collected {len(forecasts)} forecasts")
+        
+        if not forecasts:
+            return {
+                "success": True,
+                "collected": 0,
+                "stored": 0,
+                "message": "No forecasts collected - all sources may have failed"
+            }
+        
+        # Store forecasts
+        result = store.store_forecasts(forecasts)
+        
+        # Count by country
+        by_country = {
+            "singapore": len([f for f in forecasts if f["country"] == "singapore"]),
+            "malaysia": len([f for f in forecasts if f["country"] == "malaysia"]),
+            "indonesia": len([f for f in forecasts if f["country"] == "indonesia"])
+        }
+        
+        response = {
+            "success": True,
+            "collected": len(forecasts),
+            "stored": result["stored"],
+            "by_country": by_country,
+            "errors": result.get("error_messages", [])
+        }
+        
+        logger.info(f"Manual forecast collection complete: {response}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Manual forecast collection failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 @app.post("/admin/collect-now")
@@ -383,6 +444,8 @@ async def startup_event():
     from app.ml.scheduler import TrainingScheduler
     from app.services.data_collector import DataCollector
     from app.services.data_store import DataStore
+    from app.services.forecast_collector import ForecastCollector
+    from app.services.forecast_store import ForecastStore
     import asyncio
     
     logger.info("=" * 60)
@@ -450,6 +513,43 @@ async def startup_event():
     # Start data collection task in background
     asyncio.create_task(collect_and_store_data())
     logger.info("✓ Data collector started (collects every 10 minutes)")
+    
+    # Start forecast collector (fetch forecasts every hour)
+    logger.info("Starting background forecast collector...")
+    forecast_collector = ForecastCollector()
+    forecast_store = ForecastStore()
+    
+    async def collect_and_store_forecasts():
+        """Background task to collect and store official forecasts"""
+        forecast_collection_count = 0
+        while True:
+            try:
+                forecast_collection_count += 1
+                logger.info(f"[Forecast Collection #{forecast_collection_count}] Starting forecast collection from all sources...")
+                
+                # Collect forecasts
+                forecasts = await forecast_collector.collect_all_forecasts()
+                logger.info(f"[Forecast Collection #{forecast_collection_count}] Collected {len(forecasts)} forecasts")
+                
+                if not forecasts:
+                    logger.warning(f"[Forecast Collection #{forecast_collection_count}] No forecasts collected - all sources may have failed")
+                else:
+                    # Store forecasts in database
+                    result = forecast_store.store_forecasts(forecasts)
+                    logger.info(f"[Forecast Collection #{forecast_collection_count}] ✓ Stored {result['stored']}/{len(forecasts)} forecasts in database")
+                
+                # Log next collection time
+                logger.info(f"[Forecast Collection #{forecast_collection_count}] Next forecast collection in 1 hour...")
+                
+            except Exception as e:
+                logger.error(f"[Forecast Collection #{forecast_collection_count}] Forecast collection failed: {e}", exc_info=True)
+            
+            # Wait 1 hour before next collection
+            await asyncio.sleep(3600)
+    
+    # Start forecast collection task in background
+    asyncio.create_task(collect_and_store_forecasts())
+    logger.info("✓ Forecast collector started (collects every hour)")
     
     logger.info("=" * 60)
     logger.info("ALL BACKGROUND SERVICES STARTED")

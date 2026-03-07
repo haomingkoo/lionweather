@@ -147,14 +147,28 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
 
         // Fetch from backend API instead of directly from weather.gov.sg
         const response = await fetch("/api/radar/frames?count=12");
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch radar frames: ${response.statusText}`,
-          );
+
+        // Handle fetch errors gracefully
+        if (!response || !response.ok) {
+          const statusText = response?.statusText || "Network error";
+          console.warn(`Radar frames fetch failed: ${statusText}`);
+          setRadarFrames([]);
+          setIsLoading(false);
+          return;
         }
 
         const data = await response.json();
         console.log("Received radar frames:", data);
+
+        // Check if we actually received frames
+        if (!data.frames || data.frames.length === 0) {
+          console.warn(
+            "Backend returned 0 radar frames - radar data may not be available yet",
+          );
+          setRadarFrames([]);
+          setIsLoading(false);
+          return;
+        }
 
         // Transform backend response to our format
         const frames = data.frames.map((frame) => ({
@@ -167,7 +181,8 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
         console.log(`Loaded ${frames.length} radar frames from backend`);
         setRadarFrames(frames);
       } catch (error) {
-        console.error("Failed to fetch radar frames:", error);
+        // Log warning instead of error for better UX
+        console.warn("Radar frames unavailable:", error.message || error);
         setRadarFrames([]);
       } finally {
         setIsLoading(false);
@@ -283,6 +298,26 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
           </div>
         )}
 
+        {/* No Data Message */}
+        {!isLoading && radarFrames.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-10">
+            <div
+              className={`rounded-2xl backdrop-blur-md p-6 shadow-lg text-center max-w-md ${isDark ? "bg-slate-800/90" : "bg-white/90"}`}
+            >
+              <div className={`text-lg font-semibold mb-2 ${textColor}`}>
+                Radar Data Unavailable
+              </div>
+              <div
+                className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}
+              >
+                The radar animation service is currently unavailable. This may
+                be due to the backend server not running or radar data not being
+                cached yet. Please try again in a few moments.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Legend */}
         <div
           className={`absolute top-20 left-4 z-10 rounded-2xl backdrop-blur-md p-4 shadow-lg ${isDark ? "bg-slate-800/90" : "bg-white/90"}`}
@@ -328,12 +363,12 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
           </div>
         </div>
 
-        {/* Timeline Controls */}
+        {/* Timeline Controls - Fixed position, always visible */}
         <div
-          className={`absolute bottom-0 left-0 right-0 z-10 p-6 ${isDark ? "bg-gradient-to-t from-slate-900/95 to-transparent" : "bg-gradient-to-t from-white/95 to-transparent"}`}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[2001] w-[calc(100%-2rem)] max-w-4xl pointer-events-none`}
         >
           <div
-            className={`rounded-2xl backdrop-blur-md p-4 shadow-lg ${isDark ? "bg-slate-800/90" : "bg-white/90"}`}
+            className={`rounded-2xl backdrop-blur-md p-4 shadow-lg pointer-events-auto ${isDark ? "bg-slate-800/90" : "bg-white/90"}`}
           >
             <div className="flex items-center gap-4 mb-4">
               <button

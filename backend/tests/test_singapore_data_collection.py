@@ -28,108 +28,129 @@ class TestSingaporeDataCollection:
         """
         # Create mock API responses that match Singapore API v2 format
         mock_temp_response = {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
                     {
-                        "timestamp": "2024-01-15T10:00:00+08:00",
-                        "item": {
-                            "readings": [
-                                {
-                                    "station": {
-                                        "id": "S50",
-                                        "name": "Clementi",
-                                        "location": {
-                                            "latitude": 1.3337,
-                                            "longitude": 103.7768
-                                        }
-                                    },
-                                    "value": 28.5
-                                },
-                                {
-                                    "station": {
-                                        "id": "S24",
-                                        "name": "Changi",
-                                        "location": {
-                                            "latitude": 1.3644,
-                                            "longitude": 103.9915
-                                        }
-                                    },
-                                    "value": 29.2
-                                }
-                            ]
+                        "id": "S50",
+                        "deviceId": "S50",
+                        "name": "Clementi Road",
+                        "location": {
+                            "latitude": 1.3337,
+                            "longitude": 103.7768
+                        }
+                    },
+                    {
+                        "id": "S24",
+                        "deviceId": "S24",
+                        "name": "Upper Changi Road North",
+                        "location": {
+                            "latitude": 1.3644,
+                            "longitude": 103.9915
                         }
                     }
-                ]
-            }
+                ],
+                "readings": [
+                    {
+                        "timestamp": "2024-01-15T10:00:00+08:00",
+                        "data": [
+                            {"stationId": "S50", "value": 28.5},
+                            {"stationId": "S24", "value": 29.2}
+                        ]
+                    }
+                ],
+                "readingType": "DBT 1M F",
+                "readingUnit": "deg C"
+            },
+            "errorMsg": ""
         }
         
         mock_rainfall_response = {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
+                    {"id": "S50", "deviceId": "S50", "name": "Clementi Road", "location": {"latitude": 1.3337, "longitude": 103.7768}},
+                    {"id": "S24", "deviceId": "S24", "name": "Upper Changi Road North", "location": {"latitude": 1.3644, "longitude": 103.9915}}
+                ],
+                "readings": [
                     {
                         "timestamp": "2024-01-15T10:00:00+08:00",
-                        "item": {
-                            "readings": [
-                                {"station": {"id": "S50"}, "value": 0.0},
-                                {"station": {"id": "S24"}, "value": 0.5}
-                            ]
-                        }
+                        "data": [
+                            {"stationId": "S50", "value": 0.0},
+                            {"stationId": "S24", "value": 0.5}
+                        ]
                     }
-                ]
-            }
+                ],
+                "readingType": "Rainfall",
+                "readingUnit": "mm"
+            },
+            "errorMsg": ""
         }
         
         mock_humidity_response = {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
+                    {"id": "S50", "deviceId": "S50", "name": "Clementi Road", "location": {"latitude": 1.3337, "longitude": 103.7768}},
+                    {"id": "S24", "deviceId": "S24", "name": "Upper Changi Road North", "location": {"latitude": 1.3644, "longitude": 103.9915}}
+                ],
+                "readings": [
                     {
                         "timestamp": "2024-01-15T10:00:00+08:00",
-                        "item": {
-                            "readings": [
-                                {"station": {"id": "S50"}, "value": 75.0},
-                                {"station": {"id": "S24"}, "value": 78.0}
-                            ]
-                        }
+                        "data": [
+                            {"stationId": "S50", "value": 75.0},
+                            {"stationId": "S24", "value": 78.0}
+                        ]
                     }
-                ]
-            }
+                ],
+                "readingType": "Relative Humidity",
+                "readingUnit": "%"
+            },
+            "errorMsg": ""
         }
         
         mock_wind_speed_response = {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
+                    {"id": "S50", "deviceId": "S50", "name": "Clementi Road", "location": {"latitude": 1.3337, "longitude": 103.7768}},
+                    {"id": "S24", "deviceId": "S24", "name": "Upper Changi Road North", "location": {"latitude": 1.3644, "longitude": 103.9915}}
+                ],
+                "readings": [
                     {
                         "timestamp": "2024-01-15T10:00:00+08:00",
-                        "item": {
-                            "readings": [
-                                {"station": {"id": "S50"}, "value": 12.5},
-                                {"station": {"id": "S24"}, "value": 15.0}
-                            ]
-                        }
+                        "data": [
+                            {"stationId": "S50", "value": 12.5},
+                            {"stationId": "S24", "value": 15.0}
+                        ]
                     }
-                ]
-            }
+                ],
+                "readingType": "Wind Speed",
+                "readingUnit": "km/h"
+            },
+            "errorMsg": ""
         }
         
         mock_wind_dir_response = {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
+                    {"id": "S50", "deviceId": "S50", "name": "Clementi Road", "location": {"latitude": 1.3337, "longitude": 103.7768}},
+                    {"id": "S24", "deviceId": "S24", "name": "Upper Changi Road North", "location": {"latitude": 1.3644, "longitude": 103.9915}}
+                ],
+                "readings": [
                     {
                         "timestamp": "2024-01-15T10:00:00+08:00",
-                        "item": {
-                            "readings": [
-                                {"station": {"id": "S50"}, "value": 180.0},
-                                {"station": {"id": "S24"}, "value": 200.0}
-                            ]
-                        }
+                        "data": [
+                            {"stationId": "S50", "value": 180.0},
+                            {"stationId": "S24", "value": 200.0}
+                        ]
                     }
-                ]
-            }
+                ],
+                "readingType": "Wind Direction",
+                "readingUnit": "degrees"
+            },
+            "errorMsg": ""
         }
         
         # Create DataCollector instance

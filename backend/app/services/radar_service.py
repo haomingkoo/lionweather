@@ -103,19 +103,24 @@ class RadarService:
         """
         # If cache is valid, return cached frames
         if self.is_cache_valid():
-            logger.info("Returning cached radar frames")
+            logger.info(f"Returning {len(self.frame_cache[:count])} cached radar frames")
             return self.frame_cache[:count]
         
-        # If cache is empty (first startup), fetch immediately
-        if not self.frame_cache:
-            logger.info("Cache empty, fetching radar frames immediately")
+        # If cache is empty or stale, fetch immediately
+        if not self.frame_cache or not self.is_cache_valid():
+            logger.info("Cache empty or stale, fetching radar frames immediately")
             try:
                 await self._fetch_and_cache_frames(count)
+                logger.info(f"Successfully fetched and cached {len(self.frame_cache)} frames")
             except Exception as e:
-                logger.error(f"Failed to fetch initial radar frames: {e}")
-                return []
+                logger.error(f"Failed to fetch radar frames: {e}")
+                # Return empty list if fetch fails and cache is empty
+                if not self.frame_cache:
+                    logger.warning("No cached frames available, returning empty list")
+                    return []
         
         # Return whatever we have in cache (may be stale but better than nothing)
+        logger.info(f"Returning {len(self.frame_cache[:count])} radar frames from cache")
         return self.frame_cache[:count]
     
     async def _fetch_and_cache_frames(self, count: int = 6) -> None:

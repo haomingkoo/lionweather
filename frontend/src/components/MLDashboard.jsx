@@ -23,6 +23,8 @@ export function MLDashboard({ isDark = false }) {
   const [predictions7d, setPredictions7d] = useState(null);
   const [accuracy, setAccuracy] = useState(null);
   const [comparison, setComparison] = useState(null);
+  const [dataHealth, setDataHealth] = useState(null);
+  const [forecastComparison, setForecastComparison] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [timeframe, setTimeframe] = useState("24h");
@@ -40,29 +42,44 @@ export function MLDashboard({ isDark = false }) {
       setIsLoading(true);
       setError(null);
 
-      const [pred24h, pred7d, acc, comp] = await Promise.all([
-        get24HourPredictions("Singapore").catch((err) => {
-          console.error("24h predictions error:", err);
-          return null;
-        }),
-        get7DayPredictions("Singapore").catch((err) => {
-          console.error("7d predictions error:", err);
-          return null;
-        }),
-        getAccuracyMetrics("temperature").catch((err) => {
-          console.error("Accuracy metrics error:", err);
-          return null;
-        }),
-        getModelComparison("temperature", 30).catch((err) => {
-          console.error("Model comparison error:", err);
-          return null;
-        }),
-      ]);
+      const [pred24h, pred7d, acc, comp, health, forecastComp] =
+        await Promise.all([
+          get24HourPredictions("Singapore").catch((err) => {
+            console.error("24h predictions error:", err);
+            return null;
+          }),
+          get7DayPredictions("Singapore").catch((err) => {
+            console.error("7d predictions error:", err);
+            return null;
+          }),
+          getAccuracyMetrics("temperature").catch((err) => {
+            console.error("Accuracy metrics error:", err);
+            return null;
+          }),
+          getModelComparison("temperature", 30).catch((err) => {
+            console.error("Model comparison error:", err);
+            return null;
+          }),
+          fetch("/api/data-health/status")
+            .then((res) => res.json())
+            .catch((err) => {
+              console.error("Data health error:", err);
+              return null;
+            }),
+          fetch("/api/forecasts/compare?country=singapore&days_back=7")
+            .then((res) => res.json())
+            .catch((err) => {
+              console.error("Forecast comparison error:", err);
+              return null;
+            }),
+        ]);
 
       setPredictions24h(pred24h);
       setPredictions7d(pred7d);
       setAccuracy(acc);
       setComparison(comp);
+      setDataHealth(health);
+      setForecastComparison(forecastComp);
     } catch (err) {
       console.error("Failed to fetch ML data:", err);
       setError(err.message || "Failed to load ML forecasts");
@@ -175,6 +192,60 @@ export function MLDashboard({ isDark = false }) {
         </div>
       </div>
 
+      {/* Data Collection Status */}
+      {dataHealth && (
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className={`h-5 w-5 ${tertiaryTextColor}`} />
+            <h3 className={`text-lg font-semibold ${textColor}`}>
+              Data Collection Status
+            </h3>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3 text-center">
+              <div
+                className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
+              >
+                Singapore
+              </div>
+              <div className={`text-2xl font-bold ${textColor}`}>
+                {dataHealth.by_country?.singapore?.toLocaleString() || 0}
+              </div>
+              <div className={`text-xs ${tertiaryTextColor}`}>records</div>
+            </div>
+            <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3 text-center">
+              <div
+                className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
+              >
+                Malaysia
+              </div>
+              <div className={`text-2xl font-bold ${textColor}`}>
+                {dataHealth.by_country?.malaysia?.toLocaleString() || 0}
+              </div>
+              <div className={`text-xs ${tertiaryTextColor}`}>records</div>
+            </div>
+            <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3 text-center">
+              <div
+                className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
+              >
+                Indonesia
+              </div>
+              <div className={`text-2xl font-bold ${textColor}`}>
+                {dataHealth.by_country?.indonesia?.toLocaleString() || 0}
+              </div>
+              <div className={`text-xs ${tertiaryTextColor}`}>records</div>
+            </div>
+          </div>
+          <div className={`mt-3 text-xs ${tertiaryTextColor} text-center`}>
+            Total: {dataHealth.total_records?.toLocaleString() || 0} records •
+            Last updated:{" "}
+            {dataHealth.latest_timestamp
+              ? new Date(dataHealth.latest_timestamp).toLocaleString()
+              : "N/A"}
+          </div>
+        </div>
+      )}
+
       {/* Model Performance */}
       {accuracy?.rankings && accuracy.rankings.length > 0 && (
         <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
@@ -201,6 +272,98 @@ export function MLDashboard({ isDark = false }) {
                 <div className={`text-xs ${tertiaryTextColor}`}>MAE</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Forecast Comparison - ML vs Official */}
+      {forecastComparison && forecastComparison.official_forecast_count > 0 && (
+        <div className="rounded-3xl bg-white/25 backdrop-blur-xl border border-white/40 p-4 md:p-6 xl:p-4 2xl:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className={`h-5 w-5 ${tertiaryTextColor}`} />
+            <h3 className={`text-lg font-semibold ${textColor}`}>
+              ML vs Official Forecasts
+            </h3>
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3">
+                <div
+                  className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
+                >
+                  Official Forecasts
+                </div>
+                <div className={`text-2xl font-bold ${textColor}`}>
+                  {forecastComparison.official_forecast_count}
+                </div>
+                <div className={`text-xs ${tertiaryTextColor}`}>
+                  Last {forecastComparison.days_analyzed} days
+                </div>
+              </div>
+              <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3">
+                <div
+                  className={`text-xs ${tertiaryTextColor} uppercase tracking-wide mb-1`}
+                >
+                  ML Predictions
+                </div>
+                <div className={`text-2xl font-bold ${textColor}`}>
+                  {forecastComparison.ml_prediction_count || "N/A"}
+                </div>
+                <div className={`text-xs ${tertiaryTextColor}`}>
+                  {forecastComparison.ml_prediction_count > 0
+                    ? "Available"
+                    : "Coming soon"}
+                </div>
+              </div>
+            </div>
+
+            {forecastComparison.comparison_metrics && (
+              <div className="rounded-2xl bg-white/20 backdrop-blur-md p-3">
+                <div className={`text-sm font-semibold ${textColor} mb-2`}>
+                  Comparison Metrics
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>
+                      Temperature
+                    </div>
+                    <div className={`text-sm font-semibold ${textColor}`}>
+                      {forecastComparison.comparison_metrics.temperature?.mae?.toFixed(
+                        2,
+                      ) || "N/A"}
+                    </div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>MAE</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>
+                      Humidity
+                    </div>
+                    <div className={`text-sm font-semibold ${textColor}`}>
+                      {forecastComparison.comparison_metrics.humidity?.mae?.toFixed(
+                        2,
+                      ) || "N/A"}
+                    </div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>MAE</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>
+                      Wind Speed
+                    </div>
+                    <div className={`text-sm font-semibold ${textColor}`}>
+                      {forecastComparison.comparison_metrics.wind_speed?.mae?.toFixed(
+                        2,
+                      ) || "N/A"}
+                    </div>
+                    <div className={`text-xs ${tertiaryTextColor}`}>MAE</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className={`text-xs ${tertiaryTextColor} text-center`}>
+              {forecastComparison.note ||
+                "Comparing ML predictions against official weather forecasts"}
+            </div>
           </div>
         </div>
       )}

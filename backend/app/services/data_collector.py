@@ -434,38 +434,98 @@ class DataCollector:
     
     async def fetch_indonesia_data(self) -> List[WeatherRecord]:
         """
-        Fetch weather data from BMKG (Indonesian Meteorological Agency) API.
+        Fetch weather data for Indonesia using Open-Meteo API.
         
-        BMKG provides weather data through XML feeds at https://data.bmkg.go.id
-        This implementation fetches and parses XML weather observation data.
-        Includes retry logic and rate limiting.
+        NOTE: The original BMKG XML API (data.bmkg.go.id) is no longer publicly accessible.
+        This implementation uses Open-Meteo as a reliable alternative source for Indonesian weather data.
+        
+        Open-Meteo provides current weather observations for major Indonesian cities including:
+        temperature, humidity, precipitation, wind speed, and wind direction.
         
         Returns:
-            List of WeatherRecord objects for Indonesia locations
+            List of WeatherRecord objects for Indonesia locations (~30 records)
         """
         async def _fetch_with_rate_limit():
             # Apply rate limiting
             await self.indonesia_rate_limiter.acquire()
             
-            logger.info("🇮🇩 Starting Indonesia data collection...")
+            logger.info("🇮🇩 Starting Indonesia data collection (Open-Meteo API)...")
+            
+            # Major Indonesian cities with coordinates
+            # Covers major population centers across the archipelago
+            indonesia_cities = [
+                {"name": "Jakarta", "lat": -6.2088, "lon": 106.8456},
+                {"name": "Surabaya", "lat": -7.2575, "lon": 112.7521},
+                {"name": "Bandung", "lat": -6.9175, "lon": 107.6191},
+                {"name": "Medan", "lat": 3.5952, "lon": 98.6722},
+                {"name": "Semarang", "lat": -6.9667, "lon": 110.4167},
+                {"name": "Makassar", "lat": -5.1477, "lon": 119.4327},
+                {"name": "Palembang", "lat": -2.9761, "lon": 104.7754},
+                {"name": "Tangerang", "lat": -6.1783, "lon": 106.6319},
+                {"name": "Depok", "lat": -6.4025, "lon": 106.7942},
+                {"name": "Bekasi", "lat": -6.2349, "lon": 106.9896},
+                {"name": "Bogor", "lat": -6.5950, "lon": 106.8167},
+                {"name": "Batam", "lat": 1.0456, "lon": 104.0305},
+                {"name": "Pekanbaru", "lat": 0.5071, "lon": 101.4478},
+                {"name": "Bandar Lampung", "lat": -5.4292, "lon": 105.2619},
+                {"name": "Padang", "lat": -0.9471, "lon": 100.4172},
+                {"name": "Malang", "lat": -7.9797, "lon": 112.6304},
+                {"name": "Denpasar", "lat": -8.6705, "lon": 115.2126},
+                {"name": "Samarinda", "lat": -0.5022, "lon": 117.1536},
+                {"name": "Banjarmasin", "lat": -3.3194, "lon": 114.5906},
+                {"name": "Manado", "lat": 1.4748, "lon": 124.8421},
+                {"name": "Balikpapan", "lat": -1.2379, "lon": 116.8529},
+                {"name": "Pontianak", "lat": -0.0263, "lon": 109.3425},
+                {"name": "Jambi", "lat": -1.6101, "lon": 103.6131},
+                {"name": "Cirebon", "lat": -6.7063, "lon": 108.5571},
+                {"name": "Yogyakarta", "lat": -7.7956, "lon": 110.3695},
+                {"name": "Surakarta", "lat": -7.5755, "lon": 110.8243},
+                {"name": "Mataram", "lat": -8.5833, "lon": 116.1167},
+                {"name": "Kupang", "lat": -10.1718, "lon": 123.6075},
+                {"name": "Ambon", "lat": -3.6954, "lon": 128.1814},
+                {"name": "Jayapura", "lat": -2.5489, "lon": 140.7182},
+            ]
             
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-                # Fetch XML weather data from BMKG
-                # Using the weather observation XML feed
-                url = f"{self.indonesia_base_url}/DataMKG/MEWS/DigitalForecast/DigitalForecast-Indonesia.xml"
-                logger.info(f"Fetching Indonesia XML from: {url}")
+                records = []
                 
-                try:
-                    xml_data = await self._fetch_xml(session, url)
-                    logger.info(f"✓ Indonesia XML fetched: {len(xml_data)} characters")
-                    logger.debug(f"  First 500 chars: {xml_data[:500]}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to fetch Indonesia XML: {str(e)}")
-                    raise
+                # Fetch data for each city
+                for city in indonesia_cities:
+                    try:
+                        url = (
+                            f"https://api.open-meteo.com/v1/forecast"
+                            f"?latitude={city['lat']}"
+                            f"&longitude={city['lon']}"
+                            f"&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,surface_pressure"
+                            f"&timezone=Asia/Jakarta"
+                        )
+                        
+                        data = await self._fetch_json(session, url)
+                        current = data.get('current', {})
+                        
+                        # Create WeatherRecord from Open-Meteo data
+                        record = WeatherRecord(
+                            timestamp=datetime.now(),
+                            country="indonesia",
+                            location=city['name'],
+                            latitude=city['lat'],
+                            longitude=city['lon'],
+                            temperature=current.get('temperature_2m', 0.0),
+                            rainfall=current.get('precipitation', 0.0),
+                            humidity=current.get('relative_humidity_2m', 0.0),
+                            wind_speed=current.get('wind_speed_10m', 0.0),
+                            wind_direction=current.get('wind_direction_10m'),
+                            pressure=current.get('surface_pressure'),
+                            source_api="open-meteo.com"
+                        )
+                        
+                        records.append(record)
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch data for {city['name']}: {str(e)}")
+                        continue
                 
-                logger.info("Parsing Indonesia XML data...")
-                records = self._parse_indonesia_data(xml_data)
-                logger.info(f"Parsed {len(records)} Indonesia weather records")
+                logger.info(f"Fetched {len(records)} Indonesia weather records")
                 
                 # Validate records
                 valid_records = []
@@ -574,16 +634,22 @@ class DataCollector:
         
         Singapore API v2 returns data in format:
         {
-            "code": 1,
+            "code": 0,
             "data": {
-                "records": [
+                "stations": [
                     {
-                        "timestamp": "...",
-                        "item": {
-                            "readings": [
-                                {"station": {"id": "...", "name": "..."}, "value": ...}
-                            ]
-                        }
+                        "id": "S50",
+                        "deviceId": "S50",
+                        "name": "Clementi Road",
+                        "location": {"latitude": 1.3337, "longitude": 103.7768}
+                    }
+                ],
+                "readings": [
+                    {
+                        "timestamp": "2024-01-15T10:00:00+08:00",
+                        "data": [
+                            {"stationId": "S50", "value": 28.5}
+                        ]
                     }
                 ]
             }
@@ -603,33 +669,29 @@ class DataCollector:
         """
         records = []
         
-        # Extract records from v2 API format: data.records[0]
-        temp_records = temp_data.get("data", {}).get("records", [])
-        if not temp_records:
-            logger.warning("No temperature records found in Singapore API response")
+        # Extract data from v2 API format: data.stations and data.readings
+        temp_data_obj = temp_data.get("data", {})
+        stations = temp_data_obj.get("stations", [])
+        temp_readings_list = temp_data_obj.get("readings", [])
+        
+        if not stations:
+            logger.warning("No stations found in Singapore API response")
             return records
-        
-        latest_temp = temp_records[0]
-        timestamp_str = latest_temp.get("timestamp")
-        timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else datetime.now()
-        
-        # Get readings from item.readings
-        temp_item = latest_temp.get("item", {})
-        temp_readings_list = temp_item.get("readings", [])
         
         if not temp_readings_list:
             logger.warning("No temperature readings found in Singapore API response")
             return records
         
-        # Build lookup dictionaries for temperature
-        # v2 format: readings[i] = {"station": {"id": "S50", "name": "Clementi", ...}, "value": 28.5}
-        temp_readings = {}
+        # Get the latest reading set (usually just one)
+        latest_temp_reading = temp_readings_list[0]
+        timestamp_str = latest_temp_reading.get("timestamp")
+        timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else datetime.now()
+        
+        # Build station map from stations list
         station_map = {}
-        for reading in temp_readings_list:
-            station = reading.get("station", {})
+        for station in stations:
             station_id = station.get("id")
             if station_id:
-                temp_readings[station_id] = reading.get("value", 0.0)
                 location = station.get("location", {})
                 station_map[station_id] = {
                     "name": station.get("name", "Unknown"),
@@ -637,40 +699,48 @@ class DataCollector:
                     "longitude": float(location.get("longitude", 0.0)),
                 }
         
+        # Build lookup dictionaries for temperature
+        # v2 format: readings[0].data = [{"stationId": "S50", "value": 28.5}, ...]
+        temp_readings = {}
+        for reading in latest_temp_reading.get("data", []):
+            station_id = reading.get("stationId")
+            if station_id:
+                temp_readings[station_id] = reading.get("value", 0.0)
+        
         # Build lookup dictionaries for other parameters
         rainfall_readings = {}
-        rainfall_records = rainfall_data.get("data", {}).get("records", [])
-        if rainfall_records:
-            rainfall_item = rainfall_records[0].get("item", {})
-            for reading in rainfall_item.get("readings", []):
-                station_id = reading.get("station", {}).get("id")
+        rainfall_data_obj = rainfall_data.get("data", {})
+        rainfall_readings_list = rainfall_data_obj.get("readings", [])
+        if rainfall_readings_list:
+            for reading in rainfall_readings_list[0].get("data", []):
+                station_id = reading.get("stationId")
                 if station_id:
                     rainfall_readings[station_id] = reading.get("value", 0.0)
         
         humidity_readings = {}
-        humidity_records = humidity_data.get("data", {}).get("records", [])
-        if humidity_records:
-            humidity_item = humidity_records[0].get("item", {})
-            for reading in humidity_item.get("readings", []):
-                station_id = reading.get("station", {}).get("id")
+        humidity_data_obj = humidity_data.get("data", {})
+        humidity_readings_list = humidity_data_obj.get("readings", [])
+        if humidity_readings_list:
+            for reading in humidity_readings_list[0].get("data", []):
+                station_id = reading.get("stationId")
                 if station_id:
                     humidity_readings[station_id] = reading.get("value", 0.0)
         
         wind_speed_readings = {}
-        wind_speed_records = wind_speed_data.get("data", {}).get("records", [])
-        if wind_speed_records:
-            wind_speed_item = wind_speed_records[0].get("item", {})
-            for reading in wind_speed_item.get("readings", []):
-                station_id = reading.get("station", {}).get("id")
+        wind_speed_data_obj = wind_speed_data.get("data", {})
+        wind_speed_readings_list = wind_speed_data_obj.get("readings", [])
+        if wind_speed_readings_list:
+            for reading in wind_speed_readings_list[0].get("data", []):
+                station_id = reading.get("stationId")
                 if station_id:
                     wind_speed_readings[station_id] = reading.get("value", 0.0)
         
         wind_dir_readings = {}
-        wind_dir_records = wind_dir_data.get("data", {}).get("records", [])
-        if wind_dir_records:
-            wind_dir_item = wind_dir_records[0].get("item", {})
-            for reading in wind_dir_item.get("readings", []):
-                station_id = reading.get("station", {}).get("id")
+        wind_dir_data_obj = wind_dir_data.get("data", {})
+        wind_dir_readings_list = wind_dir_data_obj.get("readings", [])
+        if wind_dir_readings_list:
+            for reading in wind_dir_readings_list[0].get("data", []):
+                station_id = reading.get("stationId")
                 if station_id:
                     wind_dir_readings[station_id] = reading.get("value")
         
@@ -712,11 +782,15 @@ class DataCollector:
         
         The forecast API returns data with nested location and forecast information.
         
+        IMPORTANT: This method filters to only the FIRST/CURRENT forecast period (period 0)
+        to avoid mixing current observations with forecast data in the weather_data table.
+        Future forecast periods (1-6) should be handled separately in a forecast_data table.
+        
         Args:
             data: API response (can be dict or list)
             
         Returns:
-            List of WeatherRecord objects
+            List of WeatherRecord objects (only current observations, ~284 records)
         """
         records = []
         
@@ -732,6 +806,11 @@ class DataCollector:
         
         # Get current timestamp
         current_time = datetime.now()
+        
+        # Group data by location to filter only the first/current forecast period
+        # Malaysia API returns multiple forecast periods per location (7 periods)
+        # We only want the first period (current observation) for weather_data table
+        location_first_records = {}
         
         # Process each location
         for location_data in data_items:
@@ -752,6 +831,52 @@ class DataCollector:
                     latitude = float(location_data.get("latitude", 0.0))
                     longitude = float(location_data.get("longitude", 0.0))
                 
+                # Parse timestamp if available
+                date_str = location_data.get("date")
+                if date_str:
+                    try:
+                        timestamp = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        timestamp = current_time
+                else:
+                    timestamp = current_time
+                
+                # Create a unique key for this location
+                location_key = f"{location_name}_{latitude}_{longitude}"
+                
+                # Only keep the first record for each location (earliest timestamp = current observation)
+                # If we haven't seen this location yet, or this record is earlier, store it
+                if location_key not in location_first_records:
+                    location_first_records[location_key] = {
+                        'data': location_data,
+                        'timestamp': timestamp,
+                        'location_name': location_name,
+                        'latitude': latitude,
+                        'longitude': longitude
+                    }
+                elif timestamp < location_first_records[location_key]['timestamp']:
+                    # This record is earlier (more current), replace the stored one
+                    location_first_records[location_key] = {
+                        'data': location_data,
+                        'timestamp': timestamp,
+                        'location_name': location_name,
+                        'latitude': latitude,
+                        'longitude': longitude
+                    }
+                
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning(f"Error processing Malaysia location data: {str(e)}")
+                continue
+        
+        # Now process only the first/current record for each location
+        for location_key, location_info in location_first_records.items():
+            try:
+                location_data = location_info['data']
+                location_name = location_info['location_name']
+                latitude = location_info['latitude']
+                longitude = location_info['longitude']
+                timestamp = location_info['timestamp']
+                
                 # Get forecast data - Malaysia API provides min/max temp, not current
                 # We'll use the average of min and max as current temperature
                 min_temp = location_data.get("min_temp")
@@ -770,16 +895,6 @@ class DataCollector:
                 wind_speed = 0.0
                 wind_direction = None
                 pressure = None
-                
-                # Parse timestamp if available
-                date_str = location_data.get("date")
-                if date_str:
-                    try:
-                        timestamp = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                    except (ValueError, AttributeError):
-                        timestamp = current_time
-                else:
-                    timestamp = current_time
                 
                 # Create WeatherRecord
                 record = WeatherRecord(
@@ -803,7 +918,7 @@ class DataCollector:
                 logger.warning(f"Error parsing Malaysia location data: {str(e)}")
                 continue
         
-        logger.info(f"Parsed {len(records)} Malaysia weather records")
+        logger.info(f"Parsed {len(records)} Malaysia weather records (current observations only)")
         return records
     
     def _parse_indonesia_data(self, xml_data: str) -> List[WeatherRecord]:

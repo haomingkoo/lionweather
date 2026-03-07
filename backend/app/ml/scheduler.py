@@ -41,6 +41,8 @@ class TrainingScheduler:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=730)  # 2 years
             
+            # DATA LEAKAGE PREVENTION: Only query weather_records table (current observations)
+            # NEVER query forecast_data table - that would leak future information into training
             records = await self.data_store.get_records_by_date_range(start_date, end_date)
             
             if not records:
