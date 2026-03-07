@@ -1,0 +1,7 @@
+# Railway Multi-Service Configuration for LionWeather
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "echo 'Use service-specific configs'"
