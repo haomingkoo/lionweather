@@ -203,88 +203,107 @@ def health_check():
 
 @app.get("/status")
 def status_check():
-    """Detailed status check including background tasks and database"""
+    """Detailed status: shows exactly what's in the DB, per source API, per country."""
     import os
     from datetime import datetime, timedelta
+    from app.db.database import fetch_one, fetch_all
+
     db_path = os.getenv("DATABASE_PATH", "weather.db")
     db_exists = os.path.exists(db_path)
-    
-    # Get database stats if it exists
-    db_stats = {}
+    now = datetime.utcnow()
+    cutoff_1h = (now - timedelta(hours=1)).isoformat()
+    cutoff_24h = (now - timedelta(hours=24)).isoformat()
+
+    sources = []
+    total_records = 0
+    records_last_hour = 0
+    records_last_24h = 0
+    forecast_total = 0
+    forecast_sources = []
+
     if db_exists:
+        # ── Observations (weather_records) ────────────────────────────────
         try:
-            from app.db.database import execute_sql
-            
-            # Check weather_data table (primary table)
-            try:
-                from app.db.database import fetch_one, fetch_all
-                
-                result = fetch_one("SELECT COUNT(*) as count FROM weather_data")
-                db_stats["weather_data_total"] = result[0] if result else 0
-                
-                # Get counts by country
-                country_results = fetch_all("SELECT country, COUNT(*) as count FROM weather_data GROUP BY country")
-                db_stats["by_country"] = {row[0]: row[1] for row in country_results} if country_results else {}
-                
-                # Get recent activity (last hour)
-                cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
-                result = fetch_one(
-                    "SELECT COUNT(*) as count FROM weather_data WHERE timestamp >= :cutoff",
-                    {"cutoff": cutoff}
-                )
-                db_stats["weather_data_last_hour"] = result[0] if result else 0
-                
-                # Get latest timestamp by country
-                country_latest = fetch_all("SELECT country, MAX(timestamp) as latest FROM weather_data GROUP BY country")
-                db_stats["latest_by_country"] = {row[0]: row[1] for row in country_latest} if country_latest else {}
-                
-                # Get latest timestamp overall
-                result = fetch_one("SELECT MAX(timestamp) as latest FROM weather_data")
-                db_stats["latest_weather_data"] = result[0] if result and result[0] else "None"
-            except Exception as e:
-                db_stats["weather_data_error"] = str(e)
-            
-            # Check weather_records table (legacy)
-            try:
-                result = fetch_one("SELECT COUNT(*) as count FROM weather_records")
-                db_stats["weather_records_total"] = result[0] if result else 0
-            except Exception as e:
-                db_stats["weather_records_error"] = str(e)
-            
-            # Check forecast_data table
-            try:
-                from app.db.database import fetch_one
-                
-                result = fetch_one("SELECT COUNT(*) as count FROM forecast_data")
-                db_stats["forecast_data_total"] = result[0] if result else 0
-                
-                # Get latest forecast timestamp - try different column names
-                try:
-                    result = fetch_one("SELECT MAX(collected_at) as latest FROM forecast_data")
-                    db_stats["latest_forecast"] = result[0] if result and result[0] else "None"
-                except:
-                    # Try alternative column name
-                    result = fetch_one("SELECT MAX(timestamp) as latest FROM forecast_data")
-                    db_stats["latest_forecast"] = result[0] if result and result[0] else "None"
-            except Exception as e:
-                db_stats["forecast_data_error"] = str(e)
-                
+            rows = fetch_all("""
+                SELECT
+                    source_api,
+                    country,
+                    COUNT(*)          AS total,
+                    MAX(timestamp)    AS latest,
+                    MIN(timestamp)    AS oldest,
+                    SUM(CASE WHEN timestamp >= :c1h  THEN 1 ELSE 0 END) AS last_1h,
+                    SUM(CASE WHEN timestamp >= :c24h THEN 1 ELSE 0 END) AS last_24h
+                FROM weather_records
+                GROUP BY source_api, country
+                ORDER BY country, total DESC
+            """, {"c1h": cutoff_1h, "c24h": cutoff_24h})
+
+            for row in rows:
+                entry = {
+                    "source_api": row["source_api"],
+                    "country": row["country"],
+                    "total_records": row["total"],
+                    "latest_record": row["latest"],
+                    "oldest_record": row["oldest"],
+                    "records_last_1h": row["last_1h"],
+                    "records_last_24h": row["last_24h"],
+                    "status": "ok" if row["last_1h"] and row["last_1h"] > 0 else (
+                        "stale" if row["last_24h"] and row["last_24h"] > 0 else "no_recent_data"
+                    ),
+                }
+                sources.append(entry)
+                total_records += row["total"] or 0
+                records_last_hour += row["last_1h"] or 0
+                records_last_24h += row["last_24h"] or 0
         except Exception as e:
-            db_stats["error"] = str(e)
-    
+            sources = [{"error": str(e)}]
+
+        # ── Forecasts (forecast_data) ──────────────────────────────────────
+        try:
+            frows = fetch_all("""
+                SELECT
+                    source_api,
+                    country,
+                    COUNT(*) AS total,
+                    MAX(collected_at) AS latest
+                FROM forecast_data
+                GROUP BY source_api, country
+                ORDER BY country, total DESC
+            """)
+            for row in frows:
+                forecast_sources.append({
+                    "source_api": row["source_api"],
+                    "country": row["country"],
+                    "total_records": row["total"],
+                    "latest_collected": row["latest"],
+                })
+                forecast_total += row["total"] or 0
+        except Exception as e:
+            forecast_sources = [{"error": str(e)}]
+
     return {
         "status": "healthy",
-        "background_tasks": {
-            "data_collector": "configured (runs every 10 minutes)",
-            "forecast_collector": "configured (runs every hour)",
-            "radar_service": "configured (runs every 5 minutes)",
-            "ml_scheduler": "configured (runs Sundays at 2 AM)"
+        "timestamp_utc": now.isoformat(),
+        "background_services": {
+            "observations": "every 10 min — Singapore (NEA), Malaysia (Open-Meteo), Indonesia (Open-Meteo)",
+            "forecasts": "every hour — Singapore (NEA), Malaysia (data.gov.my), Indonesia (Open-Meteo)",
+            "radar": "every 5 min — Singapore weather.gov.sg",
+            "ml_training": "weekly — Sundays 2 AM",
         },
         "database": {
             "path": db_path,
             "exists": db_exists,
-            "stats": db_stats
-        }
+        },
+        "observations": {
+            "total_records": total_records,
+            "records_last_1h": records_last_hour,
+            "records_last_24h": records_last_24h,
+            "by_source": sources,
+        },
+        "forecasts": {
+            "total_records": forecast_total,
+            "by_source": forecast_sources,
+        },
     }
 
 
