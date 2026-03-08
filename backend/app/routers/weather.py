@@ -37,7 +37,8 @@ async def get_weather(
         cutoff = (datetime.utcnow() - timedelta(hours=2)).isoformat()
 
         # Find nearest weather station with recent data (within last 2 hours)
-        # Using Haversine formula - compatible with both SQLite and PostgreSQL
+        # Simple bounding-box + Manhattan distance — works in SQLite and PostgreSQL
+        # Singapore fits within ±0.5° of lat 1.35, lng 103.82
         query = text("""
             SELECT
                 location,
@@ -49,16 +50,12 @@ async def get_weather(
                 country,
                 source_api,
                 timestamp,
-                (
-                    6371 * acos(
-                        cos(radians(:lat)) * cos(radians(latitude)) *
-                        cos(radians(longitude) - radians(:lng)) +
-                        sin(radians(:lat)) * sin(radians(latitude))
-                    )
-                ) AS distance_km
+                (abs(latitude - :lat) + abs(longitude - :lng)) AS approx_dist
             FROM weather_data
             WHERE CAST(timestamp AS TEXT) > :cutoff
-            ORDER BY distance_km ASC
+              AND latitude  BETWEEN :lat - 0.5 AND :lat + 0.5
+              AND longitude BETWEEN :lng - 0.5 AND :lng + 0.5
+            ORDER BY approx_dist ASC
             LIMIT 1
         """)
 
