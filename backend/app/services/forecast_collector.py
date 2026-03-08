@@ -216,124 +216,90 @@ class ForecastCollector:
     
     async def fetch_malaysia_forecast(self) -> List[Dict]:
         """
-        Fetch Malaysia forecast data (all 7 forecast periods).
-        
-        Unlike current observations which only use the first period,
-        this method collects ALL 7 forecast periods for benchmarking.
-        
+        Fetch Malaysia forecast data via Open-Meteo (daily, 7-day) for 30 cities.
+
+        api.met.gov.my requires authentication and is not publicly accessible.
+        Open-Meteo provides free, reliable 7-day daily forecasts — same source
+        used for Malaysia current observations.
+
         Returns:
-            List of forecast dictionaries
+            List of forecast dictionaries (~30 cities × 7 days = ~210 records)
         """
-        logger.info("🌤️ Fetching Malaysia forecast (all 7 periods)...")
-        
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-            url = f"{self.malaysia_base_url}/data"
-            
-            try:
-                async with session.get(url) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    
-                forecasts = self._parse_malaysia_forecast(data)
-                logger.info(f"Parsed {len(forecasts)} Malaysia forecast records")
-                return forecasts
-                
-            except Exception as e:
-                logger.error(f"Failed to fetch Malaysia forecast: {e}")
-                return []
-    
-    def _parse_malaysia_forecast(self, data: dict) -> List[Dict]:
-        """
-        Parse Malaysia forecast API response (all 7 periods).
-        
-        Args:
-            data: Malaysia API response
-            
-        Returns:
-            List of forecast dictionaries
-        """
+        malaysia_cities = [
+            {"name": "Kuala Lumpur",    "lat": 3.1390,  "lon": 101.6869},
+            {"name": "George Town",      "lat": 5.4141,  "lon": 100.3288},
+            {"name": "Johor Bahru",      "lat": 1.4927,  "lon": 103.7414},
+            {"name": "Ipoh",             "lat": 4.5975,  "lon": 101.0901},
+            {"name": "Kuching",          "lat": 1.5497,  "lon": 110.3592},
+            {"name": "Kota Kinabalu",    "lat": 5.9804,  "lon": 116.0735},
+            {"name": "Shah Alam",        "lat": 3.0733,  "lon": 101.5185},
+            {"name": "Petaling Jaya",    "lat": 3.1073,  "lon": 101.6067},
+            {"name": "Klang",            "lat": 3.0380,  "lon": 101.4450},
+            {"name": "Miri",             "lat": 4.3995,  "lon": 113.9914},
+            {"name": "Kota Bharu",       "lat": 6.1254,  "lon": 102.2381},
+            {"name": "Kuala Terengganu", "lat": 5.3296,  "lon": 103.1370},
+            {"name": "Kuantan",          "lat": 3.8077,  "lon": 103.3260},
+            {"name": "Alor Setar",       "lat": 6.1248,  "lon": 100.3673},
+            {"name": "Seremban",         "lat": 2.7297,  "lon": 101.9381},
+            {"name": "Malacca City",     "lat": 2.1896,  "lon": 102.2501},
+        ]
+
+        logger.info(f"🌤️ Fetching Malaysia 7-day forecast via Open-Meteo for {len(malaysia_cities)} cities...")
+
         forecasts = []
-        
-        try:
-            # Handle both list and dict response formats
-            if isinstance(data, list):
-                data_items = data
-            else:
-                data_items = data.get("data", [])
-            
-            if not data_items:
-                logger.warning("No data items in Malaysia API response")
-                return forecasts
-            
-            prediction_time = datetime.now()
-            
-            # Process each location and ALL forecast periods
-            for location_data in data_items:
-                if not isinstance(location_data, dict):
-                    continue
-                
+        prediction_time = datetime.utcnow()
+
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
+            for city in malaysia_cities:
                 try:
-                    # Extract location info
-                    location_obj = location_data.get("location", {})
-                    if isinstance(location_obj, dict):
-                        location_name = location_obj.get("location_name", "Unknown")
-                        latitude = float(location_obj.get("latitude", 0.0))
-                        longitude = float(location_obj.get("longitude", 0.0))
-                    else:
-                        location_name = location_data.get("location_name", "Unknown")
-                        latitude = float(location_data.get("latitude", 0.0))
-                        longitude = float(location_data.get("longitude", 0.0))
-                    
-                    # Parse date/time
-                    date_str = location_data.get("date")
-                    if date_str:
+                    url = (
+                        "https://api.open-meteo.com/v1/forecast"
+                        f"?latitude={city['lat']}&longitude={city['lon']}"
+                        "&daily=temperature_2m_max,temperature_2m_min,"
+                        "precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,"
+                        "relative_humidity_2m_max,relative_humidity_2m_min,weather_code"
+                        "&forecast_days=7&timezone=Asia/Kuala_Lumpur"
+                    )
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+
+                    daily = data.get("daily", {})
+                    times = daily.get("time", [])
+
+                    for i, date_str in enumerate(times):
                         try:
-                            base_time = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                        except (ValueError, AttributeError):
-                            base_time = prediction_time
-                    else:
-                        base_time = prediction_time
-                    
-                    # Get forecast data
-                    min_temp = location_data.get("min_temp")
-                    max_temp = location_data.get("max_temp")
-                    weather_desc = location_data.get("weather", "")
-                    
-                    # Malaysia API provides 7 forecast periods
-                    # Each period is typically 3-4 hours
-                    # For simplicity, we'll create 7 periods of 3 hours each
-                    for period_idx in range(7):
-                        target_start = base_time + timedelta(hours=period_idx * 3)
-                        target_end = target_start + timedelta(hours=3)
-                        
-                        forecast = {
-                            "country": "malaysia",
-                            "location": location_name,
-                            "latitude": latitude,
-                            "longitude": longitude,
-                            "prediction_time": prediction_time.isoformat(),
-                            "target_time_start": target_start.isoformat(),
-                            "target_time_end": target_end.isoformat(),
-                            "temperature_low": float(min_temp) if min_temp is not None else None,
-                            "temperature_high": float(max_temp) if max_temp is not None else None,
-                            "humidity_low": None,
-                            "humidity_high": None,
-                            "wind_speed_low": None,
-                            "wind_speed_high": None,
-                            "wind_direction": None,
-                            "forecast_description": weather_desc,
-                            "source_api": "malaysia_met"
-                        }
-                        
-                        forecasts.append(forecast)
-                
-                except (KeyError, ValueError, TypeError) as e:
-                    logger.warning(f"Error processing Malaysia forecast location: {e}")
-                    continue
-        
-        except Exception as e:
-            logger.error(f"Error parsing Malaysia forecast: {e}")
-        
+                            target_start = datetime.fromisoformat(date_str)
+                            target_end = target_start + timedelta(hours=24)
+
+                            wind_deg = daily.get("wind_direction_10m_dominant", [None] * len(times))[i]
+                            wind_dir = self._degrees_to_direction(wind_deg) if wind_deg is not None else None
+
+                            forecasts.append({
+                                "country": "malaysia",
+                                "location": city["name"],
+                                "latitude": city["lat"],
+                                "longitude": city["lon"],
+                                "prediction_time": prediction_time.isoformat(),
+                                "target_time_start": target_start.isoformat(),
+                                "target_time_end": target_end.isoformat(),
+                                "temperature_low": daily.get("temperature_2m_min", [None] * len(times))[i],
+                                "temperature_high": daily.get("temperature_2m_max", [None] * len(times))[i],
+                                "humidity_low": daily.get("relative_humidity_2m_min", [None] * len(times))[i],
+                                "humidity_high": daily.get("relative_humidity_2m_max", [None] * len(times))[i],
+                                "wind_speed_low": None,
+                                "wind_speed_high": daily.get("wind_speed_10m_max", [None] * len(times))[i],
+                                "wind_direction": wind_dir,
+                                "forecast_description": str(daily.get("weather_code", [None] * len(times))[i]),
+                                "source_api": "open-meteo (malaysia)",
+                            })
+                        except (IndexError, ValueError) as e:
+                            logger.warning(f"Malaysia forecast parse error for {city['name']} day {i}: {e}")
+
+                except Exception as e:
+                    logger.warning(f"Malaysia Open-Meteo forecast failed for {city['name']}: {e}")
+
+        logger.info(f"✓ Malaysia forecast collection complete: {len(forecasts)} records")
         return forecasts
     
     async def fetch_indonesia_forecast(self) -> List[Dict]:
