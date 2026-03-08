@@ -240,43 +240,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
   return (
     <div className="space-y-3">
-      {/* Main Weather Display */}
-      <div className="text-center py-2">
-        <h2 className={`text-xl font-semibold mb-1 ${textColor}`}>
-          {location.weather.area || "Singapore"}
-        </h2>
-        <div
-          className={`text-4xl xl:text-5xl font-extralight ${textColor} my-2`}
-        >
-          {temperature}°
-        </div>
-        <div className="flex items-center justify-center gap-2 mb-1">
-          {IconComponent && (
-            <IconComponent
-              className={`h-6 w-6 ${textColor}`}
-              strokeWidth={1.5}
-              aria-label={`${location.weather.condition} weather icon`}
-            />
-          )}
-          <span className={`text-lg ${textColor}`}>
-            {location.weather.condition}
-          </span>
-        </div>
-        <p className={`text-sm ${secondaryTextColor}`}>
-          H:{temperature !== "N/A" ? `${parseInt(temperature) + 3}°` : "N/A"} L:
-          {temperature !== "N/A" ? `${parseInt(temperature) - 5}°` : "N/A"}
-        </p>
-      </div>
-
-      {/* Error Message Display */}
+      {/* Error — subtle inline note, not a big banner */}
       {error && (
-        <div
-          className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-red-500/20 border border-red-400/50" : "bg-red-100/50 border border-red-300/50"}`}
-        >
-          <p className={`text-sm ${isDark ? "text-red-200" : "text-red-800"}`}>
-            {error}
-          </p>
-        </div>
+        <p className="text-white/40 text-xs px-1">{error} — showing cached data</p>
       )}
 
       {/* Hourly Forecast - Horizontal Slider */}
@@ -331,7 +297,8 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         </div>
       </div>
 
-      {/* 7-Day Forecast */}
+      {/* N-Day Forecast — only render when we have data */}
+      {dailyForecast.length > 0 && (
       <div
         className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
       >
@@ -374,6 +341,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           })}
         </div>
       </div>
+      )}
 
       {/* ML Forecast Comparison */}
       <MLForecastComparison location={location} isDark={isDark} />

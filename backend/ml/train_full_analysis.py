@@ -646,14 +646,16 @@ def make_features(rain: pd.Series, temp: pd.Series,
 # ===========================================================================
 
 def train_lgbm(X_train, y_train, X_val, y_val, horizon: int,
-               task: str = "regression") -> tuple:
+               task: str = "regression",
+               sample_weights: np.ndarray | None = None) -> tuple:
     """
     Returns (model, loss_curve_dict).
     loss_curve_dict has keys: 'train', 'val', each a list of per-round losses.
+    sample_weights: per-sample cost weights (higher = penalise errors more).
     """
     import lightgbm as lgb
 
-    train_set = lgb.Dataset(X_train, label=y_train)
+    train_set = lgb.Dataset(X_train, label=y_train, weight=sample_weights)
     val_set   = lgb.Dataset(X_val,   label=y_val, reference=train_set)
 
     if task == "regression":
@@ -870,8 +872,11 @@ def main():
         y_test_reg  = test_sub[reg_target].values
 
         logger.info(f"\n  -- Regression h={horizon}h --")
+        # Upweight rainy hours: missing rain is ~4x costlier than a false alarm
+        reg_weights = np.where(y_train_reg > 0.1, 4.0, 1.0)
         reg_model, reg_loss = train_lgbm(X_train, y_train_reg, X_val, y_val_reg,
-                                          horizon, task="regression")
+                                          horizon, task="regression",
+                                          sample_weights=reg_weights)
         y_pred_reg = np.clip(reg_model.predict(X_test), 0, None)
 
         mae_reg  = mean_absolute_error(y_test_reg, y_pred_reg)
@@ -885,8 +890,13 @@ def main():
         # Ensure all 4 classes present in training (else skip cls)
         if len(np.unique(y_train_cls)) >= 3:
             logger.info(f"  -- Classification h={horizon}h --")
+            # Asymmetric cost: missing rain >> false alarm (user gets wet vs. carries umbrella)
+            # Class 0 No Rain=1x, Light Rain=2x, Heavy Rain=4x, Thundery=6x
+            RAIN_COST = np.array([1.0, 2.0, 4.0, 6.0])
+            cls_weights = RAIN_COST[y_train_cls]
             cls_model, cls_loss = train_lgbm(X_train, y_train_cls, X_val, y_val_cls,
-                                              horizon, task="classification")
+                                              horizon, task="classification",
+                                              sample_weights=cls_weights)
             y_pred_cls_proba = cls_model.predict(X_test)
             y_pred_cls = np.argmax(y_pred_cls_proba, axis=1)
 

@@ -62,7 +62,7 @@ function LocationCard({ location, isSelected, onClick, onDelete, isRefreshing })
                 <Navigation className="h-3 w-3 text-white/80 shrink-0" />
               )}
               <span className="text-white/70 text-xs font-medium truncate">
-                {isCurrentLocation ? "My Location" : `${location.latitude.toFixed(2)}°, ${location.longitude.toFixed(2)}°`}
+                {isCurrentLocation ? "My Location" : "Saved Location"}
               </span>
             </div>
             <h3 className="text-white font-semibold text-base leading-tight truncate">
@@ -201,9 +201,7 @@ export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
                       <Navigation className="h-4 w-4 text-white/70" />
                     )}
                     <span className="text-white/60 text-sm">
-                      {selectedLocation.source === "geolocation"
-                        ? "My Location"
-                        : `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`}
+                      {selectedLocation.source === "geolocation" ? "My Location" : "Saved Location"}
                     </span>
                   </div>
                   <h2 className="text-white text-2xl font-semibold">

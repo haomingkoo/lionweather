@@ -286,6 +286,91 @@ function StackedBarChart({ years, stacks, height = 70 }) {
   );
 }
 
+function AnalysisSummary({ ct }) {
+  const years = ct.years_covered || [];
+  const annual = ct.annual || {};
+  const trends = ct.long_term_trends || {};
+  const rec = ct.all_time_records || {};
+
+  if (years.length < 2) return null;
+
+  // Wettest and driest year
+  const byRain = years
+    .map((y) => ({ year: y, total: annual[y]?.rainfall?.total_mm ?? 0 }))
+    .sort((a, b) => b.total - a.total);
+  const wettest = byRain[0];
+  const driest  = byRain[byRain.length - 1];
+
+  // Hottest year
+  const byTemp = years
+    .map((y) => ({ year: y, mean: annual[y]?.temperature?.mean_c ?? 0 }))
+    .sort((a, b) => b.mean - a.mean);
+  const hottestYear = byTemp[0];
+
+  // Thundery trend
+  const thundery2016 = annual["2016"]?.rainfall?.thundery_events ?? null;
+  const thundery2024 = annual["2024"]?.rainfall?.thundery_events ?? null;
+  const thunderyChange = (thundery2016 != null && thundery2024 != null)
+    ? thundery2024 - thundery2016 : null;
+
+  const tTrend = trends.temperature_mean;
+  const rTrend = trends.rainfall_total;
+
+  const bullets = [];
+
+  // Rainfall
+  if (wettest && driest) {
+    bullets.push(`${wettest.year} was the wettest year on record (${wettest.total.toLocaleString()} mm island-wide), while ${driest.year} was the driest (${driest.total.toLocaleString()} mm) — a ${((wettest.total / driest.total - 1) * 100).toFixed(0)}% swing.`);
+  }
+
+  // Temperature trend
+  if (tTrend?.significant) {
+    bullets.push(`Temperatures are rising at +${tTrend.slope_per_year.toFixed(3)}°C per year (p=${tTrend.p_value}, R²=${tTrend.r_squared}) — consistent with Singapore's urban heat island effect and broader regional warming.`);
+  } else if (tTrend) {
+    bullets.push(`No statistically significant warming trend detected over the study period (p=${tTrend.p_value}), though year-to-year variability exists. Longer time series are needed to confirm.`);
+  }
+
+  // Hottest year
+  if (hottestYear) {
+    bullets.push(`${hottestYear.year} was the warmest on average (${hottestYear.mean.toFixed(1)}°C mean). The all-time record was ${rec.hottest_hour?.value_c}°C on ${rec.hottest_hour?.date}.`);
+  }
+
+  // Thundery events
+  if (thunderyChange != null) {
+    const dir = thunderyChange > 0 ? "increased" : "decreased";
+    bullets.push(`Thundery shower hours ${dir} from ${thundery2016} in 2016 to ${thundery2024} in 2024, suggesting ${thunderyChange > 0 ? "more intense convective activity" : "fewer but potentially more intense storm episodes"}.`);
+  }
+
+  // Rainfall trend
+  if (rTrend?.significant) {
+    bullets.push(`Annual rainfall shows a statistically significant ${rTrend.trend} trend (${rTrend.slope_per_year > 0 ? "+" : ""}${rTrend.slope_per_year.toFixed(0)} mm/yr).`);
+  }
+
+  // All-time records
+  if (rec.wettest_hour) {
+    bullets.push(`The single wettest hour recorded was ${rec.wettest_hour.value_mm} mm on ${rec.wettest_hour.date} — likely a severe convective storm. The windiest hour hit ${rec.windiest_hour?.value_kmh} km/h on ${rec.windiest_hour?.date}.`);
+  }
+
+  if (bullets.length === 0) return null;
+
+  return (
+    <div className="bg-blue-500/5 border border-blue-400/15 rounded-xl p-3 space-y-2">
+      <p className="text-blue-300/80 text-[10px] font-semibold uppercase tracking-wide">Analysis</p>
+      <ul className="space-y-2">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex gap-2 text-white/60 text-[11px] leading-relaxed">
+            <span className="text-blue-400/60 shrink-0 mt-0.5">›</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-white/20 text-[10px]">
+        Based on NEA station data 2016–2024 · island-wide aggregate · {years.length} years
+      </p>
+    </div>
+  );
+}
+
 function ClimateTrendsSection({ ct }) {
   const years = ct.years_covered || [];
   const annual = ct.annual || {};
@@ -386,6 +471,9 @@ function ClimateTrendsSection({ ct }) {
           </p>
         )}
       </div>
+
+      {/* Analysis write-up */}
+      <AnalysisSummary ct={ct} />
 
       {/* STL decomposition */}
       {stl.observed?.length > 0 && (
@@ -780,25 +868,109 @@ export function MLAnalysisDashboard() {
           </div>
         )}
 
-        {/* Classification accuracy */}
-        {hr.classification?.accuracy != null && (
-          <div className="bg-white/5 rounded-xl p-3 mb-4">
-            <p className="text-white/50 text-xs mb-2">
-              4-Class Accuracy: <span className="text-emerald-400 font-semibold">
-                {(hr.classification.accuracy * 100).toFixed(1)}%
-              </span>
-            </p>
-            {hr.classification.confusion_matrix && (
-              <ConfusionMatrix
-                matrix={hr.classification.confusion_matrix}
-                labels={categories}
-              />
-            )}
-            <p className="text-white/30 text-[10px] mt-2">
-              Categories: No Rain / Light Rain (&lt;7.6mm/hr) / Heavy Rain / Thundery Showers (≥30mm/hr)
-            </p>
-          </div>
-        )}
+        {/* Classification results */}
+        {hr.classification?.accuracy != null && (() => {
+          const cls = hr.classification;
+          const report = cls.report || {};
+          const classNames = ["No Rain", "Light Rain", "Heavy Rain", "Thundery Showers"];
+          const macroF1 = report["macro avg"]?.["f1-score"];
+          // Identify worst false-negative: rain missed as No Rain
+          const rainRecalls = classNames.slice(1).map((n) => report[n]?.recall ?? 0);
+          const minRainRecall = Math.min(...rainRecalls);
+
+          return (
+            <div className="space-y-3 mb-4">
+              {/* Summary row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white/5 rounded-xl p-2.5 text-center">
+                  <p className="text-white/40 text-[10px]">Accuracy</p>
+                  <p className="text-emerald-400 font-bold text-base">{(cls.accuracy * 100).toFixed(1)}%</p>
+                </div>
+                <div className="bg-white/5 rounded-xl p-2.5 text-center">
+                  <p className="text-white/40 text-[10px]">Macro F1</p>
+                  <p className="text-blue-300 font-bold text-base">{macroF1 ? (macroF1 * 100).toFixed(1) + "%" : "—"}</p>
+                </div>
+                <div className="bg-white/5 rounded-xl p-2.5 text-center">
+                  <p className="text-white/40 text-[10px]">Min Rain Recall</p>
+                  <p className={`font-bold text-base ${minRainRecall < 0.3 ? "text-red-400" : minRainRecall < 0.5 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {(minRainRecall * 100).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-class table */}
+              <div>
+                <p className="text-white/50 text-[10px] font-medium mb-1.5">Per-class metrics — recall is most important (missing rain = wet user)</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px] border-collapse">
+                    <thead>
+                      <tr className="text-white/40">
+                        <th className="text-left py-1 pr-2">Class</th>
+                        <th className="text-right px-2">Precision</th>
+                        <th className="text-right px-2">Recall</th>
+                        <th className="text-right px-2">F1</th>
+                        <th className="text-right pl-2">Support</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classNames.map((name, ci) => {
+                        const row = report[name] || {};
+                        const recall = row.recall ?? null;
+                        const isRain = ci > 0;
+                        const recallColor = recall == null ? "text-white/30"
+                          : isRain && recall < 0.3 ? "text-red-400"
+                          : isRain && recall < 0.5 ? "text-amber-400"
+                          : "text-emerald-400";
+                        return (
+                          <tr key={name} className="border-t border-white/5">
+                            <td className="py-1.5 pr-2 text-white/70 font-medium">{name}</td>
+                            <td className="text-right px-2 text-white/60 font-mono">
+                              {row.precision != null ? (row.precision * 100).toFixed(1) + "%" : "—"}
+                            </td>
+                            <td className={`text-right px-2 font-mono font-semibold ${recallColor}`}>
+                              {recall != null ? (recall * 100).toFixed(1) + "%" : "—"}
+                            </td>
+                            <td className="text-right px-2 text-white/60 font-mono">
+                              {row["f1-score"] != null ? (row["f1-score"] * 100).toFixed(1) + "%" : "—"}
+                            </td>
+                            <td className="text-right pl-2 text-white/40 font-mono">
+                              {row.support?.toLocaleString() ?? "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Confusion matrix */}
+              {cls.confusion_matrix && (
+                <div>
+                  <p className="text-white/50 text-[10px] font-medium mb-1.5">
+                    Confusion matrix — rows=actual, cols=predicted
+                  </p>
+                  <ConfusionMatrix
+                    matrix={cls.confusion_matrix}
+                    labels={categories}
+                  />
+                  <p className="text-white/30 text-[10px] mt-1.5">
+                    Green diagonal = correct. Red off-diagonal = errors. Top-right cells = rain missed as dry (costly).
+                  </p>
+                </div>
+              )}
+
+              {/* Cost-weighting note */}
+              <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
+                <p className="text-amber-200/80 text-[10px]">
+                  Cost-weighted training: Thundery Showers 6× · Heavy Rain 4× · Light Rain 2× · No Rain 1×.
+                  The model is biased toward predicting rain when uncertain — false alarms are acceptable,
+                  missed rain is not.
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Feature importance */}
         {hr.feature_importance?.length > 0 && (
