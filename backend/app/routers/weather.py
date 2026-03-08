@@ -47,7 +47,7 @@ async def get_weather(
                 source_api,
                 timestamp,
                 (abs(latitude - :lat) + abs(longitude - :lng)) AS approx_dist
-            FROM weather_data
+            FROM weather_records
             WHERE CAST(timestamp AS TEXT) > :cutoff
               AND latitude  BETWEEN :lat - 0.5 AND :lat + 0.5
               AND longitude BETWEEN :lng - 0.5 AND :lng + 0.5
