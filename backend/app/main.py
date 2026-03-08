@@ -288,6 +288,65 @@ def status_check():
     }
 
 
+@app.get("/admin/export")
+async def export_data(
+    table: str = "weather_records",
+    fmt: str = "csv",
+    limit: int = 10000,
+    country: str = None,
+):
+    """
+    Export raw database records as CSV or JSON for inspection.
+
+    Query params:
+      table   = weather_records | forecast_data | sensor_history  (default: weather_records)
+      fmt     = csv | json  (default: csv)
+      limit   = max rows returned  (default: 10000)
+      country = filter by country  (optional)
+
+    Example: GET /admin/export?table=weather_records&fmt=csv&country=singapore
+    """
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse, JSONResponse
+    from app.db.database import fetch_all
+
+    allowed_tables = {"weather_records", "forecast_data", "sensor_history", "locations"}
+    if table not in allowed_tables:
+        return JSONResponse({"error": f"table must be one of {sorted(allowed_tables)}"}, status_code=400)
+
+    if country:
+        sql = f"SELECT * FROM {table} WHERE country = :country ORDER BY timestamp DESC LIMIT :limit"
+        rows = fetch_all(sql, {"country": country, "limit": limit})
+    else:
+        sql = f"SELECT * FROM {table} ORDER BY timestamp DESC LIMIT :limit"
+        rows = fetch_all(sql, {"limit": limit})
+
+    if not rows:
+        return JSONResponse({"rows": 0, "message": "No data found"})
+
+    keys = list(rows[0]._mapping.keys())
+
+    if fmt == "json":
+        data = [dict(zip(keys, row)) for row in rows]
+        return JSONResponse({"rows": len(data), "columns": keys, "data": data})
+
+    # CSV streaming response
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(keys)
+    for row in rows:
+        writer.writerow(list(row))
+
+    output.seek(0)
+    filename = f"{table}_{country or 'all'}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @app.post("/admin/collect-forecasts")
 async def trigger_forecast_collection():
     """
