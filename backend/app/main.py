@@ -186,6 +186,7 @@ def health_check():
 def status_check():
     """Detailed status check including background tasks and database"""
     import os
+    from datetime import datetime, timedelta
     db_path = os.getenv("DATABASE_PATH", "weather.db")
     db_exists = os.path.exists(db_path)
     
@@ -194,17 +195,42 @@ def status_check():
     if db_exists:
         try:
             from app.db.database import execute_sql
-            result = execute_sql("SELECT COUNT(*) FROM weather_records")
-            db_stats["total_records"] = result[0][0] if result else 0
             
-            # Get recent activity (last hour)
-            from datetime import datetime, timedelta
-            cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
-            result = execute_sql(
-                "SELECT COUNT(*) FROM weather_records WHERE timestamp >= ?",
-                (cutoff,)
-            )
-            db_stats["records_last_hour"] = result[0][0] if result else 0
+            # Check weather_records table
+            try:
+                result = execute_sql("SELECT COUNT(*) as count FROM weather_records")
+                rows = result.fetchall()
+                db_stats["weather_records_total"] = rows[0][0] if rows else 0
+                
+                # Get recent activity (last hour)
+                cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
+                result = execute_sql(
+                    "SELECT COUNT(*) as count FROM weather_records WHERE timestamp >= ?",
+                    (cutoff,)
+                )
+                rows = result.fetchall()
+                db_stats["weather_records_last_hour"] = rows[0][0] if rows else 0
+                
+                # Get latest timestamp
+                result = execute_sql("SELECT MAX(timestamp) as latest FROM weather_records")
+                rows = result.fetchall()
+                db_stats["latest_weather_record"] = rows[0][0] if rows and rows[0][0] else "None"
+            except Exception as e:
+                db_stats["weather_records_error"] = str(e)
+            
+            # Check forecast_data table
+            try:
+                result = execute_sql("SELECT COUNT(*) as count FROM forecast_data")
+                rows = result.fetchall()
+                db_stats["forecast_data_total"] = rows[0][0] if rows else 0
+                
+                # Get latest forecast timestamp
+                result = execute_sql("SELECT MAX(collected_at) as latest FROM forecast_data")
+                rows = result.fetchall()
+                db_stats["latest_forecast"] = rows[0][0] if rows and rows[0][0] else "None"
+            except Exception as e:
+                db_stats["forecast_data_error"] = str(e)
+                
         except Exception as e:
             db_stats["error"] = str(e)
     
