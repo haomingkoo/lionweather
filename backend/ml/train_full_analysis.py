@@ -631,6 +631,43 @@ def make_features(rain: pd.Series, temp: pd.Series,
     df["rained_last1h"] = (df["rain_lag_1h"] > 0.1).astype(int)
     df["rained_last3h"] = (df["rain_sum_6h"] > 0.3).astype(int)
 
+    # ---- Singapore-specific meteorological features ----
+
+    # Dry spell length: consecutive hours with no rain (reset on any rain > 0.1mm)
+    # Long dry spells followed by rain tend to produce higher intensity events
+    is_dry = (df["rainfall"] < 0.1).astype(int)
+    dry_groups = (is_dry != is_dry.shift()).cumsum()
+    df["dry_spell_hours"] = is_dry.groupby(dry_groups).cumsum() * is_dry
+
+    # Rain streak length: consecutive rainy hours
+    is_wet = (df["rainfall"] >= 0.1).astype(int)
+    wet_groups = (is_wet != is_wet.shift()).cumsum()
+    df["rain_streak_hours"] = is_wet.groupby(wet_groups).cumsum() * is_wet
+
+    # Humidity deficit from saturation: lower = closer to rain-forming conditions
+    df["hum_deficit"] = 100.0 - df["humidity"]
+
+    # Humidity × temperature: proxy for wet-bulb / latent heat, predicts convection
+    df["hum_temp_product"] = df["humidity"] * df["temperature"] / 100.0
+
+    # Wind acceleration: rising wind speed is associated with approaching squall lines
+    df["wind_accel_3h"] = df["wind_speed"] - df[f"wind_lag_3h"]
+
+    # Singapore inter-monsoon peak indicator (Oct-Nov and Mar-Apr)
+    # These months have highest thunderstorm frequency per NEA climatology
+    df["is_inter_monsoon"] = df.index.month.isin([3, 4, 10, 11]).astype(int)
+
+    # Afternoon convective peak (13:00-18:00 SGT = 05:00-10:00 UTC)
+    # Morning secondary peak (06:00-09:00 SGT = 22:00-01:00 UTC previous day)
+    hour_sgt = (df.index.hour + 8) % 24
+    df["is_afternoon_peak"] = ((hour_sgt >= 13) & (hour_sgt <= 18)).astype(int)
+    df["is_morning_peak"]   = ((hour_sgt >= 6)  & (hour_sgt <= 9)).astype(int)
+
+    # Day of year (seasonal signal beyond just month)
+    df["day_of_year"]    = df.index.dayofyear
+    df["sin_day_of_year"] = np.sin(2 * np.pi * df.index.dayofyear / 365)
+    df["cos_day_of_year"] = np.cos(2 * np.pi * df.index.dayofyear / 365)
+
     # Targets
     for h in horizons:
         df[f"target_rain_{h}h"]    = df["rainfall"].shift(-h)
