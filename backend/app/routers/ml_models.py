@@ -492,3 +492,204 @@ async def get_data_sanity_check() -> Dict:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sanity check failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# NEA text → 4-class rain category (same thresholds as ML training)
+# ---------------------------------------------------------------------------
+_NEA_TEXT_TO_CLASS = {
+    # class 0 — No Rain
+    "fair": 0, "fine": 0, "sunny": 0, "clear": 0,
+    "fair and warm": 0, "partly cloudy": 0, "mostly cloudy": 0,
+    "hazy": 0, "windy": 0, "breezy": 0,
+    # class 1 — Light Rain
+    "light rain": 1, "light showers": 1, "drizzle": 1, "mist": 1,
+    "passing showers": 1, "isolated showers": 1,
+    "showers": 1, "rain": 1,
+    # class 2 — Heavy Rain
+    "heavy rain": 2, "heavy showers": 2, "moderate rain": 2,
+    # class 3 — Thundery Showers
+    "thundery showers": 3, "heavy thundery showers": 3,
+    "thunderstorm": 3, "thunderstorms": 3,
+    "occasional showers with thunder": 3,
+}
+
+def _nea_text_to_class(description: str) -> Optional[int]:
+    """Map NEA forecast text → rain category (0-3). Returns None if unknown."""
+    if not description:
+        return None
+    d = description.lower().strip()
+    # Exact match first
+    if d in _NEA_TEXT_TO_CLASS:
+        return _NEA_TEXT_TO_CLASS[d]
+    # Keyword match
+    if "thunder" in d:
+        return 3
+    if "heavy" in d and ("rain" in d or "shower" in d):
+        return 2
+    if "rain" in d or "shower" in d or "drizzle" in d:
+        return 1
+    if "fair" in d or "sunny" in d or "clear" in d or "fine" in d:
+        return 0
+    return None
+
+def _mm_to_class(rainfall_mm: float) -> int:
+    """Same thresholds as ML training script."""
+    if rainfall_mm < 0.1:
+        return 0
+    elif rainfall_mm < 7.6:
+        return 1
+    elif rainfall_mm < 30.0:
+        return 2
+    else:
+        return 3
+
+
+@router.get("/nea-benchmark")
+async def get_nea_benchmark() -> Dict:
+    """
+    Compare NEA official 24-hour forecasts against actual observed rainfall.
+
+    Methodology (apples-to-apples):
+    - Pull NEA forecasts from forecast_data (source_api = 'nea')
+    - For each forecast period [target_time_start, target_time_end]:
+        - Find ALL Singapore weather_records in that window
+        - Take MAX rainfall across stations → actual rain category
+    - Map NEA text description → rain category (same 4-class + binary thresholds as ML model)
+    - Compute accuracy, precision, recall on both 4-class and binary (rain vs no-rain)
+
+    Note: Requires forecast_data and weather_records to have overlapping timestamps.
+    This accumulates as the app runs — more data = more reliable benchmark.
+    """
+    try:
+        # 1. Pull NEA forecast periods
+        forecasts = fetch_all("""
+            SELECT target_time_start, target_time_end, forecast_description
+            FROM forecast_data
+            WHERE source_api = 'nea'
+              AND forecast_description IS NOT NULL
+            ORDER BY target_time_start
+        """)
+
+        if not forecasts:
+            return {
+                "status": "no_data",
+                "message": (
+                    "No NEA forecast records found in forecast_data. "
+                    "The app needs to run for a while to accumulate forecast data. "
+                    "Check /status to verify the forecast collector is running."
+                ),
+                "n_forecast_periods": 0,
+            }
+
+        # 2. For each forecast period, find actual max rainfall from weather_records
+        matched = []
+        skipped = 0
+
+        for row in forecasts:
+            t_start = row["target_time_start"]
+            t_end   = row["target_time_end"]
+            nea_text = row["forecast_description"]
+
+            nea_class = _nea_text_to_class(nea_text)
+            if nea_class is None:
+                skipped += 1
+                continue
+
+            # Actual: max rainfall across ALL Singapore stations in this window
+            actual_row = fetch_one("""
+                SELECT MAX(rainfall) as max_rain
+                FROM weather_records
+                WHERE country = 'singapore'
+                  AND timestamp >= :t_start
+                  AND timestamp <  :t_end
+            """, {"t_start": t_start, "t_end": t_end})
+
+            if not actual_row or actual_row["max_rain"] is None:
+                skipped += 1
+                continue
+
+            actual_class = _mm_to_class(float(actual_row["max_rain"]))
+            matched.append((nea_class, actual_class))
+
+        if not matched:
+            return {
+                "status": "insufficient_overlap",
+                "message": (
+                    "NEA forecasts found but no matching weather_records in the same time windows. "
+                    f"Skipped {skipped} periods. Check that both collectors are running and "
+                    "the database has data from the same time range."
+                ),
+                "n_forecast_periods": len(forecasts),
+                "n_skipped": skipped,
+            }
+
+        # 3. Compute metrics
+        n = len(matched)
+        y_nea    = [x[0] for x in matched]
+        y_actual = [x[1] for x in matched]
+
+        # 4-class accuracy
+        four_class_correct = sum(a == b for a, b in zip(y_nea, y_actual))
+        four_class_accuracy = four_class_correct / n
+
+        # Binary: 0 = no rain, 1 = any rain
+        y_nea_bin    = [1 if c > 0 else 0 for c in y_nea]
+        y_actual_bin = [1 if c > 0 else 0 for c in y_actual]
+        binary_correct = sum(a == b for a, b in zip(y_nea_bin, y_actual_bin))
+        binary_accuracy = binary_correct / n
+
+        # Binary rain recall (did NEA predict rain when it actually rained?)
+        actual_rain_periods = sum(1 for c in y_actual_bin if c == 1)
+        nea_caught_rain = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 1 and b == 1)
+        rain_recall = nea_caught_rain / actual_rain_periods if actual_rain_periods > 0 else None
+
+        # Binary rain precision (when NEA said rain, was it right?)
+        nea_said_rain = sum(1 for c in y_nea_bin if c == 1)
+        rain_precision = nea_caught_rain / nea_said_rain if nea_said_rain > 0 else None
+
+        # False negative rate (NEA said dry, actually rained)
+        false_negatives = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 0 and b == 1)
+        false_negative_rate = false_negatives / actual_rain_periods if actual_rain_periods > 0 else None
+
+        # Per-class breakdown
+        from collections import Counter
+        nea_dist    = dict(Counter(y_nea))
+        actual_dist = dict(Counter(y_actual))
+
+        # 2×2 binary confusion matrix [[TN, FP], [FN, TP]]
+        tn = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 0 and b == 0)
+        fp = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 1 and b == 0)
+        fn = false_negatives
+        tp = nea_caught_rain
+        binary_cm = [[tn, fp], [fn, tp]]
+
+        return {
+            "status": "ok",
+            "n_matched_periods": n,
+            "n_skipped": skipped,
+            "note": (
+                "Actual = MAX rainfall across all Singapore stations per NEA forecast window. "
+                "This is the most conservative comparison: NEA predicts 'dry' but ANY station "
+                "recording rain counts as actual rain."
+            ),
+            "four_class": {
+                "accuracy": round(four_class_accuracy, 4),
+                "correct": four_class_correct,
+                "total": n,
+                "nea_class_distribution": {str(k): v for k, v in sorted(nea_dist.items())},
+                "actual_class_distribution": {str(k): v for k, v in sorted(actual_dist.items())},
+            },
+            "binary": {
+                "accuracy": round(binary_accuracy, 4),
+                "rain_precision": round(rain_precision, 4) if rain_precision is not None else None,
+                "rain_recall": round(rain_recall, 4) if rain_recall is not None else None,
+                "false_negative_rate": round(false_negative_rate, 4) if false_negative_rate is not None else None,
+                "confusion_matrix": binary_cm,
+                "n_actual_rain_periods": actual_rain_periods,
+                "n_nea_predicted_rain": nea_said_rain,
+            },
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"NEA benchmark failed: {e}")
