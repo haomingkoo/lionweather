@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { getWeatherIcon, getMockTemperature } from "../utils/weatherTheme";
+import { getWeatherIcon } from "../utils/weatherTheme";
 
 const iconMap = {
   Sun,
@@ -85,7 +85,7 @@ export function LocationList({ isDark = false }) {
       {locations.map((location, index) => {
         const IconComponent =
           iconMap[getWeatherIcon(location.weather.condition)];
-        const temperature = getMockTemperature(location.weather.condition);
+        const temperature = location.weather.temperature || "N/A";
 
         return (
           <article

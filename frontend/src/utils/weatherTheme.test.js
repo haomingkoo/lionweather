@@ -3,7 +3,6 @@ import {
   getWeatherGradient,
   getWeatherIcon,
   isDarkGradient,
-  getMockTemperature,
 } from "./weatherTheme";
 
 describe("weatherTheme.js utility functions", () => {
@@ -327,54 +326,12 @@ describe("weatherTheme.js utility functions", () => {
     });
   });
 
-  describe("getMockTemperature", () => {
-    it("returns appropriate temperature for sunny conditions", () => {
-      expect(getMockTemperature("sunny")).toBe("32");
-      expect(getMockTemperature("clear")).toBe("32");
-    });
-
-    it("returns appropriate temperature for rainy conditions", () => {
-      expect(getMockTemperature("rainy")).toBe("26");
-      expect(getMockTemperature("rain")).toBe("26");
-      expect(getMockTemperature("shower")).toBe("26");
-    });
-
-    it("returns appropriate temperature for thunderstorm conditions", () => {
-      expect(getMockTemperature("thunderstorm")).toBe("24");
-      expect(getMockTemperature("thunder")).toBe("24");
-      expect(getMockTemperature("storm")).toBe("24");
-    });
-
-    it("returns appropriate temperature for cloudy conditions", () => {
-      expect(getMockTemperature("cloudy")).toBe("28");
-      expect(getMockTemperature("cloud")).toBe("28");
-    });
-
-    it("returns default temperature for unknown conditions", () => {
-      expect(getMockTemperature("unknown")).toBe("29");
-    });
-
-    it("handles case insensitivity", () => {
-      expect(getMockTemperature("SUNNY")).toBe("32");
-      expect(getMockTemperature("RAINY")).toBe("26");
-    });
-
-    it("handles null condition", () => {
-      expect(getMockTemperature(null)).toBe("29");
-    });
-
-    it("handles undefined condition", () => {
-      expect(getMockTemperature(undefined)).toBe("29");
-    });
-  });
-
   describe("Integration tests - Consistency across functions", () => {
     it("sunny conditions have consistent mappings", () => {
       const condition = "sunny";
       expect(getWeatherGradient(condition)).toContain("yellow");
       expect(getWeatherIcon(condition)).toBe("Sun");
       expect(isDarkGradient(condition)).toBe(false);
-      expect(getMockTemperature(condition)).toBe("32");
     });
 
     it("rainy conditions have consistent mappings", () => {
@@ -382,7 +339,6 @@ describe("weatherTheme.js utility functions", () => {
       expect(getWeatherGradient(condition)).toContain("blue");
       expect(getWeatherIcon(condition)).toBe("CloudRain");
       expect(isDarkGradient(condition)).toBe(false);
-      expect(getMockTemperature(condition)).toBe("26");
     });
 
     it("thunderstorm conditions have consistent mappings", () => {
@@ -390,7 +346,6 @@ describe("weatherTheme.js utility functions", () => {
       expect(getWeatherGradient(condition)).toContain("indigo-900");
       expect(getWeatherIcon(condition)).toBe("CloudLightning");
       expect(isDarkGradient(condition)).toBe(true);
-      expect(getMockTemperature(condition)).toBe("24");
     });
 
     it("cloudy conditions have consistent mappings", () => {
@@ -398,7 +353,6 @@ describe("weatherTheme.js utility functions", () => {
       expect(getWeatherGradient(condition)).toContain("gray");
       expect(getWeatherIcon(condition)).toBe("Cloud");
       expect(isDarkGradient(condition)).toBe(false);
-      expect(getMockTemperature(condition)).toBe("28");
     });
   });
 

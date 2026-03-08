@@ -54,10 +54,12 @@ def migrate_ml_tables():
         ON weather_records(country, location, timestamp)
     """)
     
-    # Create model_metadata table
+    # Create model_metadata table with versioning support
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS model_metadata (
             {id_column},
+            semantic_version TEXT NOT NULL,
+            model_name TEXT NOT NULL,
             model_type TEXT NOT NULL,
             weather_parameter TEXT NOT NULL,
             country TEXT NOT NULL,
@@ -70,8 +72,45 @@ def migrate_ml_tables():
             validation_mape REAL NOT NULL,
             file_path TEXT NOT NULL,
             is_production INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
+            status TEXT DEFAULT 'testing',
+            training_data_hash TEXT,
+            feature_list TEXT,
+            config_json TEXT,
+            metrics_json TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(semantic_version, model_name)
         )
+    """)
+    
+    # Create model_performance_log table for time-series tracking
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS model_performance_log (
+            {id_column},
+            model_version TEXT NOT NULL,
+            model_name TEXT NOT NULL,
+            evaluation_date TEXT NOT NULL,
+            horizon_hours INTEGER NOT NULL,
+            mae REAL,
+            rmse REAL,
+            f1_score REAL,
+            accuracy REAL,
+            precision REAL,
+            recall REAL,
+            n_samples INTEGER,
+            rain_events INTEGER
+        )
+    """)
+    
+    # Create index for performance log
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_perf_log_version 
+        ON model_performance_log(model_version, model_name)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_perf_log_date 
+        ON model_performance_log(evaluation_date)
     """)
     
     # Create predictions table
@@ -204,6 +243,34 @@ def migrate_forecast_tables():
     print("Forecast data table created successfully")
 
 
+def migrate_add_weather_code():
+    """Add weather_code column to weather_records table for NEA classification."""
+    con = get_connection()
+    cursor = con.cursor()
+    
+    try:
+        # Check if column already exists
+        cursor.execute("SELECT weather_code FROM weather_records LIMIT 1")
+        print("weather_code column already exists")
+    except Exception:
+        # Column doesn't exist, add it
+        cursor.execute("""
+            ALTER TABLE weather_records ADD COLUMN weather_code INTEGER
+        """)
+        
+        # Create index for weather_code queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_weather_code
+            ON weather_records(weather_code)
+        """)
+        
+        con.commit()
+        print("weather_code column added successfully")
+    
+    con.close()
+
+
 if __name__ == "__main__":
     migrate_ml_tables()
     migrate_forecast_tables()
+    migrate_add_weather_code()

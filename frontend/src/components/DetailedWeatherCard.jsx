@@ -16,11 +16,13 @@ import {
   Navigation,
   MapPin,
 } from "lucide-react";
-import { getWeatherIcon, getMockTemperature } from "../utils/weatherTheme";
+import { getWeatherIcon } from "../utils/weatherTheme";
 import { request } from "../api/client";
 import { get24HourForecast, get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
+import { getSunTimes } from "../utils/sunTimes";
+import { getCurrentWeather, get7DayForecast } from "../api/openMeteo";
 
 const iconMap = {
   Sun,
@@ -37,10 +39,49 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const [hourlyForecast, setHourlyForecast] = useState([]);
   const [dailyForecast, setDailyForecast] = useState([]);
   const [showPrecipMap, setShowPrecipMap] = useState(false);
+  const [error, setError] = useState(null);
+  const [sunTimes, setSunTimes] = useState({ sunrise: "N/A", sunset: "N/A" });
+  const [openMeteoData, setOpenMeteoData] = useState({
+    visibility: null,
+    pressure: null,
+  });
 
   const textColor = isDark ? "text-white" : "text-slate-900";
   const secondaryTextColor = isDark ? "text-white/80" : "text-slate-700";
   const tertiaryTextColor = isDark ? "text-white/60" : "text-slate-600";
+
+  // Calculate sunrise/sunset times based on location coordinates
+  useEffect(() => {
+    const fetchSunTimes = async () => {
+      try {
+        const times = await getSunTimes(location.latitude, location.longitude);
+        setSunTimes(times);
+      } catch (err) {
+        console.error("Error calculating sun times:", err);
+        // Keep default N/A values if calculation fails
+      }
+    };
+
+    fetchSunTimes();
+  }, [location.latitude, location.longitude]);
+
+  // Fetch Open-Meteo data for visibility and pressure
+  useEffect(() => {
+    const fetchOpenMeteoData = async () => {
+      try {
+        const data = await getCurrentWeather(
+          location.latitude,
+          location.longitude,
+        );
+        setOpenMeteoData(data);
+      } catch (err) {
+        console.error("Error fetching Open-Meteo data:", err);
+        // Keep default null values if fetch fails
+      }
+    };
+
+    fetchOpenMeteoData();
+  }, [location.latitude, location.longitude]);
 
   useEffect(() => {
     const fetchComprehensiveData = async () => {
@@ -65,6 +106,19 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           const now = new Date();
           for (let i = 0; i < 24; i++) {
             const hour = new Date(now.getTime() + i * 60 * 60 * 1000);
+            // Find the period that covers this hour
+            const period = forecast24h.periods.find((p) => {
+              const periodStart = new Date(p.time.start);
+              const periodEnd = new Date(p.time.end);
+              return hour >= periodStart && hour < periodEnd;
+            });
+
+            // Parse temperature from period forecast text or use location's current temperature
+            let temp = location.weather.temperature || "N/A";
+            if (period?.temperature) {
+              temp = period.temperature;
+            }
+
             hourly.push({
               time:
                 i === 0
@@ -73,84 +127,82 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                       hour: "numeric",
                       hour12: true,
                     }),
-              temperature:
-                parseInt(getMockTemperature(location.weather.condition)) +
-                Math.floor(Math.random() * 6) -
-                3,
-              condition: location.weather.condition,
+              temperature: temp,
+              condition: period?.forecast || location.weather.condition,
             });
           }
           setHourlyForecast(hourly);
         }
 
-        // Fetch 4-day forecast
+        // Fetch 4-day forecast from NEA
         const forecast4day = await get4DayForecast();
+
+        // Fetch 7-day forecast from Open-Meteo
+        const openMeteoForecast = await get7DayForecast(
+          location.latitude,
+          location.longitude,
+        );
+
+        // Hybrid approach: Use NEA for days 1-4, Open-Meteo for days 5-7
+        const daily = [];
+
         if (forecast4day?.forecasts) {
-          const daily = forecast4day.forecasts.map((day, i) => ({
-            date: day.date,
-            dayName:
-              i === 0
-                ? "Today"
-                : new Date(day.date).toLocaleDateString("en-US", {
-                    weekday: "short",
-                  }),
-            high:
-              day.temperature?.high ||
-              parseInt(getMockTemperature(location.weather.condition)) + 2,
-            low:
-              day.temperature?.low ||
-              parseInt(getMockTemperature(location.weather.condition)) - 6,
-            condition: day.forecast || location.weather.condition,
-          }));
-          setDailyForecast(daily);
+          // Add NEA forecasts (days 1-4) with source indicator
+          const neaForecasts = forecast4day.forecasts
+            .slice(0, 4)
+            .map((day, i) => ({
+              date: day.date,
+              dayName:
+                i === 0
+                  ? "Today"
+                  : new Date(day.date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                    }),
+              high: day.temperature?.high || null,
+              low: day.temperature?.low || null,
+              condition: day.forecast || location.weather.condition,
+              source: "NEA",
+            }));
+          daily.push(...neaForecasts);
         }
+
+        // Add Open-Meteo forecasts for days 5-7
+        if (openMeteoForecast.length > 4) {
+          const openMeteoExtended = openMeteoForecast
+            .slice(4, 7)
+            .map((day) => ({
+              date: day.date,
+              dayName: new Date(day.date).toLocaleDateString("en-US", {
+                weekday: "short",
+              }),
+              high: day.temperature?.high || null,
+              low: day.temperature?.low || null,
+              condition: day.forecast,
+              source: "Open-Meteo",
+            }));
+          daily.push(...openMeteoExtended);
+        }
+
+        setDailyForecast(daily);
       } catch (err) {
-        // Silently handle error - fall back to mock data
-        generateMockForecasts();
+        setError("Unable to refresh weather data");
       }
-    };
-
-    const generateMockForecasts = () => {
-      const temperature = parseInt(
-        getMockTemperature(location.weather.condition),
-      );
-
-      // Mock hourly
-      const hourly = Array.from({ length: 24 }, (_, i) => {
-        const hour = (new Date().getHours() + i) % 24;
-        return {
-          time: i === 0 ? "Now" : `${hour}:00`,
-          temperature: temperature + Math.floor(Math.random() * 6) - 3,
-          condition: location.weather.condition,
-        };
-      });
-      setHourlyForecast(hourly);
-
-      // Mock daily
-      const daily = Array.from({ length: 10 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
-        return {
-          date: date.toISOString().split("T")[0],
-          dayName:
-            i === 0
-              ? "Today"
-              : date.toLocaleDateString("en-US", { weekday: "short" }),
-          high: temperature + Math.floor(Math.random() * 4),
-          low: temperature - 8,
-          condition: location.weather.condition,
-        };
-      });
-      setDailyForecast(daily);
     };
 
     fetchComprehensiveData();
     fetchForecasts();
-  }, [location.id, location.weather.condition]);
+  }, [
+    location.id,
+    location.weather.condition,
+    location.latitude,
+    location.longitude,
+  ]);
 
   const IconComponent = iconMap[getWeatherIcon(location.weather.condition)];
-  const temperature = getMockTemperature(location.weather.condition);
-  const feelsLike = comprehensiveData?.temperature || parseInt(temperature) - 2;
+  const temperature = location.weather.temperature || "N/A";
+  const feelsLike =
+    comprehensiveData?.temperature ||
+    (temperature !== "N/A" ? parseInt(temperature) - 2 : "N/A");
 
   return (
     <div className="space-y-3">
@@ -177,9 +229,21 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           </span>
         </div>
         <p className={`text-sm ${secondaryTextColor}`}>
-          H:{parseInt(temperature) + 3}° L:{parseInt(temperature) - 5}°
+          H:{temperature !== "N/A" ? `${parseInt(temperature) + 3}°` : "N/A"} L:
+          {temperature !== "N/A" ? `${parseInt(temperature) - 5}°` : "N/A"}
         </p>
       </div>
+
+      {/* Error Message Display */}
+      {error && (
+        <div
+          className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-red-500/20 border border-red-400/50" : "bg-red-100/50 border border-red-300/50"}`}
+        >
+          <p className={`text-sm ${isDark ? "text-red-200" : "text-red-800"}`}>
+            {error}
+          </p>
+        </div>
+      )}
 
       {/* Hourly Forecast - Horizontal Slider */}
       <div
@@ -233,7 +297,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         </div>
       </div>
 
-      {/* 10-Day Forecast */}
+      {/* 7-Day Forecast */}
       <div
         className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
       >
@@ -245,9 +309,16 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         <div className="space-y-1">
           {dailyForecast.map((day, i) => (
             <div key={i} className="flex items-center justify-between">
-              <span className={`text-sm font-medium ${textColor} w-12`}>
-                {day.dayName}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium ${textColor} w-12`}>
+                  {day.dayName}
+                </span>
+                <span
+                  className={`text-[9px] ${tertiaryTextColor} px-1.5 py-0.5 rounded ${isDark ? "bg-white/10" : "bg-white/30"}`}
+                >
+                  {day.source}
+                </span>
+              </div>
               <div className="flex items-center gap-2 flex-1 justify-center">
                 {IconComponent && (
                   <IconComponent
@@ -260,10 +331,10 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               </div>
               <div className="flex gap-2 w-16 justify-end">
                 <span className={`text-xs ${tertiaryTextColor}`}>
-                  {day.low}°
+                  {day.low !== null ? `${Math.round(day.low)}°` : "N/A"}
                 </span>
                 <span className={`text-xs ${textColor} font-medium`}>
-                  {day.high}°
+                  {day.high !== null ? `${Math.round(day.high)}°` : "N/A"}
                 </span>
               </div>
             </div>
@@ -383,9 +454,16 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <div
               className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
             >
-              10
+              {openMeteoData.visibility !== null
+                ? openMeteoData.visibility
+                : "N/A"}
             </div>
-            <span className={`text-base ${secondaryTextColor}`}>km</span>
+            {openMeteoData.visibility !== null && (
+              <span className={`text-base ${secondaryTextColor}`}>km</span>
+            )}
+          </div>
+          <div className={`text-[9px] ${tertiaryTextColor} mt-1`}>
+            Open-Meteo
           </div>
         </div>
 
@@ -405,9 +483,14 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <div
               className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
             >
-              1013
+              {openMeteoData.pressure !== null ? openMeteoData.pressure : "N/A"}
             </div>
-            <span className={`text-base ${secondaryTextColor}`}>hPa</span>
+            {openMeteoData.pressure !== null && (
+              <span className={`text-base ${secondaryTextColor}`}>hPa</span>
+            )}
+          </div>
+          <div className={`text-[9px] ${tertiaryTextColor} mt-1`}>
+            Open-Meteo
           </div>
         </div>
 
@@ -426,7 +509,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           <div
             className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
           >
-            7:00 AM
+            {sunTimes.sunrise}
           </div>
         </div>
 
@@ -445,7 +528,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           <div
             className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
           >
-            7:15 PM
+            {sunTimes.sunset}
           </div>
         </div>
       </div>

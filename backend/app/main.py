@@ -32,6 +32,9 @@ from app.routers.ml import router as ml_api_router
 from app.routers.radar import router as radar_router
 from app.routers.regional import router as regional_router
 from app.routers.data_health import router as data_health_router
+from app.routers.historical_data import router as historical_data_router
+from app.routers.ml_predictions import router as ml_predictions_router
+from app.routers.ml_models import router as ml_models_router
 from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
 from app.db.database import execute_sql, get_database_url
 from app.services.radar_service import get_radar_service
@@ -167,6 +170,9 @@ app.include_router(ml_api_router)
 app.include_router(radar_router, prefix="/api")
 app.include_router(regional_router, prefix="/api")
 app.include_router(data_health_router)
+app.include_router(historical_data_router)
+app.include_router(ml_predictions_router)
+app.include_router(ml_models_router)
 
 
 @app.get("/health")

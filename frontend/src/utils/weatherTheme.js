@@ -93,23 +93,3 @@ export function isDarkGradient(condition) {
   const conditionLower = condition?.toLowerCase() || "";
   return conditionLower.includes("thunder") || conditionLower.includes("storm");
 }
-
-// Get a mock temperature based on condition for visual appeal
-export function getMockTemperature(condition) {
-  const conditionLower = condition?.toLowerCase() || "";
-
-  if (conditionLower.includes("sunny") || conditionLower.includes("clear")) {
-    return "32";
-  }
-  if (conditionLower.includes("rain") || conditionLower.includes("shower")) {
-    return "26";
-  }
-  if (conditionLower.includes("thunder") || conditionLower.includes("storm")) {
-    return "24";
-  }
-  if (conditionLower.includes("cloud")) {
-    return "28";
-  }
-
-  return "29";
-}
