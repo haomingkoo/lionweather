@@ -5,18 +5,17 @@ export function GeolocationPrompt({ onLocationDetected, onDismiss }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleUseLocation = async () => {
+  const handleUseLocation = () => {
     setIsLoading(true);
     setError(null);
 
     if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.");
+      setError("Not supported by your browser.");
       setIsLoading(false);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      // Success callback
       (position) => {
         setIsLoading(false);
         onLocationDetected({
@@ -24,25 +23,11 @@ export function GeolocationPrompt({ onLocationDetected, onDismiss }) {
           lng: position.coords.longitude,
         });
       },
-      // Error callback
-      (error) => {
+      (err) => {
         setIsLoading(false);
-        const errorMessages = {
-          1: "Location access denied. You can still enter coordinates manually.",
-          2: "Unable to determine your location. Please enter coordinates manually.",
-          3: "Location request timed out. Please try again or enter coordinates manually.",
-        };
-        setError(
-          errorMessages[error.code] ||
-            "Location unavailable. Please enter coordinates manually.",
-        );
+        setError(err.code === 1 ? "Location access denied." : "Unable to get location.");
       },
-      // Options
-      {
-        timeout: 10000,
-        maximumAge: 0,
-        enableHighAccuracy: false,
-      },
+      { timeout: 10000, maximumAge: 0, enableHighAccuracy: false },
     );
   };
 
@@ -52,73 +37,45 @@ export function GeolocationPrompt({ onLocationDetected, onDismiss }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-600/20 rounded-full flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-400" />
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
+      <div className="bg-slate-800/95 backdrop-blur border border-slate-700 rounded-2xl p-4 shadow-2xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 bg-blue-600/20 rounded-full flex items-center justify-center shrink-0">
+              <MapPin className="w-4 h-4 text-blue-400" />
             </div>
-            <div>
-              <h3 className="text-xl font-semibold text-white">
-                Use Your Location
-              </h3>
-              <p className="text-sm text-slate-400">
-                Get weather for your area
-              </p>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Track your location?</p>
+              {error ? (
+                <p className="text-xs text-red-400 truncate">{error}</p>
+              ) : (
+                <p className="text-xs text-slate-400">For local weather — stays in your browser.</p>
+              )}
             </div>
           </div>
-          <button
-            onClick={handleDismiss}
-            className="text-slate-400 hover:text-white transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={handleDismiss} className="text-slate-500 hover:text-white transition-colors shrink-0">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Privacy Message */}
-        <div className="mb-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700/50">
-          <p className="text-sm text-slate-300">
-            🔒 <span className="font-medium">Complete Privacy.</span> Your
-            locations are stored only in your browser and never sent to our
-            servers. We only fetch weather data for the coordinates you provide.
-          </p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-900/20 border border-red-700/50 rounded-lg">
-            <p className="text-sm text-red-300">{error}</p>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex flex-col gap-3">
+        <div className="flex gap-2 mt-3">
           <button
             onClick={handleUseLocation}
             disabled={isLoading}
-            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
           >
             {isLoading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Detecting Location...
-              </>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <>
-                <MapPin className="w-5 h-5" />
-                Use My Location
-              </>
+              <MapPin className="w-4 h-4" />
             )}
+            {isLoading ? "Detecting..." : "Allow"}
           </button>
-
           <button
             onClick={handleDismiss}
-            className="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
+            className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            Enter Manually
+            Not now
           </button>
         </div>
       </div>

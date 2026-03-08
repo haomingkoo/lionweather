@@ -162,6 +162,28 @@ def to_hourly_mean(df: pd.DataFrame, value_col: str = "reading_value",
     return out
 
 
+CACHE_DIR = BASE_DIR / "models" / "cache"
+
+def load_hourly_series(name: str, pattern: str, years: list, bounds: tuple,
+                       agg: str = "mean") -> pd.Series:
+    """Load hourly series from Parquet cache if available, else build and cache it."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / f"{name}_hourly.parquet"
+
+    if cache_path.exists():
+        logger.info(f"  [{name}] loading from cache: {cache_path.name}")
+        s = pd.read_parquet(cache_path).squeeze()
+        s.index = pd.DatetimeIndex(s.index)
+        return s
+
+    logger.info(f"  [{name}] building from CSVs (will cache for next run)...")
+    raw = load_variable(pattern, years, bounds)
+    s = to_hourly_mean(raw, agg=agg)
+    s.to_frame(name).to_parquet(cache_path)
+    logger.info(f"  [{name}] cached to {cache_path.name}")
+    return s
+
+
 # ===========================================================================
 # 2. EDA
 # ===========================================================================
@@ -212,6 +234,152 @@ def _histogram(s: pd.Series, bins: int = 40) -> dict:
     return {
         "counts": counts.tolist(),
         "bin_edges": [round(float(e), 4) for e in edges.tolist()],
+    }
+
+
+# ===========================================================================
+# 2b. Climate trend analysis
+# ===========================================================================
+
+def compute_climate_trends(rain_h: pd.Series, temp_h: pd.Series,
+                           hum_h: pd.Series, wind_h: pd.Series) -> dict:
+    """
+    Year-over-year climate statistics for Singapore:
+    - Annual rainfall totals and rainy-day counts
+    - Rain category frequency (% of hours)
+    - Linear trend slope (per variable, per year)
+    - STL seasonal decomposition (trend + residual)
+    - Record extremes per year
+    """
+    from scipy.stats import linregress
+    from statsmodels.tsa.seasonal import STL
+
+    years = sorted(set(rain_h.index.year) | set(temp_h.index.year))
+
+    # ---- Annual stats ----
+    annual = {}
+    for y in years:
+        r = rain_h[rain_h.index.year == y]
+        t = temp_h[temp_h.index.year == y]
+        h = hum_h[hum_h.index.year == y]
+        w = wind_h[wind_h.index.year == y]
+
+        # Rain categories per hour
+        cats = r.apply(rainfall_to_category)
+        n_total = max(1, len(cats))
+
+        annual[str(y)] = {
+            "rainfall": {
+                "total_mm": round(float(r.sum()), 1),
+                "mean_hourly_mm": round(float(r.mean()), 4),
+                "max_hourly_mm": round(float(r.max()), 2),
+                "rainy_hours": int((r > 0.1).sum()),
+                "rainy_hours_pct": round(100 * (r > 0.1).sum() / n_total, 1),
+                "rain_category_pct": {
+                    "no_rain": round(100 * (cats == 0).sum() / n_total, 1),
+                    "light_rain": round(100 * (cats == 1).sum() / n_total, 1),
+                    "heavy_rain": round(100 * (cats == 2).sum() / n_total, 1),
+                    "thundery": round(100 * (cats == 3).sum() / n_total, 1),
+                },
+                "thundery_events": int((cats == 3).sum()),
+            },
+            "temperature": {
+                "mean_c": round(float(t.mean()), 2),
+                "max_c": round(float(t.max()), 2),
+                "min_c": round(float(t.min()), 2),
+                "hot_hours_above_33": int((t > 33).sum()),
+            },
+            "humidity": {
+                "mean_pct": round(float(h.mean()), 2),
+            },
+            "wind_speed": {
+                "mean_kmh": round(float(w.mean()), 2),
+                "max_kmh": round(float(w.max()), 2),
+            },
+        }
+
+    # ---- Linear trend slopes (per year means) ----
+    def _trend_slope(series: pd.Series, agg_fn) -> dict:
+        by_year = {y: float(agg_fn(series[series.index.year == y]))
+                   for y in years if len(series[series.index.year == y]) > 0}
+        if len(by_year) < 3:
+            return {}
+        ys = list(by_year.keys())
+        vs = list(by_year.values())
+        slope, _, r, p, _ = linregress(ys, vs)
+        return {
+            "slope_per_year": round(float(slope), 5),
+            "r_squared": round(float(r ** 2), 4),
+            "p_value": round(float(p), 4),
+            "trend": "increasing" if slope > 0 else "decreasing",
+            "significant": bool(p < 0.05),
+        }
+
+    trends = {
+        "temperature_mean": _trend_slope(temp_h, np.mean),
+        "temperature_max": _trend_slope(temp_h, np.max),
+        "rainfall_total": _trend_slope(rain_h, np.sum),
+        "rainfall_rainy_hours": {
+            "values_by_year": {
+                str(y): int((rain_h[rain_h.index.year == y] > 0.1).sum())
+                for y in years
+            }
+        },
+        "humidity_mean": _trend_slope(hum_h, np.mean),
+        "wind_speed_mean": _trend_slope(wind_h, np.mean),
+    }
+
+    # ---- STL decomposition on monthly rainfall totals ----
+    stl_result = {}
+    try:
+        monthly_rain = rain_h.resample("ME").sum()
+        if len(monthly_rain) >= 24:
+            stl = STL(monthly_rain, period=12, robust=True).fit()
+            # Downsample to max 120 points for JSON size
+            step = max(1, len(monthly_rain) // 120)
+            idx = list(range(0, len(monthly_rain), step))
+            stl_result = {
+                "dates": [str(monthly_rain.index[i].date()) for i in idx],
+                "observed": [round(float(monthly_rain.iloc[i]), 2) for i in idx],
+                "trend": [round(float(stl.trend.iloc[i]), 2) for i in idx],
+                "seasonal": [round(float(stl.seasonal.iloc[i]), 2) for i in idx],
+                "residual": [round(float(stl.resid.iloc[i]), 2) for i in idx],
+                "note": "Monthly rainfall totals (mm). STL period=12 months.",
+            }
+    except Exception as e:
+        logger.warning(f"  STL decomposition failed: {e}")
+
+    # ---- All-time records ----
+    records = {
+        "wettest_hour": {
+            "value_mm": round(float(rain_h.max()), 2),
+            "date": str(rain_h.idxmax().date()),
+        },
+        "hottest_hour": {
+            "value_c": round(float(temp_h.max()), 2),
+            "date": str(temp_h.idxmax().date()),
+        },
+        "coolest_hour": {
+            "value_c": round(float(temp_h.min()), 2),
+            "date": str(temp_h.idxmin().date()),
+        },
+        "most_humid": {
+            "value_pct": round(float(hum_h.max()), 2),
+            "date": str(hum_h.idxmax().date()),
+        },
+        "windiest_hour": {
+            "value_kmh": round(float(wind_h.max()), 2),
+            "date": str(wind_h.idxmax().date()),
+        },
+    }
+
+    logger.info(f"  Climate trends computed for {len(years)} years")
+    return {
+        "years_covered": years,
+        "annual": annual,
+        "long_term_trends": trends,
+        "stl_decomposition": stl_result,
+        "all_time_records": records,
     }
 
 
@@ -316,8 +484,8 @@ def compute_periodogram(s: pd.Series, sample_rate_hz: float = 1/3600) -> dict:
     ]
     chart_data = sorted(chart_data, key=lambda x: x["period_h"])
 
-    logger.info(f"  Periodogram: top periods = "
-                f"{[f'{p[\"period_h\"]}h' for p in top_periods[:5]]}")
+    top_labels = [str(p["period_h"]) + "h" for p in top_periods[:5]]
+    logger.info(f"  Periodogram: top periods = {top_labels}")
 
     return {
         "top_dominant_periods": top_periods,
@@ -614,18 +782,15 @@ def main():
 
     all_years = TRAIN_YEARS + [VAL_YEAR, TEST_YEAR]
 
-    # --- Load data ---
+    # --- Load data (with Parquet cache for fast reruns) ---
     logger.info("\n[1/8] Loading historical NEA data...")
-    rain_raw  = load_variable("HistoricalRainfallacrossSingapore{year}.csv",  all_years, BOUNDS["rainfall"])
-    temp_raw  = load_variable("HistoricalAirTemperatureacrossSingapore{year}.csv", all_years, BOUNDS["temperature"])
-    hum_raw   = load_variable("HistoricalRelativeHumidityacrossSingapore{year}.csv", all_years, BOUNDS["humidity"])
-    wind_raw  = load_variable("HistoricalWindSpeedacrossSingapore{year}.csv", all_years, BOUNDS["wind_speed"])
+    logger.info("  (Cached Parquet files in models/cache/ will be used if available)")
+    rain_h = load_hourly_series("rainfall",    "HistoricalRainfallacrossSingapore{year}.csv",        all_years, BOUNDS["rainfall"],    agg="sum")
+    temp_h = load_hourly_series("temperature", "HistoricalAirTemperatureacrossSingapore{year}.csv",  all_years, BOUNDS["temperature"], agg="mean")
+    hum_h  = load_hourly_series("humidity",    "HistoricalRelativeHumidityacrossSingapore{year}.csv",all_years, BOUNDS["humidity"],    agg="mean")
+    wind_h = load_hourly_series("wind_speed",  "HistoricalWindSpeedacrossSingapore{year}.csv",       all_years, BOUNDS["wind_speed"],  agg="mean")
 
-    logger.info("\n[2/8] Aggregating to hourly island-wide series...")
-    rain_h = to_hourly_mean(rain_raw, agg="sum")
-    temp_h = to_hourly_mean(temp_raw, agg="mean")
-    hum_h  = to_hourly_mean(hum_raw,  agg="mean")
-    wind_h = to_hourly_mean(wind_raw, agg="mean")
+    logger.info("\n[2/8] Hourly series ready.")
 
     series_dict = {
         "rainfall":    rain_h,
@@ -634,8 +799,12 @@ def main():
         "wind_speed":  wind_h,
     }
 
+    # --- Climate trends ---
+    logger.info("\n[3/8] Computing climate trends...")
+    climate_trends = compute_climate_trends(rain_h, temp_h, hum_h, wind_h)
+
     # --- EDA ---
-    logger.info("\n[3/8] Computing EDA...")
+    logger.info("\n[4/8] Computing EDA...")
     eda = compute_eda(series_dict)
 
     # Stationarity
@@ -644,24 +813,24 @@ def main():
         stationarity[name] = adf_test(s, name)
 
     # --- ACF / PACF ---
-    logger.info("\n[4/8] Computing ACF / PACF...")
+    logger.info("\n[5/8] Computing ACF / PACF...")
     acf_pacf = {}
     for name, s in series_dict.items():
         acf_pacf[name] = compute_acf_pacf(s, nlags=48)
 
     # --- Spectral analysis ---
-    logger.info("\n[5/8] Computing FFT periodograms...")
+    logger.info("\n[6/8] Computing FFT periodograms...")
     spectral = {}
     for name, s in series_dict.items():
         spectral[name] = compute_periodogram(s)
 
     # --- Spurious correlation analysis ---
-    logger.info("\n[6/8] Checking cross-correlations & Granger causality...")
+    logger.info("\n[7/8] Checking cross-correlations & Granger causality...")
     cross_corr    = compute_cross_correlations(series_dict, max_lag=24)
     granger       = granger_causality(series_dict, target="rainfall", max_lag=6)
 
     # --- Feature engineering ---
-    logger.info("\n[7/8] Feature engineering & model training...")
+    logger.info("\n[8/9] Feature engineering & model training...")
     feat_df = make_features(rain_h, temp_h, hum_h, wind_h, HORIZONS)
     feature_cols = [c for c in feat_df.columns
                     if not c.startswith("target_")
@@ -806,16 +975,17 @@ def main():
             )
 
     # --- Assemble full analysis JSON ---
-    logger.info("\n[8/8] Saving full_analysis.json...")
+    logger.info("\n[9/9] Saving full_analysis.json...")
 
     full_analysis = {
         "generated_at": datetime.utcnow().isoformat(),
         "description": (
-            "LionWeather ML full analysis: EDA, ACF/PACF, FFT, spurious correlations, "
-            "SHAP, loss curves, classification & regression benchmarks. "
+            "LionWeather ML full analysis: climate trends, EDA, ACF/PACF, FFT, "
+            "spurious correlations, SHAP, loss curves, classification & regression benchmarks. "
             f"Train 2016-2022 | Val 2023 | Test 2024."
         ),
         "rain_categories": RAIN_CATEGORIES,
+        "climate_trends": climate_trends,
         "eda": eda,
         "stationarity": stationarity,
         "acf_pacf": acf_pacf,

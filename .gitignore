@@ -34,6 +34,7 @@ backend/*.db-wal
 backend/models/*.pkl
 backend/models/*.h5
 backend/models/*.joblib
+backend/models/cache/
 !backend/models/.gitkeep
 # JSON analysis artifacts are small enough to commit
 !backend/models/*.json
@@ -70,34 +71,35 @@ Desktop.ini
 # Historical NEA data (too large for git, stored locally)
 backend/nea_historical_data/
 
-# Documentation artifacts (Kiro-specific - not needed in git)
-APP_STATUS.md
-BACKEND_POLLING_FIX.md
-CRITICAL_BACKEND_ISSUES.md
-CRITICAL_DEPLOYMENT_ISSUE.md
-CURRENT_STATUS.md
-FIXES_SUMMARY.md
-IMPLEMENTATION_SUMMARY.md
-INTEGRATION_TEST_RESULTS.md
-LOCAL_TESTING_GUIDE.md
-LOCATION_GRANULARITY_ANALYSIS.md
-ML_FORECASTING_STRATEGY.md
-ML_OPTIMIZATION_RESEARCH.md
-ML_TRAINING_PLAN.md
-NEIGHBORHOOD_LEVEL_PREDICTIONS.md
-RATE_LIMIT_FIX.md
+# AI-generated documentation artifacts (not for public consumption)
+# Blanket patterns to catch AI-generated .md files anywhere in the repo
+*_SUMMARY.md
+*_STATUS.md
+*_GUIDE.md
+*_IMPLEMENTATION.md
+*_FIX.md
+*_FIX_*.md
+*_RESULTS.md
+*_ANALYSIS.md
+*_PLAN.md
+*_CHECKLIST.md
+*_VERIFICATION.md
+*_SEEDING.md
+*_STRATEGY.md
+*_WORKFLOW.md
+*_RESEARCH.md
+*_INSIGHTS.md
+CRITICAL_*.md
+URGENT_*.md
 RESTART_*.md
+QUICK_START.md
 SETUP_INSTRUCTIONS.md
-SETUP_VERIFICATION.md
-ANIMATION_VERIFICATION.md
-TASK_EXECUTION_SUMMARY.md
-URGENT_BACKEND_FIX_NEEDED.md
-backend/*_SUMMARY.md
-backend/*_STATUS.md
-backend/*_GUIDE.md
-backend/*_IMPLEMENTATION.md
-backend/*_FIX.md
-backend/*_RESULTS.md
+PHASE_*.md
+TASK_*.md
+DEPLOYMENT.md
+DEPLOYMENT_CHECKLIST.md
+LOCAL_TESTING_GUIDE.md
+CURRENT_STATUS.md
 
 # Kiro specs and configuration
 .kiro/

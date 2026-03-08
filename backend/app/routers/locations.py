@@ -43,6 +43,28 @@ def list_locations():
     return {"locations": [row_to_dict(row) for row in rows]}
 
 
+@router.get("/areas/nearest")
+def nearest_area(lat: float, lng: float):
+    """
+    Return the nearest NEA forecast area name for given coordinates.
+    Calls the 2-hour forecast API and finds the closest area label.
+    Always returns a proper Singapore neighbourhood name.
+    """
+    api_key = os.getenv("WEATHERAPI_KEY")
+    client = SingaporeWeatherClient(api_key=api_key)
+    try:
+        payload = client.fetch_latest_forecast_payload()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        root = data if isinstance(data, dict) else payload
+        area_metadata = root.get("area_metadata", [])
+        name = client._nearest_area_name(area_metadata, lat, lng)
+        if not name:
+            raise WeatherProviderError("No area data found")
+        return {"area": name, "source": "nea-2hr-forecast"}
+    except WeatherProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_location(payload: dict):
     latitude = payload.get("latitude")

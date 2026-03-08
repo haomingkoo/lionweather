@@ -168,15 +168,35 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           daily.push(...neaForecasts);
         }
 
-        // Add Open-Meteo forecasts for days 5-7
-        if (openMeteoForecast.length > 4) {
+        // Try ML predictions for days 5-7, fall back to Open-Meteo
+        // ML endpoint returns null when model hasn't been trained yet
+        let mlExtended = [];
+        try {
+          const mlRes = await fetch(`/api/ml/predictions/7d?country=singapore&parameter=rainfall`);
+          if (mlRes.ok) {
+            const mlData = await mlRes.json();
+            if (Array.isArray(mlData?.predictions) && mlData.predictions.length > 4) {
+              mlExtended = mlData.predictions.slice(4, 7).map((p) => ({
+                date: p.date,
+                dayName: new Date(p.date).toLocaleDateString("en-US", { weekday: "short" }),
+                high: p.temperature_high || null,
+                low: p.temperature_low || null,
+                condition: p.condition || "Partly Cloudy",
+                rainCategory: p.rain_category || null,
+                source: "ML",
+              }));
+            }
+          }
+        } catch (_) {}
+
+        if (mlExtended.length > 0) {
+          daily.push(...mlExtended);
+        } else if (openMeteoForecast.length > 4) {
           const openMeteoExtended = openMeteoForecast
             .slice(4, 7)
             .map((day) => ({
               date: day.date,
-              dayName: new Date(day.date).toLocaleDateString("en-US", {
-                weekday: "short",
-              }),
+              dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),
               high: day.temperature?.high || null,
               low: day.temperature?.low || null,
               condition: day.forecast,
@@ -199,6 +219,18 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     location.latitude,
     location.longitude,
   ]);
+
+  // Map NEA condition text → rain category badge
+  const getRainBadge = (condition) => {
+    const c = (condition || "").toLowerCase();
+    if (c.includes("thunder")) return { label: "Thundery", color: "text-purple-300 bg-purple-500/20" };
+    if (c.includes("heavy")) return { label: "Heavy Rain", color: "text-blue-300 bg-blue-500/20" };
+    if (c.includes("shower") || c.includes("rain") || c.includes("drizzle"))
+      return { label: "Rain", color: "text-sky-300 bg-sky-500/20" };
+    if (c.includes("fair") || c.includes("sunny") || c.includes("clear"))
+      return { label: "Dry", color: "text-amber-300 bg-amber-500/20" };
+    return null;
+  };
 
   const IconComponent = iconMap[getWeatherIcon(location.weather.condition)];
   const temperature = location.weather.temperature || "N/A";
@@ -309,38 +341,37 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           {dailyForecast.length}-Day Forecast
         </h3>
         <div className="space-y-1">
-          {dailyForecast.map((day, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-medium ${textColor} w-12`}>
-                  {day.dayName}
-                </span>
-                <span
-                  className={`text-[9px] ${tertiaryTextColor} px-1.5 py-0.5 rounded ${isDark ? "bg-white/10" : "bg-white/30"}`}
-                >
-                  {day.source}
-                </span>
+          {dailyForecast.map((day, i) => {
+            const badge = day.rainCategory
+              ? { label: day.rainCategory, color: "text-sky-300 bg-sky-500/20" }
+              : getRainBadge(day.condition);
+            return (
+              <div key={i} className="flex items-center justify-between py-0.5">
+                <div className="flex items-center gap-2 w-24">
+                  <span className={`text-sm font-medium ${textColor} w-10 shrink-0`}>
+                    {day.dayName}
+                  </span>
+                  {badge && (
+                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${badge.color}`}>
+                      {badge.label}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-1 justify-center">
+                  <span className={`text-[9px] ${tertiaryTextColor}`}>{day.source}</span>
+                  <div className="h-1 w-16 bg-gradient-to-r from-blue-400 to-orange-400 rounded-full opacity-60" />
+                </div>
+                <div className="flex gap-2 w-14 justify-end">
+                  <span className={`text-xs ${tertiaryTextColor}`}>
+                    {day.low !== null ? `${Math.round(day.low)}°` : "—"}
+                  </span>
+                  <span className={`text-xs ${textColor} font-medium`}>
+                    {day.high !== null ? `${Math.round(day.high)}°` : "—"}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 flex-1 justify-center">
-                {IconComponent && (
-                  <IconComponent
-                    className={`h-4 w-4 ${textColor}`}
-                    strokeWidth={1.5}
-                    aria-label={`${day.condition} weather icon`}
-                  />
-                )}
-                <div className="h-1 w-24 bg-gradient-to-r from-blue-400 to-orange-400 rounded-full"></div>
-              </div>
-              <div className="flex gap-2 w-16 justify-end">
-                <span className={`text-xs ${tertiaryTextColor}`}>
-                  {day.low !== null ? `${Math.round(day.low)}°` : "N/A"}
-                </span>
-                <span className={`text-xs ${textColor} font-medium`}>
-                  {day.high !== null ? `${Math.round(day.high)}°` : "N/A"}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

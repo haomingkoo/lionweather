@@ -19,6 +19,10 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  Thermometer,
+  Droplets,
+  Wind,
+  Trophy,
 } from "lucide-react";
 import { getFullAnalysis } from "../api/ml";
 
@@ -251,6 +255,166 @@ function ConfusionMatrix({ matrix, labels }) {
   );
 }
 
+function StackedBarChart({ years, stacks, height = 70 }) {
+  // stacks = [{ key, color, label }]
+  if (!years || years.length === 0) return null;
+  const W = years.length * 28;
+  const H = height;
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      {years.map((y, xi) => {
+        let cumY = H;
+        return stacks.map((s) => {
+          const pct = s.data[xi] ?? 0;
+          const barH = (pct / 100) * H;
+          cumY -= barH;
+          const rect = (
+            <rect
+              key={s.key}
+              x={xi * 28 + 2}
+              y={cumY}
+              width={24}
+              height={barH}
+              fill={s.color}
+              opacity={0.85}
+            />
+          );
+          return rect;
+        });
+      })}
+    </svg>
+  );
+}
+
+function ClimateTrendsSection({ ct }) {
+  const years = ct.years_covered || [];
+  const annual = ct.annual || {};
+  const trends = ct.long_term_trends || {};
+  const stl = ct.stl_decomposition || {};
+  const rec = ct.all_time_records || {};
+
+  const rainfallTotals = years.map((y) => annual[y]?.rainfall?.total_mm ?? 0);
+  const tempMeans = years.map((y) => annual[y]?.temperature?.mean_c ?? 0);
+  const rainCatStacks = [
+    { key: "no_rain",    color: "#60a5fa", label: "No Rain",    data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.no_rain ?? 0) },
+    { key: "light_rain", color: "#34d399", label: "Light Rain", data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.light_rain ?? 0) },
+    { key: "heavy_rain", color: "#fbbf24", label: "Heavy Rain", data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.heavy_rain ?? 0) },
+    { key: "thundery",   color: "#f472b6", label: "Thundery",   data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.thundery ?? 0) },
+  ];
+
+  const tTrend = trends.temperature_mean;
+  const rTrend = trends.rainfall_total;
+
+  const records = [
+    { icon: Droplets, label: "Wettest Hour",    value: rec.wettest_hour  ? `${rec.wettest_hour.value_mm} mm`  : "—", date: rec.wettest_hour?.date,  color: "text-sky-400" },
+    { icon: Thermometer, label: "Hottest Hour", value: rec.hottest_hour  ? `${rec.hottest_hour.value_c}°C`   : "—", date: rec.hottest_hour?.date,  color: "text-orange-400" },
+    { icon: Thermometer, label: "Coolest Hour", value: rec.coolest_hour  ? `${rec.coolest_hour.value_c}°C`   : "—", date: rec.coolest_hour?.date,  color: "text-blue-300" },
+    { icon: Wind,        label: "Windiest Hour",value: rec.windiest_hour ? `${rec.windiest_hour.value_kmh} km/h` : "—", date: rec.windiest_hour?.date, color: "text-teal-400" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* All-time records */}
+      <div>
+        <p className="text-white/50 text-xs font-medium mb-2 flex items-center gap-1">
+          <Trophy className="w-3 h-3" /> All-time records (2016–2024)
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {records.map((r) => (
+            <div key={r.label} className="bg-white/5 rounded-xl p-3 flex items-start gap-2">
+              <r.icon className={`w-4 h-4 mt-0.5 shrink-0 ${r.color}`} />
+              <div>
+                <p className="text-white/40 text-[10px]">{r.label}</p>
+                <p className={`font-semibold text-sm ${r.color}`}>{r.value}</p>
+                <p className="text-white/30 text-[10px]">{r.date}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Annual rainfall totals */}
+      <div>
+        <p className="text-white/50 text-xs mb-2">Annual Rainfall Total (mm)</p>
+        <MiniBarChart data={rainfallTotals} height={70} color="#60a5fa" />
+        <div className="flex justify-between text-white/30 text-[10px] mt-1">
+          {years.map((y) => <span key={y}>{y}</span>)}
+        </div>
+        {rTrend?.significant && (
+          <p className="text-amber-300 text-[10px] mt-1">
+            Trend: {rTrend.trend} {rTrend.slope_per_year > 0 ? "+" : ""}{rTrend.slope_per_year.toFixed(0)} mm/yr
+            · R²={rTrend.r_squared} · p={rTrend.p_value}
+          </p>
+        )}
+      </div>
+
+      {/* Rain category breakdown */}
+      <div>
+        <p className="text-white/50 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
+        <StackedBarChart years={years} stacks={rainCatStacks} height={70} />
+        <div className="flex justify-between text-white/30 text-[10px] mt-1">
+          {years.map((y) => <span key={y}>{y}</span>)}
+        </div>
+        <div className="flex flex-wrap gap-3 mt-2">
+          {rainCatStacks.map((s) => (
+            <div key={s.key} className="flex items-center gap-1">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: s.color }} />
+              <span className="text-white/50 text-[10px]">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Temperature trend */}
+      <div>
+        <p className="text-white/50 text-xs mb-2">Mean Temperature by Year (°C)</p>
+        <LineChart
+          series={[{ name: "Mean temp", data: tempMeans, color: "#fb923c" }]}
+          height={60}
+          xLabel="Year"
+          yLabel="°C"
+        />
+        {tTrend?.significant && (
+          <p className="text-orange-300 text-[10px] mt-1">
+            Warming trend: +{tTrend.slope_per_year.toFixed(3)}°C/yr
+            · R²={tTrend.r_squared} · p={tTrend.p_value}
+          </p>
+        )}
+        {tTrend && !tTrend.significant && (
+          <p className="text-white/30 text-[10px] mt-1">
+            No statistically significant temperature trend (p={tTrend.p_value})
+          </p>
+        )}
+      </div>
+
+      {/* STL decomposition */}
+      {stl.observed?.length > 0 && (
+        <div>
+          <p className="text-white/50 text-xs mb-2">
+            STL Decomposition — Monthly Rainfall
+          </p>
+          <LineChart
+            series={[
+              { name: "Observed", data: stl.observed, color: "#60a5fa" },
+              { name: "Trend",    data: stl.trend,    color: "#f472b6" },
+            ]}
+            height={80}
+            xLabel="Month"
+            yLabel="mm"
+          />
+          <LineChart
+            series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
+            height={50}
+            xLabel=""
+            yLabel="Residual"
+          />
+          <p className="text-white/30 text-[10px] mt-1">{stl.note}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Section wrapper
 // ---------------------------------------------------------------------------
@@ -363,6 +527,13 @@ export function MLAnalysisDashboard() {
           </button>
         ))}
       </div>
+
+      {/* 0. Climate Trends */}
+      {data.climate_trends && (
+        <Section icon={TrendingUp} title="Singapore Climate Trends">
+          <ClimateTrendsSection ct={data.climate_trends} />
+        </Section>
+      )}
 
       {/* 1. EDA */}
       <Section icon={BarChart3} title="Exploratory Data Analysis">

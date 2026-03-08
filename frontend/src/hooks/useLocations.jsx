@@ -65,47 +65,51 @@ const fetchWeatherForLocation = async (latitude, longitude) => {
   }
 };
 
-// Reverse geocode to get location name
-const reverseGeocode = async (latitude, longitude) => {
+// Resolve area name: try NEA snap first, fall back to Nominatim
+const resolveAreaName = async (latitude, longitude) => {
+  // 1. Try NEA forecast area snap via backend
   try {
-    // Use OpenStreetMap Nominatim API for reverse geocoding (free, no API key needed)
+    const response = await fetch(
+      `/api/locations/areas/nearest?lat=${latitude}&lng=${longitude}`,
+    );
+    if (response.ok) {
+      const data = await response.json();
+      if (data.area && data.area !== "Unknown Area") return data.area;
+    }
+  } catch (_) {}
+
+  // 2. Fallback: Nominatim reverse geocoding
+  try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=16&addressdetails=1`,
-      {
-        headers: {
-          "User-Agent": "LionWeather/1.0",
-        },
-      },
+      { headers: { "User-Agent": "LionWeather/1.0" } },
     );
-    if (!response.ok) {
-      throw new Error("Failed to reverse geocode");
+    if (response.ok) {
+      const data = await response.json();
+      const address = data.address || {};
+      return (
+        address.neighbourhood ||
+        address.suburb ||
+        address.quarter ||
+        address.village ||
+        address.town ||
+        address.city_district ||
+        address.city ||
+        "Unknown Area"
+      );
     }
-    const data = await response.json();
+  } catch (_) {}
 
-    // Extract most granular location name available (neighbourhood first, then broader)
-    const address = data.address || {};
-    const locationName =
-      address.neighbourhood ||
-      address.suburb ||
-      address.quarter ||
-      address.village ||
-      address.town ||
-      address.city_district ||
-      address.city ||
-      address.county ||
-      address.state ||
-      address.country ||
-      "Unknown Area";
-
-    return locationName;
-  } catch (err) {
-    console.error("Reverse geocoding error:", err);
-    return "Unknown Area";
-  }
+  return "Unknown Area";
 };
 
-// Check for weather alerts and show notifications
-const checkWeatherAlerts = (locations) => {
+const isRainy = (condition) => {
+  const c = (condition || "").toLowerCase();
+  return c.includes("rain") || c.includes("shower") || c.includes("thunder");
+};
+
+// Smart rain transition notifications — fires only on state change
+const checkWeatherAlerts = (locations, prevLocations = []) => {
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
 
@@ -113,26 +117,30 @@ const checkWeatherAlerts = (locations) => {
     const weather = location.weather;
     if (!weather) return;
 
-    // Check for rain
-    const condition = weather.condition?.toLowerCase() || "";
-    if (
-      condition.includes("rain") ||
-      condition.includes("shower") ||
-      condition.includes("thunderstorm")
-    ) {
-      new Notification("LionWeather Alert 🌧️", {
-        body: `${weather.area || "Your location"}: ${weather.condition}`,
+    const area = weather.area || "Your location";
+    const condition = weather.condition || "";
+    const prev = prevLocations.find((l) => l.id === location.id);
+    const prevCondition = prev?.weather?.condition || "";
+
+    const nowRaining = isRainy(condition);
+    const wasRaining = isRainy(prevCondition);
+
+    // Rain just started
+    if (nowRaining && !wasRaining && prevCondition) {
+      const isThundery = condition.toLowerCase().includes("thunder");
+      new Notification(isThundery ? "⛈️ Thundery showers starting" : "🌧️ Rain starting", {
+        body: `${area} — ${condition}`,
         icon: "/favicon.ico",
-        tag: `weather-${location.id}`,
+        tag: `rain-start-${location.id}`,
       });
     }
 
-    // Check for extreme temperatures
-    if (weather.temperature && weather.temperature > 35) {
-      new Notification("LionWeather Alert 🌡️", {
-        body: `${weather.area || "Your location"}: Very hot (${weather.temperature}°C)`,
+    // Rain just stopped
+    if (!nowRaining && wasRaining && prevCondition) {
+      new Notification("☀️ Rain clearing up", {
+        body: `${area} — now ${condition}`,
         icon: "/favicon.ico",
-        tag: `temp-${location.id}`,
+        tag: `rain-stop-${location.id}`,
       });
     }
   });
@@ -218,8 +226,8 @@ export function LocationsProvider({ children }) {
       saveLocations(updated);
       setLocations(updated);
 
-      // Check for weather alerts
-      checkWeatherAlerts(updated);
+      // Check for weather alerts (pass previous state for transition detection)
+      checkWeatherAlerts(updated, stored);
 
       setError(null);
     } catch (err) {
@@ -251,7 +259,7 @@ export function LocationsProvider({ children }) {
         // Fetch weather data and location name in parallel
         const [weatherData, locationName] = await Promise.all([
           fetchWeatherForLocation(coords.lat, coords.lng),
-          reverseGeocode(coords.lat, coords.lng),
+          resolveAreaName(coords.lat, coords.lng),
         ]);
 
         // Override area with reverse geocoded name if weather API didn't provide one
@@ -282,6 +290,62 @@ export function LocationsProvider({ children }) {
     },
     [setGeolocationPermissionState],
   );
+
+  // Auto-add/refresh current location if geolocation permission was previously granted
+  useEffect(() => {
+    const permState = localStorage.getItem("geolocation_permission");
+    if (permState !== "granted") return;
+    if (!navigator.geolocation) return;
+
+    const updateCurrentLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          const stored = getStoredLocations();
+          const existing = stored.find((loc) => loc.source === "geolocation");
+
+          if (existing) {
+            // Refresh weather for the existing geolocation card
+            const weatherData = await fetchWeatherForLocation(latitude, longitude);
+            const updated = stored.map((loc) =>
+              loc.source === "geolocation"
+                ? { ...loc, latitude, longitude, weather: weatherData, lastFetched: new Date().toISOString() }
+                : loc,
+            );
+            saveLocations(updated);
+            setLocations(updated);
+          } else {
+            // Add new geolocation card at the front
+            const [weatherData, locationName] = await Promise.all([
+              fetchWeatherForLocation(latitude, longitude),
+              resolveAreaName(latitude, longitude),
+            ]);
+            if (weatherData.area === "Unknown Area" || !weatherData.area) {
+              weatherData.area = locationName;
+            }
+            const newLocation = {
+              id: generateId(),
+              latitude,
+              longitude,
+              weather: weatherData,
+              source: "geolocation",
+              created_at: new Date().toISOString(),
+              lastFetched: new Date().toISOString(),
+            };
+            const updated = [newLocation, ...stored];
+            saveLocations(updated);
+            setLocations(updated);
+          }
+        },
+        (err) => console.warn("Geolocation update failed:", err),
+        { timeout: 10000 },
+      );
+    };
+
+    updateCurrentLocation();
+    const interval = setInterval(updateCurrentLocation, CACHE_DURATION);
+    return () => clearInterval(interval);
+  }, []);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -336,7 +400,7 @@ export function useCreateLocation() {
         fetchWeatherForLocation(payload.latitude, payload.longitude),
         payload.name
           ? Promise.resolve(payload.name)
-          : reverseGeocode(payload.latitude, payload.longitude),
+          : resolveAreaName(payload.latitude, payload.longitude),
       ]);
 
       // Use provided name or reverse geocoded name
