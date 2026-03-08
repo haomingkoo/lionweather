@@ -77,22 +77,26 @@ class WeatherDataDownloader:
             return {}
     
     def download_dataset(self, dataset_id: str, dataset_name: str, collection_name: str) -> bool:
-        """Download a dataset using CKAN datastore API"""
+        """Download a dataset using CKAN datastore API with pagination"""
         
         try:
             logger.info(f"  Downloading: {dataset_name}")
             
-            # Use CKAN datastore_search API
-            datastore_url = f"https://data.gov.sg/api/action/datastore_search?resource_id={dataset_id}&limit=100000"
-            
             all_records = []
             offset = 0
-            batch_size = 100000
+            batch_size = 5000  # Smaller batches to avoid 413 errors
             
             while True:
                 url = f"https://data.gov.sg/api/action/datastore_search?resource_id={dataset_id}&limit={batch_size}&offset={offset}"
                 
                 response = requests.get(url, timeout=60)
+                
+                # Handle rate limiting
+                if response.status_code == 429:
+                    logger.warning(f"    ⚠ Rate limited, waiting 10 seconds...")
+                    time.sleep(10)
+                    continue
+                
                 response.raise_for_status()
                 data = response.json()
                 
@@ -107,15 +111,18 @@ class WeatherDataDownloader:
                     break
                 
                 all_records.extend(records)
-                logger.info(f"    Fetched {len(all_records):,} records...")
                 
                 # Check if there are more records
                 total = result.get('total', 0)
                 if len(all_records) >= total:
+                    logger.info(f"    Fetched {len(all_records):,} records (complete)")
                     break
                 
+                if len(all_records) % 50000 == 0:  # Log progress every 50k records
+                    logger.info(f"    Fetched {len(all_records):,} / {total:,} records...")
+                
                 offset += batch_size
-                time.sleep(0.5)  # Rate limiting
+                time.sleep(1)  # Rate limiting - 1 second between requests
             
             if not all_records:
                 logger.warning(f"  ⚠ No records found")
