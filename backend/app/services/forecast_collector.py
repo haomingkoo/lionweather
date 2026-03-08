@@ -214,90 +214,98 @@ class ForecastCollector:
         
         return forecasts
     
+    # Malay forecast descriptions → English
+    _MALAY_FORECAST_MAP = {
+        "Berjerebu": "Hazy",
+        "Tiada hujan": "No Rain",
+        "Hujan": "Rain",
+        "Hujan di beberapa tempat": "Scattered Rain",
+        "Hujan di satu dua tempat": "Isolated Rain",
+        "Hujan di satu dua tempat di kawasan pantai": "Isolated Rain (Coastal)",
+        "Hujan di satu dua tempat di kawasan pedalaman": "Isolated Rain (Inland)",
+        "Ribut petir": "Thunderstorm",
+        "Ribut petir di beberapa tempat": "Scattered Thunderstorms",
+        "Ribut petir di beberapa tempat di kawasan pedalaman": "Scattered Thunderstorms (Inland)",
+        "Ribut petir di satu dua tempat": "Isolated Thunderstorms",
+        "Ribut petir di satu dua tempat di kawasan pantai": "Isolated Thunderstorms (Coastal)",
+        "Ribut petir di satu dua tempat di kawasan pedalaman": "Isolated Thunderstorms (Inland)",
+    }
+
     async def fetch_malaysia_forecast(self) -> List[Dict]:
         """
-        Fetch Malaysia forecast data via Open-Meteo (daily, 7-day) for 30 cities.
+        Fetch Malaysia 7-day general forecast from data.gov.my (MET Malaysia).
 
-        api.met.gov.my requires authentication and is not publicly accessible.
-        Open-Meteo provides free, reliable 7-day daily forecasts — same source
-        used for Malaysia current observations.
+        Endpoint: GET https://api.data.gov.my/weather/forecast
+        Free, no authentication required. Updated daily.
+        Returns per-district forecasts (morning / afternoon / night + temp range).
 
         Returns:
-            List of forecast dictionaries (~30 cities × 7 days = ~210 records)
+            List of forecast dictionaries
         """
-        malaysia_cities = [
-            {"name": "Kuala Lumpur",    "lat": 3.1390,  "lon": 101.6869},
-            {"name": "George Town",      "lat": 5.4141,  "lon": 100.3288},
-            {"name": "Johor Bahru",      "lat": 1.4927,  "lon": 103.7414},
-            {"name": "Ipoh",             "lat": 4.5975,  "lon": 101.0901},
-            {"name": "Kuching",          "lat": 1.5497,  "lon": 110.3592},
-            {"name": "Kota Kinabalu",    "lat": 5.9804,  "lon": 116.0735},
-            {"name": "Shah Alam",        "lat": 3.0733,  "lon": 101.5185},
-            {"name": "Petaling Jaya",    "lat": 3.1073,  "lon": 101.6067},
-            {"name": "Klang",            "lat": 3.0380,  "lon": 101.4450},
-            {"name": "Miri",             "lat": 4.3995,  "lon": 113.9914},
-            {"name": "Kota Bharu",       "lat": 6.1254,  "lon": 102.2381},
-            {"name": "Kuala Terengganu", "lat": 5.3296,  "lon": 103.1370},
-            {"name": "Kuantan",          "lat": 3.8077,  "lon": 103.3260},
-            {"name": "Alor Setar",       "lat": 6.1248,  "lon": 100.3673},
-            {"name": "Seremban",         "lat": 2.7297,  "lon": 101.9381},
-            {"name": "Malacca City",     "lat": 2.1896,  "lon": 102.2501},
-        ]
-
-        logger.info(f"🌤️ Fetching Malaysia 7-day forecast via Open-Meteo for {len(malaysia_cities)} cities...")
+        logger.info("🌤️ Fetching Malaysia forecast from data.gov.my (MET Malaysia)...")
 
         forecasts = []
         prediction_time = datetime.utcnow()
 
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-            for city in malaysia_cities:
-                try:
-                    url = (
-                        "https://api.open-meteo.com/v1/forecast"
-                        f"?latitude={city['lat']}&longitude={city['lon']}"
-                        "&daily=temperature_2m_max,temperature_2m_min,"
-                        "precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,"
-                        "relative_humidity_2m_max,relative_humidity_2m_min,weather_code"
-                        "&forecast_days=7&timezone=Asia/Kuala_Lumpur"
-                    )
-                    async with session.get(url) as response:
-                        response.raise_for_status()
-                        data = await response.json()
+            # Fetch all state + district forecasts in one call (limit 500 covers full dataset)
+            url = "https://api.data.gov.my/weather/forecast?limit=500"
+            try:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+            except Exception as e:
+                logger.error(f"Failed to fetch Malaysia data.gov.my forecast: {e}")
+                return []
 
-                    daily = data.get("daily", {})
-                    times = daily.get("time", [])
+        # API returns a list directly
+        items = data if isinstance(data, list) else data.get("data", [])
+        logger.info(f"Received {len(items)} Malaysia forecast records from data.gov.my")
 
-                    for i, date_str in enumerate(times):
-                        try:
-                            target_start = datetime.fromisoformat(date_str)
-                            target_end = target_start + timedelta(hours=24)
+        for item in items:
+            try:
+                loc = item.get("location", {})
+                location_name = loc.get("location_name") or item.get("location_name", "Unknown")
+                date_str = item.get("date")
+                if not date_str:
+                    continue
 
-                            wind_deg = daily.get("wind_direction_10m_dominant", [None] * len(times))[i]
-                            wind_dir = self._degrees_to_direction(wind_deg) if wind_deg is not None else None
+                target_start = datetime.fromisoformat(date_str)
+                target_end = target_start + timedelta(hours=24)
 
-                            forecasts.append({
-                                "country": "malaysia",
-                                "location": city["name"],
-                                "latitude": city["lat"],
-                                "longitude": city["lon"],
-                                "prediction_time": prediction_time.isoformat(),
-                                "target_time_start": target_start.isoformat(),
-                                "target_time_end": target_end.isoformat(),
-                                "temperature_low": daily.get("temperature_2m_min", [None] * len(times))[i],
-                                "temperature_high": daily.get("temperature_2m_max", [None] * len(times))[i],
-                                "humidity_low": daily.get("relative_humidity_2m_min", [None] * len(times))[i],
-                                "humidity_high": daily.get("relative_humidity_2m_max", [None] * len(times))[i],
-                                "wind_speed_low": None,
-                                "wind_speed_high": daily.get("wind_speed_10m_max", [None] * len(times))[i],
-                                "wind_direction": wind_dir,
-                                "forecast_description": str(daily.get("weather_code", [None] * len(times))[i]),
-                                "source_api": "open-meteo (malaysia)",
-                            })
-                        except (IndexError, ValueError) as e:
-                            logger.warning(f"Malaysia forecast parse error for {city['name']} day {i}: {e}")
+                # Translate Malay forecast text to English
+                raw_summary = item.get("summary_forecast") or item.get("morning_forecast") or ""
+                description = self._MALAY_FORECAST_MAP.get(raw_summary, raw_summary)
 
-                except Exception as e:
-                    logger.warning(f"Malaysia Open-Meteo forecast failed for {city['name']}: {e}")
+                forecasts.append({
+                    "country": "malaysia",
+                    "location": location_name,
+                    "latitude": 0.0,   # data.gov.my doesn't provide coordinates per location
+                    "longitude": 0.0,
+                    "prediction_time": prediction_time.isoformat(),
+                    "target_time_start": target_start.isoformat(),
+                    "target_time_end": target_end.isoformat(),
+                    "temperature_low": item.get("min_temp"),
+                    "temperature_high": item.get("max_temp"),
+                    "humidity_low": None,
+                    "humidity_high": None,
+                    "wind_speed_low": None,
+                    "wind_speed_high": None,
+                    "wind_direction": None,
+                    "forecast_description": description,
+                    "morning_forecast": self._MALAY_FORECAST_MAP.get(
+                        item.get("morning_forecast", ""), item.get("morning_forecast", "")
+                    ),
+                    "afternoon_forecast": self._MALAY_FORECAST_MAP.get(
+                        item.get("afternoon_forecast", ""), item.get("afternoon_forecast", "")
+                    ),
+                    "night_forecast": self._MALAY_FORECAST_MAP.get(
+                        item.get("night_forecast", ""), item.get("night_forecast", "")
+                    ),
+                    "source_api": "data.gov.my (MET Malaysia)",
+                })
+            except (ValueError, KeyError, TypeError) as e:
+                logger.warning(f"Malaysia forecast parse error for item: {e}")
 
         logger.info(f"✓ Malaysia forecast collection complete: {len(forecasts)} records")
         return forecasts
