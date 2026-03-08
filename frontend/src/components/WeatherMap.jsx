@@ -377,7 +377,10 @@ export function WeatherMap({ isDark = false }) {
                   </dl>
 
                   <button
-                    onClick={() => deleteLocation(location.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteLocation(location.id);
+                    }}
                     disabled={isDeleting}
                     className="mt-3 w-full rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 hover:brightness-110 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2"
                     aria-label="Delete location"
