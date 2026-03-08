@@ -198,10 +198,14 @@ def status_check():
             
             # Check weather_records table
             try:
-                from app.db.database import fetch_one
+                from app.db.database import fetch_one, fetch_all
                 
                 result = fetch_one("SELECT COUNT(*) as count FROM weather_records")
                 db_stats["weather_records_total"] = result[0] if result else 0
+                
+                # Get counts by country
+                country_results = fetch_all("SELECT country, COUNT(*) as count FROM weather_records GROUP BY country")
+                db_stats["by_country"] = {row[0]: row[1] for row in country_results} if country_results else {}
                 
                 # Get recent activity (last hour)
                 cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
@@ -224,9 +228,14 @@ def status_check():
                 result = fetch_one("SELECT COUNT(*) as count FROM forecast_data")
                 db_stats["forecast_data_total"] = result[0] if result else 0
                 
-                # Get latest forecast timestamp
-                result = fetch_one("SELECT MAX(collected_at) as latest FROM forecast_data")
-                db_stats["latest_forecast"] = result[0] if result and result[0] else "None"
+                # Get latest forecast timestamp - try different column names
+                try:
+                    result = fetch_one("SELECT MAX(collected_at) as latest FROM forecast_data")
+                    db_stats["latest_forecast"] = result[0] if result and result[0] else "None"
+                except:
+                    # Try alternative column name
+                    result = fetch_one("SELECT MAX(timestamp) as latest FROM forecast_data")
+                    db_stats["latest_forecast"] = result[0] if result and result[0] else "None"
             except Exception as e:
                 db_stats["forecast_data_error"] = str(e)
                 
