@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 from app.routers.locations import router as locations_router
 from app.routers.rainfall import router as rainfall_router
 from app.routers.comprehensive_weather import router as weather_router
+from app.routers.weather import router as simple_weather_router
 from app.routers.forecasts import router as forecasts_router
 from app.routers.environmental import router as environmental_router
 from app.routers.ml_forecast import router as ml_router
@@ -161,6 +162,7 @@ app = FastAPI(
 app.include_router(locations_router, prefix="/api")
 app.include_router(rainfall_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
+app.include_router(simple_weather_router)
 app.include_router(forecasts_router, prefix="/api")
 app.include_router(environmental_router, prefix="/api")
 app.include_router(ml_router, prefix="/api")

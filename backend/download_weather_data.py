@@ -27,10 +27,12 @@ logger = logging.getLogger(__name__)
 class WeatherDataDownloader:
     """Downloads critical NEA weather datasets"""
     
-    def __init__(self, output_dir: str = "nea_historical_data"):
+    def __init__(self, output_dir: str = "nea_historical_data", api_key: str = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         self.base_url = "https://api-production.data.gov.sg/v2/public/api"
+        self.api_key = api_key
+        self.headers = {"X-Api-Key": api_key} if api_key else {}
         
         # Known weather collection IDs - ONLY direct weather parameters
         self.weather_collections = {
@@ -63,7 +65,7 @@ class WeatherDataDownloader:
         url = f"{self.base_url}/collections/{collection_id}/metadata?withDatasetMetadata=true"
         
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             data = response.json()
             
@@ -89,7 +91,7 @@ class WeatherDataDownloader:
             while True:
                 url = f"https://data.gov.sg/api/action/datastore_search?resource_id={dataset_id}&limit={batch_size}&offset={offset}"
                 
-                response = requests.get(url, timeout=60)
+                response = requests.get(url, headers=self.headers, timeout=60)
                 
                 # Handle rate limiting
                 if response.status_code == 429:
@@ -234,5 +236,22 @@ class WeatherDataDownloader:
 
 
 if __name__ == "__main__":
-    downloader = WeatherDataDownloader()
+    import os
+    import sys
+    
+    # Get API key from environment variable or command line
+    api_key = os.getenv("DATA_GOV_SG_API_KEY")
+    
+    if len(sys.argv) > 1:
+        api_key = sys.argv[1]
+    
+    if api_key:
+        print(f"Using API key: {api_key[:8]}...")
+        print("Production tier: 20 requests per 10 seconds")
+    else:
+        print("No API key provided - using public tier (4 requests per 10 seconds)")
+        print("To use production tier, set DATA_GOV_SG_API_KEY environment variable")
+        print("or pass API key as argument: python download_weather_data.py YOUR_API_KEY")
+    
+    downloader = WeatherDataDownloader(api_key=api_key)
     downloader.download_all()
