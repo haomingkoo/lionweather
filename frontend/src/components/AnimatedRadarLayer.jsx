@@ -20,8 +20,10 @@ export function AnimatedRadarLayer({
   visible = true,
   animationSpeed = 500,
   isPlaying = true,
+  forcedIndex = null,       // Externally set frame index (slider scrub)
   onError,
   onFrameChange,
+  onFramesLoaded,           // (count, timestamps[]) called once frames are ready
 }) {
   const [frames, setFrames] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -90,18 +92,35 @@ export function AnimatedRadarLayer({
 
     try {
       const results = await Promise.all(promises);
-      // Filter out failed images
       const successfulFrames = results.filter((f) => f !== null);
       setPreloadedImages(successfulFrames);
 
       if (successfulFrames.length === 0) {
         throw new Error("Failed to preload any radar images");
       }
+
+      // Notify parent how many frames loaded and their timestamps
+      if (onFramesLoaded) {
+        onFramesLoaded(
+          successfulFrames.length,
+          successfulFrames.map((f) => f.timestamp),
+        );
+      }
     } catch (err) {
-      // Silently handle preload errors
       throw err;
     }
   };
+
+  // When parent scrubs the slider, jump to that frame
+  useEffect(() => {
+    if (forcedIndex !== null && preloadedImages.length > 0) {
+      const idx = Math.max(0, Math.min(forcedIndex, preloadedImages.length - 1));
+      setCurrentIndex(idx);
+      if (onFrameChange && preloadedImages[idx]) {
+        onFrameChange(preloadedImages[idx].timestamp);
+      }
+    }
+  }, [forcedIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Animation loop with setInterval (Requirement 6.2, 1.3)
   useEffect(() => {

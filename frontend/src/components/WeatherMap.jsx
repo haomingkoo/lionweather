@@ -16,7 +16,7 @@ import {
 } from "../hooks/useLocations.jsx";
 import { RainfallOverlay } from "./RainfallOverlay";
 import { AnimatedRadarLayer } from "./AnimatedRadarLayer";
-import { Droplets, Play, Pause } from "lucide-react";
+import { Droplets, Play, Pause, Clock } from "lucide-react";
 
 // Fix for default marker icons in bundled applications
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -75,6 +75,9 @@ export function WeatherMap({ isDark = false }) {
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(true);
   const [animationSpeed, setAnimationSpeed] = useState(500);
   const [currentFrameTimestamp, setCurrentFrameTimestamp] = useState(null);
+  const [totalFrames, setTotalFrames] = useState(0);
+  const [frameTimestamps, setFrameTimestamps] = useState([]);
+  const [sliderIndex, setSliderIndex] = useState(null);  // null = free-running
 
   const textColor = isDark ? "text-white" : "text-slate-900";
 
@@ -168,94 +171,21 @@ export function WeatherMap({ isDark = false }) {
 
   return (
     <div className="relative">
-      {/* Rainfall Toggle */}
+      {/* Radar toggle button (top-right) */}
       <button
         onClick={() => setShowRainfall(!showRainfall)}
-        className={`absolute right-4 top-4 z-[1000] flex items-center gap-2 rounded-2xl backdrop-blur-md px-5 py-3 shadow-xl hover:brightness-110 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-transparent ${
+        className={`absolute right-4 top-4 z-[1000] flex items-center gap-2 rounded-2xl backdrop-blur-md px-4 py-2.5 shadow-xl hover:brightness-110 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-white/60 ${
           showRainfall
-            ? isDark
-              ? "bg-blue-500/60 border-blue-400/80"
-              : "bg-blue-500/50 border-blue-400/70"
-            : isDark
-              ? "bg-white/15 border-white/25"
-              : "bg-white/30 border-white/40"
-        } border`}
-        aria-label={`${showRainfall ? "Hide" : "Show"} rainfall overlay`}
+            ? "bg-blue-500/70 border border-blue-400/80 text-white"
+            : "bg-white/15 border border-white/25 text-white"
+        }`}
+        aria-label={`${showRainfall ? "Hide" : "Show"} radar overlay`}
       >
-        <Droplets
-          className={`h-5 w-5 ${showRainfall ? "text-white" : textColor}`}
-          strokeWidth={2}
-        />
-        <span
-          className={`text-sm font-semibold ${showRainfall ? "text-white" : textColor}`}
-        >
-          {showRainfall ? "Hide" : "Show"} Rainfall
+        <Droplets className="h-4 w-4" strokeWidth={2} />
+        <span className="text-xs font-semibold">
+          {showRainfall ? "Hide Radar" : "Radar"}
         </span>
       </button>
-
-      {/* Radar Animation Controls */}
-      {showRainfall && (
-        <div
-          className={`absolute right-4 top-20 z-[1000] flex flex-col gap-2 rounded-2xl backdrop-blur-md p-3 shadow-xl ${isDark ? "bg-white/15 border border-white/25" : "bg-white/30 border border-white/40"}`}
-        >
-          {/* Play/Pause Button */}
-          <button
-            onClick={() => setIsAnimationPlaying(!isAnimationPlaying)}
-            className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2 transition-all duration-150 hover:brightness-110 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/60 ${
-              isDark
-                ? "bg-white/20 hover:bg-white/30"
-                : "bg-white/40 hover:bg-white/50"
-            }`}
-            aria-label={
-              isAnimationPlaying ? "Pause animation" : "Play animation"
-            }
-          >
-            {isAnimationPlaying ? (
-              <Pause className={`h-4 w-4 ${textColor}`} strokeWidth={2} />
-            ) : (
-              <Play className={`h-4 w-4 ${textColor}`} strokeWidth={2} />
-            )}
-            <span className={`text-xs font-medium ${textColor}`}>
-              {isAnimationPlaying ? "Pause" : "Play"}
-            </span>
-          </button>
-
-          {/* Animation Speed Slider */}
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="animation-speed"
-              className={`text-xs font-medium ${textColor}`}
-            >
-              Speed
-            </label>
-            <input
-              id="animation-speed"
-              type="range"
-              min="300"
-              max="1000"
-              step="100"
-              value={animationSpeed}
-              onChange={(e) => setAnimationSpeed(Number(e.target.value))}
-              className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-white/30"
-              aria-label="Animation speed"
-            />
-            <span
-              className={`text-xs ${isDark ? "text-white/70" : "text-slate-600"}`}
-            >
-              {animationSpeed}ms
-            </span>
-          </div>
-
-          {/* Current Frame Timestamp */}
-          {currentFrameTimestamp && (
-            <div
-              className={`text-xs ${isDark ? "text-white/70" : "text-slate-600"} mt-1`}
-            >
-              {new Date(currentFrameTimestamp).toLocaleTimeString()}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Loading indicator */}
       {(isCreating || isRefreshing) && (
@@ -285,6 +215,91 @@ export function WeatherMap({ isDark = false }) {
       <div
         className={`h-[500px] w-full overflow-hidden rounded-3xl shadow-2xl md:h-[600px] relative ${isDark ? "border border-white/20" : "border border-white/30"}`}
       >
+        {/* Bottom radar timeline bar — always visible */}
+        <div className="absolute bottom-0 left-0 right-0 z-[1000] bg-gradient-to-t from-black/70 to-transparent px-4 pt-8 pb-4 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3">
+            {/* Play/Pause */}
+            {showRainfall && (
+              <button
+                onClick={() => setIsAnimationPlaying(!isAnimationPlaying)}
+                className="shrink-0 bg-blue-500 hover:bg-blue-600 rounded-full p-2.5 shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-400"
+                aria-label={isAnimationPlaying ? "Pause radar" : "Play radar"}
+              >
+                {isAnimationPlaying ? (
+                  <Pause className="h-4 w-4 text-white" fill="white" />
+                ) : (
+                  <Play className="h-4 w-4 text-white" fill="white" />
+                )}
+              </button>
+            )}
+
+            {/* Timeline label */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-white/80 text-xs font-medium flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {showRainfall
+                    ? currentFrameTimestamp
+                      ? new Date(currentFrameTimestamp).toLocaleTimeString("en-SG", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                          timeZone: "Asia/Singapore",
+                        })
+                      : "Loading radar..."
+                    : new Date().toLocaleTimeString("en-SG", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                        timeZone: "Asia/Singapore",
+                      })}
+                </span>
+                {showRainfall && (
+                  <span className="text-white/50 text-xs">
+                    NEA Radar · Singapore
+                  </span>
+                )}
+              </div>
+
+              {/* Frame scrub slider — only when radar is on and frames loaded */}
+              {showRainfall && totalFrames > 0 && (
+                <div className="space-y-1">
+                  <input
+                    type="range"
+                    min={0}
+                    max={totalFrames - 1}
+                    step={1}
+                    value={sliderIndex ?? totalFrames - 1}
+                    onChange={(e) => {
+                      const idx = Number(e.target.value);
+                      setSliderIndex(idx);
+                      setIsAnimationPlaying(false);
+                    }}
+                    onMouseUp={() => setSliderIndex(null)}   // release → resume auto-play
+                    onTouchEnd={() => setSliderIndex(null)}
+                    className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-blue-400"
+                    aria-label="Radar frame scrub"
+                  />
+                  {/* Frame tick labels */}
+                  {frameTimestamps.length > 0 && (
+                    <div className="flex justify-between text-white/40 text-[10px]">
+                      {[0, Math.floor(totalFrames / 2), totalFrames - 1].map((i) =>
+                        frameTimestamps[i] ? (
+                          <span key={i}>
+                            {new Date(frameTimestamps[i]).toLocaleTimeString("en-SG", {
+                              hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Singapore",
+                            })}
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         {/* Ripple effects */}
         {ripples.map((ripple) => (
           <div
@@ -322,11 +337,14 @@ export function WeatherMap({ isDark = false }) {
             <AnimatedRadarLayer
               visible={showRainfall}
               animationSpeed={animationSpeed}
-              isPlaying={isAnimationPlaying}
+              isPlaying={sliderIndex === null && isAnimationPlaying}
+              forcedIndex={sliderIndex}
               onFrameChange={(timestamp) => setCurrentFrameTimestamp(timestamp)}
-              onError={() => {
-                // Silently handle errors - fallback is automatic
+              onFramesLoaded={(count, timestamps) => {
+                setTotalFrames(count);
+                setFrameTimestamps(timestamps);
               }}
+              onError={() => {}}
             />
           ) : null}
 
@@ -394,45 +412,10 @@ export function WeatherMap({ isDark = false }) {
         </MapContainer>
       </div>
 
-      {/* Instructions and Legend */}
-      <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <p className={`text-sm ${isDark ? "text-white/70" : "text-slate-600"}`}>
-          Click anywhere on the map to add a new location
-        </p>
-        {showRainfall && (
-          <div className="flex items-center gap-4 text-sm">
-            <span
-              className={`font-medium ${isDark ? "text-white/80" : "text-slate-700"}`}
-            >
-              Rainfall:
-            </span>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-slate-400 border border-slate-500"></div>
-              <span className={isDark ? "text-white/70" : "text-slate-600"}>
-                None
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-400 border border-blue-500"></div>
-              <span className={isDark ? "text-white/70" : "text-slate-600"}>
-                Light
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-600 border border-blue-700"></div>
-              <span className={isDark ? "text-white/70" : "text-slate-600"}>
-                Heavy
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-900 border border-blue-950"></div>
-              <span className={isDark ? "text-white/70" : "text-slate-600"}>
-                Extreme
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Instructions */}
+      <p className={`mt-3 text-xs ${isDark ? "text-white/50" : "text-slate-500"}`}>
+        Click on the map to pin a location · Toggle Radar to see live NEA rain animation
+      </p>
     </div>
   );
 }

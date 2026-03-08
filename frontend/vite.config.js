@@ -5,6 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const backendPort = env.VITE_BACKEND_PORT || "8000";
   const apiTarget = env.VITE_API_TARGET || `http://localhost:${backendPort}`;
+  const previewPort = parseInt(process.env.PORT || env.PORT || "5173", 10);
 
   return {
     plugins: [react()],
@@ -19,13 +20,20 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
-      port: 5173,
+      port: previewPort,
       host: "0.0.0.0",
-      strictPort: true,
+      strictPort: false,
+      proxy: {
+        "/api": {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+      },
       // Allow Railway domains and custom domain
       allowedHosts: [
         "lionweather-frontend-production.up.railway.app",
         "lionweather.kooexperience.com",
+        "weather.kooexperience.com",
         ".railway.app",
       ],
     },

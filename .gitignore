@@ -65,6 +65,9 @@ Desktop.ini
 *.temp
 .cache/
 
+# Historical NEA data (too large for git, stored locally)
+backend/nea_historical_data/
+
 # Documentation artifacts (Kiro-specific - not needed in git)
 FIXES_SUMMARY.md
 APP_STATUS.md

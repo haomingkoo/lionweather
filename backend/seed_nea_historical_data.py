@@ -304,7 +304,7 @@ class NEAHistoricalDataImporter:
         logger.info("=" * 80)
         logger.info(f"Data directory: {self.data_directory.absolute()}")
         logger.info(f"Years: {self.years[0]}-{self.years[-1]}")
-        logger.info()
+        logger.info("")
         
         # Find CSV files
         csv_files = self.find_csv_files()

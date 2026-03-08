@@ -58,6 +58,90 @@ def get_twenty_four_hour_forecast():
         
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+@router.get("/")
+async def get_forecasts(
+    lat: float,
+    lng: float,
+    days: int = 7,
+):
+    """
+    Get weather forecast for a location
+
+    Returns 7-day forecast from Open-Meteo API.
+    In the future, this should return cached forecast data from the database.
+
+    Args:
+        lat: Latitude
+        lng: Longitude
+        days: Number of days to forecast (default: 7)
+
+    Returns:
+        List of daily forecast objects
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat,
+                    "longitude": lng,
+                    "daily": "temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum",
+                    "timezone": "auto",
+                    "forecast_days": days,
+                },
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        if not data.get("daily"):
+            return []
+
+        daily = data["daily"]
+        forecasts = []
+
+        for i in range(len(daily["time"])):
+            weather_code = daily["weathercode"][i] if i < len(daily["weathercode"]) else 0
+
+            # Map weather code to condition
+            if weather_code == 0:
+                condition = "Clear"
+            elif weather_code <= 3:
+                condition = "Partly Cloudy"
+            elif weather_code <= 48:
+                condition = "Cloudy"
+            elif weather_code <= 67:
+                condition = "Rainy"
+            elif weather_code <= 77:
+                condition = "Rainy"
+            elif weather_code <= 82:
+                condition = "Rainy"
+            elif weather_code <= 86:
+                condition = "Rainy"
+            elif weather_code <= 99:
+                condition = "Thunderstorm"
+            else:
+                condition = "Cloudy"
+
+            forecasts.append({
+                "date": daily["time"][i],
+                "temperature": {
+                    "high": daily["temperature_2m_max"][i] if i < len(daily["temperature_2m_max"]) else None,
+                    "low": daily["temperature_2m_min"][i] if i < len(daily["temperature_2m_min"]) else None,
+                },
+                "forecast": condition,
+                "precipitation": daily["precipitation_sum"][i] if i < len(daily["precipitation_sum"]) else 0,
+                "source": "Open-Meteo",
+            })
+
+        return forecasts
+
+    except Exception as e:
+        logger.error(f"Failed to fetch forecast: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch forecast: {str(e)}")
+
 
 
 @router.get("/four-day")

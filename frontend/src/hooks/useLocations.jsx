@@ -70,7 +70,7 @@ const reverseGeocode = async (latitude, longitude) => {
   try {
     // Use OpenStreetMap Nominatim API for reverse geocoding (free, no API key needed)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=16&addressdetails=1`,
       {
         headers: {
           "User-Agent": "LionWeather/1.0",
@@ -82,12 +82,16 @@ const reverseGeocode = async (latitude, longitude) => {
     }
     const data = await response.json();
 
-    // Extract meaningful location name
+    // Extract most granular location name available (neighbourhood first, then broader)
     const address = data.address || {};
     const locationName =
-      address.city ||
-      address.town ||
+      address.neighbourhood ||
+      address.suburb ||
+      address.quarter ||
       address.village ||
+      address.town ||
+      address.city_district ||
+      address.city ||
       address.county ||
       address.state ||
       address.country ||

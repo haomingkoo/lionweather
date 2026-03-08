@@ -22,7 +22,7 @@ import { get24HourForecast, get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
 import { getSunTimes } from "../utils/sunTimes";
-import { getCurrentWeather, get7DayForecast } from "../api/openMeteo";
+import { getCurrentWeather, get7DayForecast } from "../api/backend";
 
 const iconMap = {
   Sun,

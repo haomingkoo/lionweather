@@ -1,4 +1,14 @@
 /**
+ * DEPRECATED: This file is deprecated and should not be used.
+ * Use backend.js instead to call the LionWeather backend API.
+ *
+ * The backend caches data from multiple sources and provides a unified interface.
+ * Direct API calls bypass the caching layer and defeat the purpose of the backend.
+ *
+ * Migration:
+ * - Replace: import { getCurrentWeather } from './openMeteo'
+ * - With: import { getCurrentWeather } from './backend'
+ *
  * Open-Meteo API integration for weather data not provided by NEA
  * API Documentation: https://open-meteo.com/en/docs
  */

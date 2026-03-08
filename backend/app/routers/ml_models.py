@@ -375,3 +375,91 @@ async def compare_models(
             "interpretation": f"Version {version2} is {'better' if mae_delta < 0 else 'worse'} by {abs(mae_improvement):.1f}%"
         }
     }
+
+
+@router.get("/benchmark")
+async def get_forecast_benchmark() -> Dict:
+    """
+    Return the latest forecast benchmark report comparing our ML model against
+    NEA official forecast on the 2024 held-out test set.
+
+    Also includes ACF/PACF analysis results and training metadata.
+    Populated after running: python -m ml.train_rainfall_forecast
+    """
+    import os
+    from pathlib import Path
+
+    bench_path = Path(__file__).parent.parent.parent / "models" / "forecast_benchmark.json"
+
+    if not bench_path.exists():
+        return {
+            "status": "not_trained",
+            "message": "Benchmark not available yet. Run: python -m ml.train_rainfall_forecast",
+            "data": None,
+        }
+
+    try:
+        with open(bench_path) as f:
+            data = json.load(f)
+        return {"status": "ok", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read benchmark: {e}")
+
+
+@router.get("/data-sanity")
+async def get_data_sanity_check() -> Dict:
+    """
+    Run a sanity check on the weather_data table:
+    - Row counts per country (expect roughly equal if polling is balanced)
+    - Latest timestamp per country
+    - Missing variable rates (null temperature, rainfall, humidity)
+    - Suspicious consecutive identical values
+    """
+    try:
+        # Count per country
+        country_counts = fetch_all(
+            "SELECT country, COUNT(*) as cnt FROM weather_data GROUP BY country ORDER BY cnt DESC"
+        )
+
+        # Latest timestamp per country
+        latest_ts = fetch_all(
+            "SELECT country, MAX(CAST(timestamp AS TEXT)) as latest FROM weather_data GROUP BY country"
+        )
+
+        # Missing rates
+        missing_temp = fetch_one(
+            "SELECT COUNT(*) FROM weather_data WHERE temperature IS NULL OR temperature = 0"
+        )
+        missing_rain = fetch_one(
+            "SELECT COUNT(*) FROM weather_data WHERE rainfall IS NULL"
+        )
+        total = fetch_one("SELECT COUNT(*) FROM weather_data")
+
+        total_rows = total[0] if total else 0
+
+        result = {
+            "total_rows": total_rows,
+            "by_country": {r[0]: r[1] for r in (country_counts or [])},
+            "latest_by_country": {r[0]: r[1] for r in (latest_ts or [])},
+            "missing_rates": {
+                "temperature_null_or_zero": round(100 * (missing_temp[0] if missing_temp else 0) / max(1, total_rows), 2),
+                "rainfall_null": round(100 * (missing_rain[0] if missing_rain else 0) / max(1, total_rows), 2),
+            },
+            "balance_check": {},
+        }
+
+        # Balance: flag if any country has <10% of max country's count
+        if result["by_country"]:
+            max_count = max(result["by_country"].values())
+            for country, count in result["by_country"].items():
+                pct = 100 * count / max_count
+                result["balance_check"][country] = {
+                    "count": count,
+                    "pct_of_max": round(pct, 1),
+                    "status": "ok" if pct >= 10 else "WARNING: under-represented",
+                }
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sanity check failed: {e}")

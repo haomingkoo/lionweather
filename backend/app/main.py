@@ -5,6 +5,7 @@ import sys
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables from .env file
 load_dotenv()
@@ -159,6 +160,24 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS — allow frontend domain and Railway preview URLs
+allowed_origins = [
+    "https://weather.kooexperience.com",
+    "https://lionweather.kooexperience.com",
+    "https://lionweather-frontend-production.up.railway.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+# Also allow any Railway preview URL
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(locations_router, prefix="/api")
 app.include_router(rainfall_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
@@ -196,28 +215,39 @@ def status_check():
         try:
             from app.db.database import execute_sql
             
-            # Check weather_records table
+            # Check weather_data table (primary table)
             try:
                 from app.db.database import fetch_one, fetch_all
                 
-                result = fetch_one("SELECT COUNT(*) as count FROM weather_records")
-                db_stats["weather_records_total"] = result[0] if result else 0
+                result = fetch_one("SELECT COUNT(*) as count FROM weather_data")
+                db_stats["weather_data_total"] = result[0] if result else 0
                 
                 # Get counts by country
-                country_results = fetch_all("SELECT country, COUNT(*) as count FROM weather_records GROUP BY country")
+                country_results = fetch_all("SELECT country, COUNT(*) as count FROM weather_data GROUP BY country")
                 db_stats["by_country"] = {row[0]: row[1] for row in country_results} if country_results else {}
                 
                 # Get recent activity (last hour)
                 cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
                 result = fetch_one(
-                    "SELECT COUNT(*) as count FROM weather_records WHERE timestamp >= :cutoff",
+                    "SELECT COUNT(*) as count FROM weather_data WHERE timestamp >= :cutoff",
                     {"cutoff": cutoff}
                 )
-                db_stats["weather_records_last_hour"] = result[0] if result else 0
+                db_stats["weather_data_last_hour"] = result[0] if result else 0
                 
-                # Get latest timestamp
-                result = fetch_one("SELECT MAX(timestamp) as latest FROM weather_records")
-                db_stats["latest_weather_record"] = result[0] if result and result[0] else "None"
+                # Get latest timestamp by country
+                country_latest = fetch_all("SELECT country, MAX(timestamp) as latest FROM weather_data GROUP BY country")
+                db_stats["latest_by_country"] = {row[0]: row[1] for row in country_latest} if country_latest else {}
+                
+                # Get latest timestamp overall
+                result = fetch_one("SELECT MAX(timestamp) as latest FROM weather_data")
+                db_stats["latest_weather_data"] = result[0] if result and result[0] else "None"
+            except Exception as e:
+                db_stats["weather_data_error"] = str(e)
+            
+            # Check weather_records table (legacy)
+            try:
+                result = fetch_one("SELECT COUNT(*) as count FROM weather_records")
+                db_stats["weather_records_total"] = result[0] if result else 0
             except Exception as e:
                 db_stats["weather_records_error"] = str(e)
             
@@ -246,6 +276,7 @@ def status_check():
         "status": "healthy",
         "background_tasks": {
             "data_collector": "configured (runs every 10 minutes)",
+            "forecast_collector": "configured (runs every hour)",
             "radar_service": "configured (runs every 5 minutes)",
             "ml_scheduler": "configured (runs Sundays at 2 AM)"
         },

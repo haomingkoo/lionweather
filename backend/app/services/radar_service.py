@@ -13,7 +13,7 @@ Rate Limit Optimization:
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -158,16 +158,20 @@ class RadarService:
             List of RadarFrame objects
         """
         frames = []
-        now = datetime.now()
-        
-        # Round down to nearest 5 minutes
+        # weather.gov.sg uses Singapore time (UTC+8) — use that timezone
+        SGT = timezone(timedelta(hours=8))
+        now = datetime.now(SGT)
+
+        # Round down to nearest 5 minutes, go back 10 min to ensure images exist
         minutes = (now.minute // 5) * 5
-        current_time = now.replace(minute=minutes, second=0, microsecond=0)
+        current_time = now.replace(minute=minutes, second=0, microsecond=0) - timedelta(minutes=10)
         
         headers = {
             "User-Agent": self.user_agent,
         }
-        
+        if self.api_key:
+            headers["X-Api-Key"] = self.api_key
+
         async with httpx.AsyncClient(timeout=self.timeout, headers=headers) as client:
             # Fetch frames going back in time (5 minute intervals)
             for i in range(count):

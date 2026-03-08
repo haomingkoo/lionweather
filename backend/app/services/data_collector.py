@@ -379,58 +379,91 @@ class DataCollector:
     
     async def fetch_malaysia_data(self) -> List[WeatherRecord]:
         """
-        Fetch weather data from Malaysian Meteorological Department API.
-        
-        Uses the official Malaysia API at https://api.data.gov.my/weather
-        Fetches 7-day forecast data and current weather conditions.
-        Includes retry logic and rate limiting.
-        
+        Fetch real-time weather data for Malaysia using Open-Meteo API.
+
+        The official api.data.gov.my/weather endpoint only returns temperature
+        forecast ranges (min/max) with no rainfall, humidity, or wind — useless
+        for ML training.  We instead query Open-Meteo for ~30 Malaysian cities,
+        matching the Indonesia station count so the training set is geographically
+        balanced.
+
         Returns:
-            List of WeatherRecord objects for Malaysia locations
+            List of WeatherRecord objects for Malaysia (~30 records)
         """
-        async def _fetch_with_rate_limit():
-            # Apply rate limiting
-            await self.malaysia_rate_limiter.acquire()
-            
-            logger.info("🇲🇾 Starting Malaysia data collection...")
-            
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-                # Fetch forecast data from Malaysia API
-                url = f"{self.malaysia_base_url}/weather/forecast"
-                logger.info(f"Fetching Malaysia data from: {url}")
-                
+        malaysia_cities = [
+            {"name": "Kuala Lumpur",      "lat": 3.1390,  "lon": 101.6869},
+            {"name": "George Town",        "lat": 5.4141,  "lon": 100.3288},
+            {"name": "Johor Bahru",        "lat": 1.4927,  "lon": 103.7414},
+            {"name": "Ipoh",               "lat": 4.5975,  "lon": 101.0901},
+            {"name": "Kuching",            "lat": 1.5497,  "lon": 110.3592},
+            {"name": "Kota Kinabalu",      "lat": 5.9804,  "lon": 116.0735},
+            {"name": "Shah Alam",          "lat": 3.0733,  "lon": 101.5185},
+            {"name": "Petaling Jaya",      "lat": 3.1073,  "lon": 101.6067},
+            {"name": "Subang Jaya",        "lat": 3.0462,  "lon": 101.5816},
+            {"name": "Klang",              "lat": 3.0380,  "lon": 101.4450},
+            {"name": "Miri",               "lat": 4.3995,  "lon": 113.9914},
+            {"name": "Sibu",               "lat": 2.3064,  "lon": 111.8259},
+            {"name": "Sandakan",           "lat": 5.8402,  "lon": 118.1179},
+            {"name": "Tawau",              "lat": 4.2456,  "lon": 117.8912},
+            {"name": "Kota Bharu",         "lat": 6.1254,  "lon": 102.2381},
+            {"name": "Kuala Terengganu",   "lat": 5.3296,  "lon": 103.1370},
+            {"name": "Kuantan",            "lat": 3.8077,  "lon": 103.3260},
+            {"name": "Alor Setar",         "lat": 6.1248,  "lon": 100.3673},
+            {"name": "Seremban",           "lat": 2.7297,  "lon": 101.9381},
+            {"name": "Malacca City",       "lat": 2.1896,  "lon": 102.2501},
+            {"name": "Batu Pahat",         "lat": 1.8535,  "lon": 102.9323},
+            {"name": "Muar",               "lat": 2.0441,  "lon": 102.5689},
+            {"name": "Segamat",            "lat": 2.5126,  "lon": 102.8159},
+            {"name": "Bintulu",            "lat": 3.1667,  "lon": 113.0333},
+            {"name": "Lahad Datu",         "lat": 5.0274,  "lon": 118.3251},
+            {"name": "Beaufort",           "lat": 5.3667,  "lon": 115.7500},
+            {"name": "Keningau",           "lat": 5.3378,  "lon": 116.1630},
+            {"name": "Taiping",            "lat": 4.8556,  "lon": 100.7333},
+            {"name": "Teluk Intan",        "lat": 4.0226,  "lon": 101.0194},
+            {"name": "Temerloh",           "lat": 3.4500,  "lon": 102.4167},
+        ]
+
+        logger.info(f"Fetching Malaysia data via Open-Meteo for {len(malaysia_cities)} cities...")
+
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)
+        ) as session:
+            records = []
+            now = datetime.utcnow()
+
+            for city in malaysia_cities:
                 try:
+                    url = (
+                        "https://api.open-meteo.com/v1/forecast"
+                        f"?latitude={city['lat']}&longitude={city['lon']}"
+                        "&current=temperature_2m,relative_humidity_2m,precipitation,"
+                        "wind_speed_10m,wind_direction_10m,surface_pressure,weather_code"
+                        "&timezone=Asia/Kuala_Lumpur"
+                    )
                     data = await self._fetch_json(session, url)
-                    logger.info(f"✓ Malaysia API success: {type(data).__name__}")
-                    if isinstance(data, list):
-                        logger.info(f"  Response is list with {len(data)} items")
-                    elif isinstance(data, dict):
-                        logger.info(f"  Response keys: {list(data.keys())}")
-                except Exception as e:
-                    logger.error(f"❌ Malaysia API failed: {str(e)}")
-                    raise
-                
-                logger.info("Parsing Malaysia API response...")
-                records = self._parse_malaysia_data(data)
-                logger.info(f"Parsed {len(records)} Malaysia weather records")
-                
-                # Validate records
-                valid_records = []
-                for record in records:
+                    current = data.get("current", {})
+
+                    record = WeatherRecord(
+                        timestamp=now,
+                        country="malaysia",
+                        location=city["name"],
+                        latitude=city["lat"],
+                        longitude=city["lon"],
+                        temperature=float(current.get("temperature_2m") or 0),
+                        rainfall=float(current.get("precipitation") or 0),
+                        humidity=float(current.get("relative_humidity_2m") or 0),
+                        wind_speed=float(current.get("wind_speed_10m") or 0),
+                        wind_direction=current.get("wind_direction_10m"),
+                        pressure=current.get("surface_pressure"),
+                        source_api="open-meteo (malaysia)",
+                    )
                     if self.validate_record(record):
-                        valid_records.append(record)
-                    else:
-                        logger.warning(f"Excluding invalid record for {record.location}")
-                
-                logger.info(f"✓ Malaysia data collection complete: {len(valid_records)} valid records")
-                return valid_records
-        
-        try:
-            return await self.retry_with_backoff(_fetch_with_rate_limit)
-        except Exception as e:
-            logger.error(f"❌ Failed to fetch Malaysia data after retries: {str(e)}", exc_info=True)
-            # Gracefully continue - return empty list
-            return []
+                        records.append(record)
+                except Exception as e:
+                    logger.warning(f"Malaysia Open-Meteo failed for {city['name']}: {e}")
+
+            logger.info(f"Malaysia data collection complete: {len(records)} valid records")
+            return records
     
     async def fetch_indonesia_data(self) -> List[WeatherRecord]:
         """

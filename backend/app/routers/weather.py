@@ -1,8 +1,12 @@
 """
-Weather API endpoint - fetches current weather from Open-Meteo
+Weather API endpoint - serves cached weather data from database
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime, timedelta
 import httpx
+from app.db.database import get_db
 
 router = APIRouter(prefix="/api", tags=["weather"])
 
@@ -11,57 +15,139 @@ router = APIRouter(prefix="/api", tags=["weather"])
 async def get_weather(
     lat: float = Query(..., description="Latitude"),
     lng: float = Query(..., description="Longitude"),
+    db: Session = Depends(get_db),
 ):
     """
-    Get current weather for a location using Open-Meteo API
+    Get current weather for a location from cached database
+    
+    Returns cached weather data from the nearest location in the database.
+    Falls back to Open-Meteo API if no cached data is available.
     
     Returns:
         - condition: Weather condition description
         - temperature: Temperature in Celsius
-        - area: Location name (reverse geocoded)
+        - humidity: Humidity percentage
+        - wind_speed: Wind speed in km/h
+        - pressure: Atmospheric pressure in hPa
+        - area: Location name
         - source: Data source identifier
     """
     try:
-        # Fetch weather from Open-Meteo
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": lat,
-                    "longitude": lng,
-                    "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m",
-                    "timezone": "Asia/Singapore",
-                },
-                timeout=10.0,
-            )
-            response.raise_for_status()
-            data = response.json()
+        from datetime import datetime, timedelta
+        cutoff = (datetime.utcnow() - timedelta(hours=2)).isoformat()
+
+        # Find nearest weather station with recent data (within last 2 hours)
+        # Using Haversine formula - compatible with both SQLite and PostgreSQL
+        query = text("""
+            SELECT
+                location,
+                temperature,
+                humidity,
+                wind_speed,
+                pressure,
+                rainfall,
+                country,
+                source_api,
+                timestamp,
+                (
+                    6371 * acos(
+                        cos(radians(:lat)) * cos(radians(latitude)) *
+                        cos(radians(longitude) - radians(:lng)) +
+                        sin(radians(:lat)) * sin(radians(latitude))
+                    )
+                ) AS distance_km
+            FROM weather_data
+            WHERE CAST(timestamp AS TEXT) > :cutoff
+            ORDER BY distance_km ASC
+            LIMIT 1
+        """)
+
+        result = db.execute(query, {"lat": lat, "lng": lng, "cutoff": cutoff}).fetchone()
         
-        current = data.get("current", {})
-        temperature = current.get("temperature_2m")
-        weather_code = current.get("weather_code", 0)
-        humidity = current.get("relative_humidity_2m")
-        wind_speed = current.get("wind_speed_10m")
+        if result:
+            # Map temperature to weather condition (simplified)
+            # In production, you'd want to store actual conditions in the database
+            temperature = result[1]
+            rainfall = result[5]
+            
+            if rainfall > 5:
+                condition = "Rainy"
+            elif rainfall > 0:
+                condition = "Light Rain"
+            elif temperature > 30:
+                condition = "Sunny"
+            elif temperature > 25:
+                condition = "Partly Cloudy"
+            else:
+                condition = "Cloudy"
+            
+            return {
+                "condition": condition,
+                "temperature": result[1],
+                "humidity": result[2],
+                "wind_speed": result[3],
+                "pressure": result[4],
+                "area": result[0],
+                "source": f"Cached ({result[7]})",
+                "timestamp": result[8].isoformat() if result[8] else None,
+                "distance_km": round(result[9], 2) if result[9] else None,
+            }
         
-        # Map WMO weather codes to conditions
-        condition = map_weather_code(weather_code)
-        
-        # Reverse geocode for area name
-        area = await reverse_geocode(lat, lng)
-        
-        return {
-            "condition": condition,
-            "temperature": temperature,
-            "humidity": humidity,
-            "wind_speed": wind_speed,
-            "area": area,
-            "source": "Open-Meteo",
-        }
+        # Fallback: No cached data available, fetch from Open-Meteo
+        return await fetch_from_open_meteo(lat, lng)
     
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch weather data: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        # If database query fails, fallback to Open-Meteo
+        try:
+            return await fetch_from_open_meteo(lat, lng)
+        except Exception as fallback_error:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to fetch weather data: {str(e)}. Fallback also failed: {str(fallback_error)}"
+            )
+
+
+async def fetch_from_open_meteo(lat: float, lng: float) -> dict:
+    """
+    Fallback function to fetch weather from Open-Meteo API
+    Used when no cached data is available
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat,
+                "longitude": lng,
+                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,surface_pressure",
+                "timezone": "auto",
+            },
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+    
+    current = data.get("current", {})
+    temperature = current.get("temperature_2m")
+    weather_code = current.get("weather_code", 0)
+    humidity = current.get("relative_humidity_2m")
+    wind_speed = current.get("wind_speed_10m")
+    pressure = current.get("surface_pressure")
+    
+    # Map WMO weather codes to conditions
+    condition = map_weather_code(weather_code)
+    
+    # Reverse geocode for area name
+    area = await reverse_geocode(lat, lng)
+    
+    return {
+        "condition": condition,
+        "temperature": temperature,
+        "humidity": humidity,
+        "wind_speed": wind_speed,
+        "pressure": pressure,
+        "area": area,
+        "source": "Open-Meteo (Live)",
+    }
 
 
 def map_weather_code(code: int) -> str:
@@ -105,7 +191,7 @@ async def reverse_geocode(lat: float, lng: float) -> str:
                     "format": "json",
                     "lat": lat,
                     "lon": lng,
-                    "zoom": 10,
+                    "zoom": 16,
                     "addressdetails": 1,
                 },
                 headers={"User-Agent": "LionWeather/1.0"},
@@ -113,12 +199,16 @@ async def reverse_geocode(lat: float, lng: float) -> str:
             )
             response.raise_for_status()
             data = response.json()
-        
+
         address = data.get("address", {})
         area = (
-            address.get("city")
-            or address.get("town")
+            address.get("neighbourhood")
+            or address.get("suburb")
+            or address.get("quarter")
             or address.get("village")
+            or address.get("town")
+            or address.get("city_district")
+            or address.get("city")
             or address.get("county")
             or address.get("state")
             or address.get("country")
