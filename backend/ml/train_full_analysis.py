@@ -906,6 +906,17 @@ def main():
             cm = confusion_matrix(y_test_cls, y_pred_cls).tolist()
             cls_accuracy = float(cr.get("accuracy", 0))
 
+            # ---- Binary classification: Rain vs No-Rain ----
+            # Collapse classes 1/2/3 → 1 (any rain), 0 stays 0
+            y_test_binary = (y_test_cls > 0).astype(int)
+            y_pred_binary = (y_pred_cls > 0).astype(int)
+            binary_cr = classification_report(
+                y_test_binary, y_pred_binary,
+                target_names=["No Rain", "Rain"],
+                output_dict=True, zero_division=0,
+            )
+            binary_cm = confusion_matrix(y_test_binary, y_pred_binary).tolist()
+
             loss_curves.append(cls_loss)
 
             # SHAP for 1-hour ahead classifier only (expensive)
@@ -917,6 +928,8 @@ def main():
             cls_accuracy = None
             cm = None
             cr = None
+            binary_cr = None
+            binary_cm = None
             logger.warning(f"  h={horizon}h: not enough class diversity for classification")
 
         # SHAP for regression
@@ -947,6 +960,15 @@ def main():
                 "report": cr,
                 "categories": RAIN_CATEGORIES,
             },
+            "binary_classification": {
+                "accuracy": round(float(binary_cr.get("accuracy", 0)), 4),
+                "rain_precision": round(float(binary_cr.get("Rain", {}).get("precision", 0)), 4),
+                "rain_recall": round(float(binary_cr.get("Rain", {}).get("recall", 0)), 4),
+                "rain_f1": round(float(binary_cr.get("Rain", {}).get("f1-score", 0)), 4),
+                "no_rain_recall": round(float(binary_cr.get("No Rain", {}).get("recall", 0)), 4),
+                "confusion_matrix": binary_cm,
+                "report": binary_cr,
+            } if cls_accuracy else None,
             "feature_importance": [{"feature": f, "gain": round(float(g), 2)}
                                     for f, g in top_features],
         })
