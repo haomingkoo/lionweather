@@ -960,6 +960,47 @@ export function MLAnalysisDashboard() {
                 </div>
               )}
 
+              {/* Binary classification */}
+              {hr.binary_classification && (() => {
+                const bin = hr.binary_classification;
+                const binCm = bin.confusion_matrix; // [[TN, FP], [FN, TP]]
+                return (
+                  <div className="space-y-2">
+                    <p className="text-white/60 text-xs font-medium">Binary: Rain vs No-Rain</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { label: "Accuracy", val: bin.accuracy, color: "text-white" },
+                        { label: "Rain Precision", val: bin.rain_precision, color: "text-sky-300" },
+                        { label: "Rain Recall", val: bin.rain_recall, color: bin.rain_recall < 0.5 ? "text-red-400" : bin.rain_recall < 0.7 ? "text-amber-400" : "text-emerald-400" },
+                        { label: "Rain F1", val: bin.rain_f1, color: "text-blue-300" },
+                      ].map(({ label, val, color }) => (
+                        <div key={label} className="bg-white/5 rounded-xl p-2 text-center">
+                          <p className="text-white/40 text-[10px]">{label}</p>
+                          <p className={`font-bold text-sm ${color}`}>{val != null ? (val * 100).toFixed(1) + "%" : "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {binCm && (
+                      <div className="text-[10px] text-white/50 space-y-1">
+                        <p className="font-medium text-white/60">Confusion matrix</p>
+                        <div className="grid grid-cols-3 gap-px text-center">
+                          <div />
+                          <div className="bg-white/5 rounded px-1 py-0.5">Pred No Rain</div>
+                          <div className="bg-white/5 rounded px-1 py-0.5">Pred Rain</div>
+                          <div className="bg-white/5 rounded px-1 py-0.5 text-left">True No Rain</div>
+                          <div className="bg-emerald-500/20 rounded px-1 py-0.5 text-emerald-300 font-bold">{binCm[0]?.[0]}</div>
+                          <div className="bg-red-500/10 rounded px-1 py-0.5 text-red-300">{binCm[0]?.[1]}</div>
+                          <div className="bg-white/5 rounded px-1 py-0.5 text-left">True Rain</div>
+                          <div className="bg-red-500/20 rounded px-1 py-0.5 text-red-400 font-bold">{binCm[1]?.[0]}</div>
+                          <div className="bg-emerald-500/20 rounded px-1 py-0.5 text-emerald-300 font-bold">{binCm[1]?.[1]}</div>
+                        </div>
+                        <p className="text-white/30">Bold red = missed rain (false negatives) — the costly errors.</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Cost-weighting note */}
               <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
                 <p className="text-amber-200/80 text-[10px]">
