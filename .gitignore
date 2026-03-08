@@ -30,11 +30,13 @@ backend/*.db-wal
 *.sqlite
 *.sqlite3
 
-# ML Models (too large for git)
+# ML Models (binary — too large for git)
 backend/models/*.pkl
 backend/models/*.h5
 backend/models/*.joblib
 !backend/models/.gitkeep
+# JSON analysis artifacts are small enough to commit
+!backend/models/*.json
 
 # Node / Vite
 node_modules/
@@ -69,16 +71,33 @@ Desktop.ini
 backend/nea_historical_data/
 
 # Documentation artifacts (Kiro-specific - not needed in git)
-FIXES_SUMMARY.md
 APP_STATUS.md
-IMPLEMENTATION_SUMMARY.md
+BACKEND_POLLING_FIX.md
+CRITICAL_BACKEND_ISSUES.md
+CRITICAL_DEPLOYMENT_ISSUE.md
 CURRENT_STATUS.md
+FIXES_SUMMARY.md
+IMPLEMENTATION_SUMMARY.md
+INTEGRATION_TEST_RESULTS.md
+LOCAL_TESTING_GUIDE.md
+LOCATION_GRANULARITY_ANALYSIS.md
+ML_FORECASTING_STRATEGY.md
+ML_OPTIMIZATION_RESEARCH.md
+ML_TRAINING_PLAN.md
+NEIGHBORHOOD_LEVEL_PREDICTIONS.md
+RATE_LIMIT_FIX.md
 RESTART_*.md
 SETUP_INSTRUCTIONS.md
 SETUP_VERIFICATION.md
 ANIMATION_VERIFICATION.md
-LOCAL_TESTING_GUIDE.md
-RATE_LIMIT_FIX.md
+TASK_EXECUTION_SUMMARY.md
+URGENT_BACKEND_FIX_NEEDED.md
+backend/*_SUMMARY.md
+backend/*_STATUS.md
+backend/*_GUIDE.md
+backend/*_IMPLEMENTATION.md
+backend/*_FIX.md
+backend/*_RESULTS.md
 
 # Kiro specs and configuration
 .kiro/

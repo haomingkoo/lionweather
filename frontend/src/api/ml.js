@@ -71,6 +71,10 @@ export async function listModels() {
   return requestML("/ml/models/list");
 }
 
+export async function getFullAnalysis() {
+  return requestML("/ml/full-analysis");
+}
+
 export async function getHistoricalMetrics(
   parameter = "temperature",
   startDate = null,

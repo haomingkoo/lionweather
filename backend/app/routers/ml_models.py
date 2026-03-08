@@ -406,6 +406,35 @@ async def get_forecast_benchmark() -> Dict:
         raise HTTPException(status_code=500, detail=f"Failed to read benchmark: {e}")
 
 
+@router.get("/full-analysis")
+async def get_full_analysis() -> Dict:
+    """
+    Return the full ML analysis JSON produced by train_full_analysis.py.
+
+    Includes: EDA, ACF/PACF, FFT, spurious correlations, SHAP, loss curves,
+    classification & regression benchmarks for all forecast horizons.
+
+    Populated by running: python -m ml.train_full_analysis
+    """
+    from pathlib import Path
+
+    analysis_path = Path(__file__).parent.parent.parent / "models" / "full_analysis.json"
+
+    if not analysis_path.exists():
+        return {
+            "status": "not_trained",
+            "message": "Full analysis not available yet. Run: cd backend && python -m ml.train_full_analysis",
+            "data": None,
+        }
+
+    try:
+        with open(analysis_path) as f:
+            data = json.load(f)
+        return {"status": "ok", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read full analysis: {e}")
+
+
 @router.get("/data-sanity")
 async def get_data_sanity_check() -> Dict:
     """
