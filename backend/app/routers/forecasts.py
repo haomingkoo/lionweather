@@ -14,48 +14,36 @@ router = APIRouter(prefix="/forecasts", tags=["forecasts"])
 @router.get("/twenty-four-hour")
 def get_twenty_four_hour_forecast():
     """Get 24-hour weather forecast"""
-    api_key = os.getenv("WEATHER_API_KEY")
-    client = SingaporeWeatherClient(api_key=api_key)
-    
     try:
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": client.user_agent,
-        }
-        if api_key:
-            headers["x-api-key"] = api_key
-        
         import httpx
-        with httpx.Client(timeout=client.timeout_seconds, headers=headers) as http_client:
-            response = http_client.get(f"{client.base_url}/v2/real-time/api/twenty-four-hr-forecast")
+        with httpx.Client(timeout=10) as http_client:
+            response = http_client.get("https://api.data.gov.sg/v1/environment/24-hour-weather-forecast")
             response.raise_for_status()
             data = response.json()
-        
-        # Extract forecast data
-        items = data.get("data", {}).get("items", []) if isinstance(data.get("data"), dict) else data.get("items", [])
-        
+
+        items = data.get("items", [])
+
         if not items:
             return {"periods": []}
-        
+
         latest = items[0]
         periods = latest.get("periods", [])
-        
-        # Format periods for frontend
+
         formatted_periods = []
         for period in periods:
             formatted_periods.append({
                 "time": period.get("time", {}).get("text", ""),
                 "regions": period.get("regions", {}),
-                "timestamp": period.get("time", {}).get("timestamp", ""),
+                "timestamp": period.get("time", {}).get("start", ""),
             })
-        
+
         return {
             "timestamp": latest.get("timestamp"),
             "valid_period": latest.get("valid_period", {}),
             "periods": formatted_periods,
             "general": latest.get("general", {}),
         }
-        
+
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 @router.get("/")
@@ -147,37 +135,26 @@ async def get_forecasts(
 @router.get("/four-day")
 def get_four_day_forecast():
     """Get 4-day weather outlook"""
-    api_key = os.getenv("WEATHER_API_KEY")
-    client = SingaporeWeatherClient(api_key=api_key)
-    
     try:
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": client.user_agent,
-        }
-        if api_key:
-            headers["x-api-key"] = api_key
-        
         import httpx
-        with httpx.Client(timeout=client.timeout_seconds, headers=headers) as http_client:
-            response = http_client.get(f"{client.base_url}/v2/real-time/api/four-day-outlook")
+        with httpx.Client(timeout=10) as http_client:
+            response = http_client.get("https://api.data.gov.sg/v1/environment/4-day-weather-forecast")
             response.raise_for_status()
             data = response.json()
-        
-        # Extract forecast data
-        items = data.get("data", {}).get("items", []) if isinstance(data.get("data"), dict) else data.get("items", [])
-        
+
+        items = data.get("items", [])
+
         if not items:
             return {"forecasts": []}
-        
+
         latest = items[0]
         forecasts = latest.get("forecasts", [])
-        
+
         return {
             "timestamp": latest.get("timestamp"),
             "forecasts": forecasts,
         }
-        
+
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

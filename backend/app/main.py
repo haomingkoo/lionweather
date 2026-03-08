@@ -286,7 +286,7 @@ def status_check(request: Request):
                     source_api,
                     country,
                     COUNT(*) AS total,
-                    MAX(collected_at) AS latest
+                    MAX(created_at) AS latest
                 FROM forecast_data
                 GROUP BY source_api, country
                 ORDER BY country, total DESC
