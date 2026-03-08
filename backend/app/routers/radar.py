@@ -58,7 +58,17 @@ async def get_radar_frames(count: int = Query(default=6, ge=1, le=12)):
             }
         
         # Convert frames to dict format for JSON response
-        frame_dicts = [frame.to_dict() for frame in frames]
+        # Use absolute URLs for production deployment
+        import os
+        backend_url = os.getenv("BACKEND_URL", "")
+        
+        frame_dicts = []
+        for frame in frames:
+            frame_dict = frame.to_dict()
+            # Make image URL absolute if backend URL is set
+            if backend_url and not frame_dict["imageUrl"].startswith("http"):
+                frame_dict["imageUrl"] = f"{backend_url}{frame_dict['imageUrl']}"
+            frame_dicts.append(frame_dict)
         
         logger.info(f"Returning {len(frame_dicts)} radar frames")
         
@@ -74,7 +84,17 @@ async def get_radar_frames(count: int = Query(default=6, ge=1, le=12)):
         radar_service = get_radar_service()
         if radar_service.frame_cache:
             logger.info("Returning cached frames after API error")
-            frame_dicts = [frame.to_dict() for frame in radar_service.frame_cache[:count]]
+            
+            import os
+            backend_url = os.getenv("BACKEND_URL", "")
+            
+            frame_dicts = []
+            for frame in radar_service.frame_cache[:count]:
+                frame_dict = frame.to_dict()
+                if backend_url and not frame_dict["imageUrl"].startswith("http"):
+                    frame_dict["imageUrl"] = f"{backend_url}{frame_dict['imageUrl']}"
+                frame_dicts.append(frame_dict)
+            
             return {
                 "frames": frame_dicts,
                 "interval": 300,
