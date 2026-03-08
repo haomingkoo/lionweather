@@ -6,7 +6,7 @@ import {
 } from "../hooks/useLocations.jsx";
 import { DetailedWeatherCard } from "./DetailedWeatherCard";
 import { AnimatedBackground } from "./AnimatedBackground";
-import { RefreshCw, Trash2, MapPin, Navigation } from "lucide-react";
+import { RefreshCw, Trash2, Navigation } from "lucide-react";
 
 function getRelativeTime(isoTimestamp) {
   if (!isoTimestamp) return "Unknown";
@@ -109,7 +109,7 @@ function LocationCard({ location, isSelected, onClick, onDelete, isRefreshing })
   );
 }
 
-export function EnhancedLocationList({ isDark = false }) {
+export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
   const { locations, isLoading, error } = useLocations();
   const { refresh, isPending, refreshingId } = useRefreshLocation();
   const { deleteLocation, isPending: isDeleting } = useDeleteLocation();
@@ -163,7 +163,7 @@ export function EnhancedLocationList({ isDark = false }) {
   const selectedLocation = locations.find((l) => l.id === selectedId) || locations[0];
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto px-6">
       {locations.length > 0 && (
         <AnimatedBackground
           condition={selectedLocation?.weather?.condition}
@@ -176,6 +176,7 @@ export function EnhancedLocationList({ isDark = false }) {
 
         {/* Sidebar: compact location cards */}
         <div className="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
+          {sidebarHeader && <div>{sidebarHeader}</div>}
           {locations.map((location) => (
             <LocationCard
               key={location.id}

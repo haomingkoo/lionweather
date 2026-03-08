@@ -3,7 +3,6 @@ import { LocationForm } from "../components/LocationForm";
 import { EnhancedLocationList } from "../components/EnhancedLocationList";
 import { WeatherMap } from "../components/WeatherMap";
 import { MLDashboard } from "../components/MLDashboard";
-import { ViewToggle } from "../components/ViewToggle";
 import { GeolocationPrompt } from "../components/GeolocationPrompt";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
@@ -108,8 +107,8 @@ export function Dashboard() {
           LionWeather Lab
         </h1>
         <p className="text-slate-400 text-lg mb-8">
-          AI-powered weather forecasting for Singapore, Malaysia, and Indonesia
-          with real-time data.
+          Singapore weather intelligence — NEA real-time data, ML-powered
+          rainfall forecasting, and radar.
         </p>
 
         {/* View Toggle Tabs */}
@@ -147,23 +146,25 @@ export function Dashboard() {
         </div>
 
         {/* Content */}
-        <div className="space-y-6 max-w-4xl mx-auto">
-          {view === "list" && (
-            <>
-              <LocationForm />
-              {!hasCurrentLocation && locations.length > 0 && (
-                <div className="flex justify-center">
+        {view === "list" && (
+          <EnhancedLocationList
+            isDark={true}
+            sidebarHeader={
+              <div className="space-y-3">
+                <LocationForm compact />
+                {!hasCurrentLocation && locations.length > 0 && (
                   <button
                     onClick={handleAddCurrentLocation}
-                    className="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all hover:scale-105 active:scale-95 shadow-lg"
+                    className="w-full px-4 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-sm font-medium transition-all"
                   >
-                    📍 Add Current Location
+                    📍 Use my location
                   </button>
-                </div>
-              )}
-              <EnhancedLocationList isDark={true} />
-            </>
-          )}
+                )}
+              </div>
+            }
+          />
+        )}
+        <div className="max-w-6xl mx-auto">
           {view === "map" && <WeatherMap />}
           {view === "ml" && <MLDashboard isDark={true} />}
         </div>
