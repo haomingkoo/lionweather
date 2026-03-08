@@ -6,8 +6,11 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Load environment variables from .env file
 load_dotenv()
@@ -156,11 +159,26 @@ migrate_ml_tables()
 # Run forecast table migrations
 migrate_forecast_tables()
 
+# ---------------------------------------------------------------------------
+# Rate limiter — keyed by client IP
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="LionWeather API",
     description="AI-powered weather forecasting for Singapore, Malaysia, and Indonesia",
     version="1.0.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _require_admin(secret: str | None) -> None:
+    """Raise 403 if the provided secret does not match ADMIN_SECRET env var."""
+    expected = os.getenv("ADMIN_SECRET")
+    if not expected or secret != expected:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+
 
 # CORS — allow frontend domain and Railway preview URLs
 allowed_origins = [
@@ -204,7 +222,8 @@ def health_check():
 
 
 @app.get("/status")
-def status_check():
+@limiter.limit("20/minute")
+def status_check(request: Request):
     """Detailed status: shows exactly what's in the DB, per source API, per country."""
     import os
     from datetime import datetime, timedelta
@@ -315,7 +334,9 @@ async def export_data(
     fmt: str = "csv",
     limit: int = 10000,
     country: str = None,
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
+    _require_admin(x_admin_secret)
     """
     Export raw database records as CSV or JSON for inspection.
 
@@ -369,7 +390,10 @@ async def export_data(
 
 
 @app.post("/admin/collect-forecasts")
-async def trigger_forecast_collection():
+async def trigger_forecast_collection(
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
+):
+    _require_admin(x_admin_secret)
     """
     Manually trigger forecast collection (for testing/debugging).
     
@@ -427,7 +451,10 @@ async def trigger_forecast_collection():
 
 
 @app.post("/admin/collect-now")
-async def trigger_collection():
+async def trigger_collection(
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
+):
+    _require_admin(x_admin_secret)
     """
     Manually trigger data collection (for testing/debugging).
     
@@ -491,7 +518,11 @@ async def trigger_collection():
 
 
 @app.post("/admin/remove-duplicates")
-async def remove_duplicates(dry_run: bool = True):
+async def remove_duplicates(
+    dry_run: bool = True,
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
+):
+    _require_admin(x_admin_secret)
     """
     Remove duplicate weather records from the database.
     
