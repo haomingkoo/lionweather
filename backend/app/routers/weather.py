@@ -1,12 +1,10 @@
 """
 Weather API endpoint - serves cached weather data from database
 """
-from fastapi import APIRouter, HTTPException, Query, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timedelta
 import httpx
-from app.db.database import get_db
+from app.db.database import fetch_one
 
 router = APIRouter(prefix="/api", tags=["weather"])
 
@@ -15,14 +13,13 @@ router = APIRouter(prefix="/api", tags=["weather"])
 async def get_weather(
     lat: float = Query(..., description="Latitude"),
     lng: float = Query(..., description="Longitude"),
-    db: Session = Depends(get_db),
 ):
     """
     Get current weather for a location from cached database
-    
+
     Returns cached weather data from the nearest location in the database.
     Falls back to Open-Meteo API if no cached data is available.
-    
+
     Returns:
         - condition: Weather condition description
         - temperature: Temperature in Celsius
@@ -33,13 +30,12 @@ async def get_weather(
         - source: Data source identifier
     """
     try:
-        from datetime import datetime, timedelta
         cutoff = (datetime.utcnow() - timedelta(hours=2)).isoformat()
 
         # Find nearest weather station with recent data (within last 2 hours)
         # Simple bounding-box + Manhattan distance — works in SQLite and PostgreSQL
         # Singapore fits within ±0.5° of lat 1.35, lng 103.82
-        query = text("""
+        sql = """
             SELECT
                 location,
                 temperature,
@@ -57,37 +53,36 @@ async def get_weather(
               AND longitude BETWEEN :lng - 0.5 AND :lng + 0.5
             ORDER BY approx_dist ASC
             LIMIT 1
-        """)
+        """
 
-        result = db.execute(query, {"lat": lat, "lng": lng, "cutoff": cutoff}).fetchone()
+        result = fetch_one(sql, {"lat": lat, "lng": lng, "cutoff": cutoff})
         
         if result:
-            # Map temperature to weather condition (simplified)
-            # In production, you'd want to store actual conditions in the database
-            temperature = result[1]
-            rainfall = result[5]
-            
+            temperature = result["temperature"]
+            rainfall = result["rainfall"] or 0
+
             if rainfall > 5:
                 condition = "Rainy"
             elif rainfall > 0:
                 condition = "Light Rain"
-            elif temperature > 30:
+            elif temperature and temperature > 30:
                 condition = "Sunny"
-            elif temperature > 25:
+            elif temperature and temperature > 25:
                 condition = "Partly Cloudy"
             else:
                 condition = "Cloudy"
-            
+
+            ts = result["timestamp"]
             return {
                 "condition": condition,
-                "temperature": result[1],
-                "humidity": result[2],
-                "wind_speed": result[3],
-                "pressure": result[4],
-                "area": result[0],
-                "source": f"Cached ({result[7]})",
-                "timestamp": result[8].isoformat() if result[8] else None,
-                "distance_km": round(result[9], 2) if result[9] else None,
+                "temperature": temperature,
+                "humidity": result["humidity"],
+                "wind_speed": result["wind_speed"],
+                "pressure": result["pressure"],
+                "area": result["location"],
+                "source": f"Cached ({result['source_api']})",
+                "timestamp": ts if isinstance(ts, str) else str(ts) if ts else None,
+                "distance_km": round(result["approx_dist"], 4) if result["approx_dist"] else None,
             }
         
         # Fallback: No cached data available, fetch from Open-Meteo

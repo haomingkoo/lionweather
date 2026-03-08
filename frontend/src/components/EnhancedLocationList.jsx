@@ -232,9 +232,16 @@ export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
 
               {/* Footer: last updated + delete */}
               <div className="px-5 pb-4 pt-2 border-t border-white/10 flex items-center justify-between">
-                <span className="text-white/50 text-xs">
-                  Updated {getRelativeTime(selectedLocation.lastFetched)}
-                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-white/50 text-xs">
+                    Updated {getRelativeTime(selectedLocation.lastFetched)}
+                  </span>
+                  {selectedLocation.weather?.source && (
+                    <span className="text-white/30 text-[10px]">
+                      Source: {selectedLocation.weather.source}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => refresh(selectedLocation.id)}
