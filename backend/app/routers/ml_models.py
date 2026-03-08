@@ -548,23 +548,40 @@ def _mm_to_class(rainfall_mm: float) -> int:
 @router.get("/nea-benchmark")
 async def get_nea_benchmark() -> Dict:
     """
-    Compare NEA official 24-hour forecasts against actual observed rainfall.
+    Compare NEA official 24-hour per-region forecasts against actual observed rainfall.
 
     Methodology (apples-to-apples):
-    - Pull NEA forecasts from forecast_data (source_api = 'nea')
-    - For each forecast period [target_time_start, target_time_end]:
-        - Find ALL Singapore weather_records in that window
-        - Take MAX rainfall across stations → actual rain category
-    - Map NEA text description → rain category (same 4-class + binary thresholds as ML model)
-    - Compute accuracy, precision, recall on both 4-class and binary (rain vs no-rain)
+    - Pull NEA per-region forecasts from forecast_data (source_api = 'nea')
+      Each record covers one of 5 regions: north / south / east / west / central
+    - For each [region, time window] pair, find actual weather_records for stations
+      within that region's lat/lon bounding box → take MAX rainfall → rain category
+    - Both NEA text and actual rainfall use the SAME thresholds as the ML training:
+        < 0.1 mm/hr  → 0 No Rain
+        < 7.6 mm/hr  → 1 Light Rain
+        < 30.0 mm/hr → 2 Heavy Rain
+        ≥ 30.0 mm/hr → 3 Thundery Showers
 
-    Note: Requires forecast_data and weather_records to have overlapping timestamps.
-    This accumulates as the app runs — more data = more reliable benchmark.
+    The comparison is region-level: NEA's forecast for "North Singapore" is evaluated
+    against stations in the North region only, not all of Singapore.
+
+    Note: Requires the forecast_data and weather_records tables to have overlapping
+    timestamps. This accumulates as the app runs.
     """
+    from collections import Counter
+
+    # Singapore 5-region bounding boxes (approximate NEA boundaries)
+    REGION_BOUNDS = {
+        "north":   {"lat_min": 1.38,  "lat_max": 1.50,  "lon_min": 103.75, "lon_max": 103.90},
+        "south":   {"lat_min": 1.22,  "lat_max": 1.30,  "lon_min": 103.75, "lon_max": 103.87},
+        "east":    {"lat_min": 1.30,  "lat_max": 1.38,  "lon_min": 103.87, "lon_max": 104.02},
+        "west":    {"lat_min": 1.30,  "lat_max": 1.43,  "lon_min": 103.62, "lon_max": 103.80},
+        "central": {"lat_min": 1.30,  "lat_max": 1.38,  "lon_min": 103.80, "lon_max": 103.87},
+    }
+
     try:
-        # 1. Pull NEA forecast periods
+        # 1. Pull NEA per-region forecast periods
         forecasts = fetch_all("""
-            SELECT target_time_start, target_time_end, forecast_description
+            SELECT target_time_start, target_time_end, forecast_description, location
             FROM forecast_data
             WHERE source_api = 'nea'
               AND forecast_description IS NOT NULL
@@ -582,43 +599,72 @@ async def get_nea_benchmark() -> Dict:
                 "n_forecast_periods": 0,
             }
 
-        # 2. For each forecast period, find actual max rainfall from weather_records
+        # 2. Match each NEA regional forecast to actual station readings in that region
         matched = []
         skipped = 0
 
         for row in forecasts:
-            t_start = row["target_time_start"]
-            t_end   = row["target_time_end"]
+            t_start  = row["target_time_start"]
+            t_end    = row["target_time_end"]
             nea_text = row["forecast_description"]
+            location = (row["location"] or "").lower()
 
             nea_class = _nea_text_to_class(nea_text)
             if nea_class is None:
                 skipped += 1
                 continue
 
-            # Actual: max rainfall across ALL Singapore stations in this window
-            actual_row = fetch_one("""
-                SELECT MAX(rainfall) as max_rain
-                FROM weather_records
-                WHERE country = 'singapore'
-                  AND timestamp >= :t_start
-                  AND timestamp <  :t_end
-            """, {"t_start": t_start, "t_end": t_end})
+            # Identify region from location string e.g. "Singapore (North)"
+            region = None
+            for rname in REGION_BOUNDS:
+                if rname in location:
+                    region = rname
+                    break
+
+            if region:
+                b = REGION_BOUNDS[region]
+                actual_row = fetch_one("""
+                    SELECT MAX(rainfall) as max_rain, COUNT(*) as station_count
+                    FROM weather_records
+                    WHERE country = 'singapore'
+                      AND timestamp >= :t_start
+                      AND timestamp <  :t_end
+                      AND latitude  BETWEEN :lat_min AND :lat_max
+                      AND longitude BETWEEN :lon_min AND :lon_max
+                """, {
+                    "t_start": t_start, "t_end": t_end,
+                    "lat_min": b["lat_min"], "lat_max": b["lat_max"],
+                    "lon_min": b["lon_min"], "lon_max": b["lon_max"],
+                })
+            else:
+                # No region in location string — fallback to all Singapore
+                actual_row = fetch_one("""
+                    SELECT MAX(rainfall) as max_rain, COUNT(*) as station_count
+                    FROM weather_records
+                    WHERE country = 'singapore'
+                      AND timestamp >= :t_start
+                      AND timestamp <  :t_end
+                """, {"t_start": t_start, "t_end": t_end})
 
             if not actual_row or actual_row["max_rain"] is None:
                 skipped += 1
                 continue
 
             actual_class = _mm_to_class(float(actual_row["max_rain"]))
-            matched.append((nea_class, actual_class))
+            matched.append({
+                "nea": nea_class,
+                "actual": actual_class,
+                "region": region or "unknown",
+                "nea_text": nea_text,
+            })
 
         if not matched:
             return {
                 "status": "insufficient_overlap",
                 "message": (
                     "NEA forecasts found but no matching weather_records in the same time windows. "
-                    f"Skipped {skipped} periods. Check that both collectors are running and "
-                    "the database has data from the same time range."
+                    f"Checked {len(forecasts)} forecast periods, skipped {skipped}. "
+                    "Ensure both the forecast collector and data collector are running."
                 ),
                 "n_forecast_periods": len(forecasts),
                 "n_skipped": skipped,
@@ -626,69 +672,77 @@ async def get_nea_benchmark() -> Dict:
 
         # 3. Compute metrics
         n = len(matched)
-        y_nea    = [x[0] for x in matched]
-        y_actual = [x[1] for x in matched]
+        y_nea    = [x["nea"]    for x in matched]
+        y_actual = [x["actual"] for x in matched]
 
         # 4-class accuracy
-        four_class_correct = sum(a == b for a, b in zip(y_nea, y_actual))
+        four_class_correct  = sum(a == b for a, b in zip(y_nea, y_actual))
         four_class_accuracy = four_class_correct / n
 
         # Binary: 0 = no rain, 1 = any rain
         y_nea_bin    = [1 if c > 0 else 0 for c in y_nea]
         y_actual_bin = [1 if c > 0 else 0 for c in y_actual]
-        binary_correct = sum(a == b for a, b in zip(y_nea_bin, y_actual_bin))
+        binary_correct  = sum(a == b for a, b in zip(y_nea_bin, y_actual_bin))
         binary_accuracy = binary_correct / n
 
-        # Binary rain recall (did NEA predict rain when it actually rained?)
         actual_rain_periods = sum(1 for c in y_actual_bin if c == 1)
-        nea_caught_rain = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 1 and b == 1)
-        rain_recall = nea_caught_rain / actual_rain_periods if actual_rain_periods > 0 else None
-
-        # Binary rain precision (when NEA said rain, was it right?)
-        nea_said_rain = sum(1 for c in y_nea_bin if c == 1)
-        rain_precision = nea_caught_rain / nea_said_rain if nea_said_rain > 0 else None
-
-        # False negative rate (NEA said dry, actually rained)
-        false_negatives = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 0 and b == 1)
-        false_negative_rate = false_negatives / actual_rain_periods if actual_rain_periods > 0 else None
-
-        # Per-class breakdown
-        from collections import Counter
-        nea_dist    = dict(Counter(y_nea))
-        actual_dist = dict(Counter(y_actual))
-
-        # 2×2 binary confusion matrix [[TN, FP], [FN, TP]]
+        nea_said_rain       = sum(1 for c in y_nea_bin   if c == 1)
+        tp = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 1 and b == 1)
         tn = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 0 and b == 0)
         fp = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 1 and b == 0)
-        fn = false_negatives
-        tp = nea_caught_rain
-        binary_cm = [[tn, fp], [fn, tp]]
+        fn = sum(1 for a, b in zip(y_nea_bin, y_actual_bin) if a == 0 and b == 1)
+
+        rain_recall         = tp / actual_rain_periods  if actual_rain_periods > 0 else None
+        rain_precision      = tp / nea_said_rain        if nea_said_rain > 0        else None
+        false_negative_rate = fn / actual_rain_periods  if actual_rain_periods > 0 else None
+
+        # Per-region breakdown
+        region_stats = {}
+        for rname in list(REGION_BOUNDS.keys()) + ["unknown"]:
+            subset = [x for x in matched if x["region"] == rname]
+            if not subset:
+                continue
+            s_nea = [x["nea"] for x in subset]
+            s_act = [x["actual"] for x in subset]
+            s_nea_b = [1 if c > 0 else 0 for c in s_nea]
+            s_act_b = [1 if c > 0 else 0 for c in s_act]
+            s_tp = sum(1 for a, b in zip(s_nea_b, s_act_b) if a == 1 and b == 1)
+            s_fn = sum(1 for a, b in zip(s_nea_b, s_act_b) if a == 0 and b == 1)
+            s_rain = sum(1 for c in s_act_b if c == 1)
+            region_stats[rname] = {
+                "n": len(subset),
+                "four_class_accuracy": round(sum(a == b for a, b in zip(s_nea, s_act)) / len(subset), 4),
+                "binary_accuracy": round(sum(a == b for a, b in zip(s_nea_b, s_act_b)) / len(subset), 4),
+                "rain_recall": round(s_tp / s_rain, 4) if s_rain > 0 else None,
+                "missed_rain": s_fn,
+            }
 
         return {
             "status": "ok",
             "n_matched_periods": n,
             "n_skipped": skipped,
-            "note": (
-                "Actual = MAX rainfall across all Singapore stations per NEA forecast window. "
-                "This is the most conservative comparison: NEA predicts 'dry' but ANY station "
-                "recording rain counts as actual rain."
+            "methodology": (
+                "Per-region: NEA forecast for each of 5 regions compared to MAX rainfall "
+                "from NEA weather stations within that region's bounding box. "
+                "Same 4-class thresholds as ML model (< 0.1 / 7.6 / 30 mm/hr)."
             ),
             "four_class": {
                 "accuracy": round(four_class_accuracy, 4),
                 "correct": four_class_correct,
                 "total": n,
-                "nea_class_distribution": {str(k): v for k, v in sorted(nea_dist.items())},
-                "actual_class_distribution": {str(k): v for k, v in sorted(actual_dist.items())},
+                "nea_class_distribution":    {str(k): v for k, v in sorted(Counter(y_nea).items())},
+                "actual_class_distribution": {str(k): v for k, v in sorted(Counter(y_actual).items())},
             },
             "binary": {
-                "accuracy": round(binary_accuracy, 4),
-                "rain_precision": round(rain_precision, 4) if rain_precision is not None else None,
-                "rain_recall": round(rain_recall, 4) if rain_recall is not None else None,
+                "accuracy":            round(binary_accuracy, 4),
+                "rain_precision":      round(rain_precision, 4)      if rain_precision      is not None else None,
+                "rain_recall":         round(rain_recall, 4)         if rain_recall         is not None else None,
                 "false_negative_rate": round(false_negative_rate, 4) if false_negative_rate is not None else None,
-                "confusion_matrix": binary_cm,
-                "n_actual_rain_periods": actual_rain_periods,
-                "n_nea_predicted_rain": nea_said_rain,
+                "confusion_matrix":    [[tn, fp], [fn, tp]],
+                "n_actual_rain_periods":  actual_rain_periods,
+                "n_nea_predicted_rain":   nea_said_rain,
             },
+            "by_region": region_stats,
         }
 
     except Exception as e:

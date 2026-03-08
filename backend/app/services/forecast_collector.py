@@ -69,145 +69,127 @@ class ForecastCollector:
         logger.info(f"Total forecasts collected: {len(all_forecasts)}")
         return all_forecasts
     
+    # NEA region → approximate centroid coordinates for Singapore's 5 regions
+    # Used to associate forecasts with weather stations for benchmarking
+    _NEA_REGION_COORDS = {
+        "north":   {"lat": 1.4184, "lon": 103.8200},
+        "south":   {"lat": 1.2700, "lon": 103.8198},
+        "east":    {"lat": 1.3236, "lon": 103.9600},
+        "west":    {"lat": 1.3500, "lon": 103.7000},
+        "central": {"lat": 1.3521, "lon": 103.8198},
+    }
+
     async def fetch_singapore_forecast(self) -> List[Dict]:
         """
-        Fetch Singapore NEA 24-hour weather forecast.
-        
-        Uses the existing fetch_nea_forecast() logic from DataCollector.
-        
+        Fetch Singapore NEA 24-hour weather forecast — per region.
+
+        The v1 public API (api.data.gov.sg/v1) returns 3 time periods × 5 regions
+        (north/south/east/west/central), each with its own forecast condition.
+        We store all 15 records so the NEA benchmark can compare per-region.
+
+        Falls back to v2 (requires no auth for now) if v1 fails.
+
         Returns:
-            List of forecast dictionaries with standardized format
+            List of forecast dictionaries (~15 per call)
         """
-        logger.info("🌤️ Fetching Singapore NEA forecast...")
-        
+        logger.info("🌤️ Fetching Singapore NEA 24h forecast (per region)...")
+
+        # v1 API is public and returns per-region data
+        url = "https://api.data.gov.sg/v1/environment/24-hour-weather-forecast"
+
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-            url = f"{self.singapore_base_url}/v2/real-time/api/twenty-four-hour-weather-forecast"
-            
             try:
                 async with session.get(url) as response:
                     response.raise_for_status()
                     data = await response.json()
-                    
+
                 forecasts = self._parse_singapore_forecast(data)
-                logger.info(f"Parsed {len(forecasts)} Singapore forecast periods")
+                logger.info(f"Parsed {len(forecasts)} Singapore NEA per-region forecast records")
                 return forecasts
-                
+
             except Exception as e:
                 logger.error(f"Failed to fetch Singapore forecast: {e}")
                 return []
-    
+
     def _parse_singapore_forecast(self, data: dict) -> List[Dict]:
         """
-        Parse Singapore NEA forecast API response.
-        
-        Args:
-            data: NEA API response
-            
-        Returns:
-            List of forecast dictionaries
+        Parse Singapore NEA v1 24-hour forecast API response.
+
+        Extracts per-region forecasts (north/south/east/west/central) for each
+        time period. Each region + period → one forecast record.
+
+        Response structure:
+            items[0].general   → overall Singapore temp/humidity/wind/condition
+            items[0].periods[] → list of time windows, each with .regions dict
         """
         forecasts = []
-        
+
         try:
-            records = data.get("data", {}).get("records", [])
-            if not records:
-                logger.warning("No forecast records in Singapore API response")
+            items = data.get("items", [])
+            if not items:
+                logger.warning("No items in Singapore NEA v1 forecast response")
                 return forecasts
-            
-            latest_record = records[0]
-            
-            # Parse prediction timestamp
-            timestamp_str = latest_record.get("timestamp")
-            if timestamp_str:
-                try:
-                    prediction_time = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    prediction_time = datetime.now()
-            else:
-                prediction_time = datetime.now()
-            
-            # Parse general forecast
-            general = latest_record.get("general", {})
-            forecast_text = general.get("forecast", "")
-            
-            # Parse temperature
-            temp = general.get("temperature", {})
-            temp_low = temp.get("low", 0)
-            temp_high = temp.get("high", 0)
-            
-            # Parse humidity
-            humidity = general.get("relative_humidity", {})
-            humidity_low = humidity.get("low", 0)
-            humidity_high = humidity.get("high", 0)
-            
-            # Parse wind
-            wind = general.get("wind", {})
+
+            item = items[0]
+            prediction_time = datetime.utcnow()
+
+            # General (Singapore-wide) metadata
+            general = item.get("general", {})
+            temp       = general.get("temperature", {})
+            humidity   = general.get("relative_humidity", {})
+            wind       = general.get("wind", {})
             wind_speed = wind.get("speed", {})
+
+            temp_low       = temp.get("low", 0)
+            temp_high      = temp.get("high", 0)
+            humidity_low   = humidity.get("low", 0)
+            humidity_high  = humidity.get("high", 0)
             wind_speed_low = wind_speed.get("low", 0)
-            wind_speed_high = wind_speed.get("high", 0)
+            wind_speed_high= wind_speed.get("high", 0)
             wind_direction = wind.get("direction", "")
-            
-            # Parse forecast periods
-            periods = latest_record.get("periods", [])
-            
-            if periods:
-                for period in periods:
-                    time_info = period.get("time", {})
-                    start_str = time_info.get("start")
-                    end_str = time_info.get("end")
-                    
-                    if start_str and end_str:
-                        try:
-                            target_time_start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-                            target_time_end = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
-                        except (ValueError, AttributeError):
-                            continue
-                        
-                        forecast = {
-                            "country": "singapore",
-                            "location": "Singapore",
-                            "latitude": 1.3521,
-                            "longitude": 103.8198,
-                            "prediction_time": prediction_time.isoformat(),
-                            "target_time_start": target_time_start.isoformat(),
-                            "target_time_end": target_time_end.isoformat(),
-                            "temperature_low": temp_low,
-                            "temperature_high": temp_high,
-                            "humidity_low": humidity_low,
-                            "humidity_high": humidity_high,
-                            "wind_speed_low": wind_speed_low,
-                            "wind_speed_high": wind_speed_high,
-                            "wind_direction": wind_direction,
-                            "forecast_description": forecast_text,
-                            "source_api": "nea"
-                        }
-                        
-                        forecasts.append(forecast)
-            else:
-                # No periods, create single 24-hour forecast
-                target_time_start = prediction_time
-                target_time_end = prediction_time + timedelta(hours=24)
-                
-                forecast = {
-                    "country": "singapore",
-                    "location": "Singapore",
-                    "latitude": 1.3521,
-                    "longitude": 103.8198,
-                    "prediction_time": prediction_time.isoformat(),
-                    "target_time_start": target_time_start.isoformat(),
-                    "target_time_end": target_time_end.isoformat(),
-                    "temperature_low": temp_low,
-                    "temperature_high": temp_high,
-                    "humidity_low": humidity_low,
-                    "humidity_high": humidity_high,
-                    "wind_speed_low": wind_speed_low,
-                    "wind_speed_high": wind_speed_high,
-                    "wind_direction": wind_direction,
-                    "forecast_description": forecast_text,
-                    "source_api": "nea"
-                }
-                
-                forecasts.append(forecast)
+
+            periods = item.get("periods", [])
+            if not periods:
+                logger.warning("No periods in NEA forecast response")
+                return forecasts
+
+            for period in periods:
+                time_info = period.get("time", {})
+                start_str = time_info.get("start")
+                end_str   = time_info.get("end")
+                if not start_str or not end_str:
+                    continue
+
+                try:
+                    target_start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    target_end   = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    continue
+
+                regions = period.get("regions", {})
+
+                # One record per region per period (5 regions × 3 periods = 15 records per call)
+                for region_name, region_forecast in regions.items():
+                    coords = self._NEA_REGION_COORDS.get(region_name, {"lat": 1.3521, "lon": 103.8198})
+                    forecasts.append({
+                        "country": "singapore",
+                        "location": f"Singapore ({region_name.capitalize()})",
+                        "latitude": coords["lat"],
+                        "longitude": coords["lon"],
+                        "nea_region": region_name,
+                        "prediction_time": prediction_time.isoformat(),
+                        "target_time_start": target_start.isoformat(),
+                        "target_time_end": target_end.isoformat(),
+                        "temperature_low": temp_low,
+                        "temperature_high": temp_high,
+                        "humidity_low": humidity_low,
+                        "humidity_high": humidity_high,
+                        "wind_speed_low": wind_speed_low,
+                        "wind_speed_high": wind_speed_high,
+                        "wind_direction": wind_direction,
+                        "forecast_description": region_forecast,
+                        "source_api": "nea",
+                    })
         
         except Exception as e:
             logger.error(f"Error parsing Singapore forecast: {e}")
