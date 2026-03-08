@@ -2,9 +2,11 @@ import os
 import logging
 import asyncio
 import sys
+import time
+from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables from .env file
@@ -587,6 +589,107 @@ async def remove_duplicates(dry_run: bool = True):
             "success": False,
             "error": str(e)
         }
+
+
+# ---------------------------------------------------------------------------
+# Retrain state (in-memory, single process)
+# ---------------------------------------------------------------------------
+_retrain_state: dict = {
+    "status": "idle",       # idle | running | done | error
+    "started_at": None,
+    "finished_at": None,
+    "log_tail": [],         # last N lines of stdout+stderr
+    "pid": None,
+}
+
+
+@app.post("/admin/retrain")
+async def trigger_retrain(
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
+):
+    """
+    Trigger ML model retraining in the background.
+
+    Protected by the ADMIN_SECRET environment variable.
+    Pass it as the X-Admin-Secret request header.
+
+    Training reads historical NEA CSV files from nea_historical_data/.
+    On Railway, ensure those CSVs are present in the mounted volume.
+
+    Returns immediately with {"status": "started"} if training begins,
+    or {"status": "running", ...} if a run is already in progress.
+
+    Poll GET /admin/retrain-status to check progress.
+    """
+    expected = os.getenv("ADMIN_SECRET")
+    if not expected or x_admin_secret != expected:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+
+    if _retrain_state["status"] == "running":
+        return {
+            "status": "already_running",
+            "started_at": _retrain_state["started_at"],
+            "pid": _retrain_state["pid"],
+        }
+
+    # Launch training subprocess
+    async def _run_training():
+        _retrain_state["status"] = "running"
+        _retrain_state["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        _retrain_state["finished_at"] = None
+        _retrain_state["log_tail"] = []
+        _retrain_state["pid"] = None
+
+        backend_dir = str(Path(__file__).parent.parent)
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "ml.train_full_analysis",
+            cwd=backend_dir,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        _retrain_state["pid"] = proc.pid
+        log_lines = []
+
+        async for raw_line in proc.stdout:
+            line = raw_line.decode("utf-8", errors="replace").rstrip()
+            log_lines.append(line)
+            if len(log_lines) > 200:
+                log_lines.pop(0)
+            _retrain_state["log_tail"] = log_lines[-50:]
+
+        await proc.wait()
+        _retrain_state["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if proc.returncode == 0:
+            _retrain_state["status"] = "done"
+            logger.info("Retrain job completed successfully")
+        else:
+            _retrain_state["status"] = "error"
+            logger.error(f"Retrain job failed (exit {proc.returncode})")
+
+    asyncio.create_task(_run_training())
+
+    return {
+        "status": "started",
+        "message": "Training running in background. Poll /admin/retrain-status for progress.",
+    }
+
+
+@app.get("/admin/retrain-status")
+async def retrain_status(
+    x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
+):
+    """Check the status of the most recent retrain job."""
+    expected = os.getenv("ADMIN_SECRET")
+    if not expected or x_admin_secret != expected:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+
+    return {
+        "status": _retrain_state["status"],
+        "started_at": _retrain_state["started_at"],
+        "finished_at": _retrain_state["finished_at"],
+        "pid": _retrain_state["pid"],
+        "log_tail": _retrain_state["log_tail"],
+    }
 
 
 @app.on_event("startup")
