@@ -239,6 +239,16 @@ if __name__ == "__main__":
     import os
     import sys
     
+    # Load .env file manually if it exists
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+    
     # Get API key from environment variable or command line
     api_key = os.getenv("DATA_GOV_SG_API_KEY")
     

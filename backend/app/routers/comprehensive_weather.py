@@ -6,21 +6,34 @@ router = APIRouter(prefix="/weather", tags=["weather"])
 
 
 @router.get("/comprehensive/{location_id}")
-def get_comprehensive_weather(location_id: int):
+def get_comprehensive_weather(location_id: str, lat: float = None, lng: float = None):
     """Get comprehensive weather data including temperature, humidity, wind, etc."""
-    import sqlite3
     
-    DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
-    con.close()
-    
-    if row is None:
-        raise HTTPException(status_code=404, detail="Location not found")
-    
-    latitude = row["latitude"]
-    longitude = row["longitude"]
+    # If lat/lng provided, use them directly (for client-side locations)
+    if lat is not None and lng is not None:
+        latitude = lat
+        longitude = lng
+    else:
+        # Otherwise, try to look up in database (for server-side locations)
+        import sqlite3
+        
+        DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
+        con = sqlite3.connect(DB_PATH)
+        con.row_factory = sqlite3.Row
+        
+        try:
+            location_id_int = int(location_id)
+            row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id_int,)).fetchone()
+            con.close()
+            
+            if row is None:
+                raise HTTPException(status_code=404, detail="Location not found. Please provide lat and lng parameters.")
+            
+            latitude = row["latitude"]
+            longitude = row["longitude"]
+        except ValueError:
+            con.close()
+            raise HTTPException(status_code=400, detail="Invalid location_id. Please provide lat and lng parameters.")
     
     api_key = os.getenv("WEATHER_API_KEY")
     client = SingaporeWeatherClient(api_key=api_key)

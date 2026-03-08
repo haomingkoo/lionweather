@@ -87,7 +87,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     const fetchComprehensiveData = async () => {
       try {
         setIsLoading(true);
-        const data = await request(`/weather/comprehensive/${location.id}`);
+        const data = await request(
+          `/weather/comprehensive/${location.id}?lat=${location.latitude}&lng=${location.longitude}`,
+        );
         setComprehensiveData(data);
       } catch (err) {
         // Silently handle error - non-critical
