@@ -59,7 +59,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
   ] : [];
 
   return (
-    <div style={{ maxWidth: `${W}px` }}>
+    <div style={{ width: "100%" }}>
       {label && <p className="text-white/50 text-xs mb-1">{label}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
         {yLabels.map(({ val, y }, i) => (
@@ -412,7 +412,7 @@ function StackedBarChart({ years, stacks, height = 70 }) {
   const LABEL_H = 12;
   const SVG_H = height + LABEL_H;
   return (
-    <div style={{ maxWidth: `${W}px` }}>
+    <div style={{ width: "100%" }}>
       <svg width="100%" viewBox={`0 0 ${W} ${SVG_H}`} className="overflow-visible">
         {years.map((_y, xi) => {
           let cumY = height;

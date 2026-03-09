@@ -74,7 +74,7 @@ export function AnimatedRadarLayer({
     const refreshInterval = setInterval(fetchFrames, 5 * 60 * 1000);
 
     return () => clearInterval(refreshInterval);
-  }, [visible, onError]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Preload all frame images before starting animation (Requirement 6.2, 6.3)
   const preloadImages = async (frameList) => {
@@ -184,13 +184,6 @@ export function AnimatedRadarLayer({
     });
     overlay.addTo(map);
     overlayRef.current = overlay;
-
-    return () => {
-      if (overlayRef.current) {
-        map.removeLayer(overlayRef.current);
-        overlayRef.current = null;
-      }
-    };
   }, [map, currentIndex, preloadedImages, visible]);
 
   // Don't render if not visible

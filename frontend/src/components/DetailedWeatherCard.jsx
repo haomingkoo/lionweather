@@ -473,51 +473,72 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         </div>
       </div>
 
-      {/* N-Day Forecast — only render when we have data */}
-      {dailyForecast.length > 0 && (
-      <div
-        className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-      >
-        <h3
-          className={`text-xs font-semibold ${tertiaryTextColor} uppercase tracking-wide mb-2`}
-        >
-          {dailyForecast.length}-Day Forecast
-        </h3>
-        <div className="space-y-1">
-          {dailyForecast.map((day, i) => {
-            const badge = day.rainCategory
-              ? { label: day.rainCategory, color: "text-sky-300 bg-sky-500/20" }
-              : getRainBadge(day.condition);
-            return (
-              <div key={i} className="flex items-center justify-between py-0.5">
-                <div className="flex items-center gap-2 w-24">
-                  <span className={`text-sm font-medium ${textColor} w-10 shrink-0`}>
-                    {day.dayName}
-                  </span>
-                  {badge && (
-                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${badge.color}`}>
-                      {badge.label}
+      {/* N-Day Forecast — Apple Weather style */}
+      {dailyForecast.length > 0 && (() => {
+        const validLows  = dailyForecast.map(d => d.low).filter(v => v !== null);
+        const validHighs = dailyForecast.map(d => d.high).filter(v => v !== null);
+        const weekMin = validLows.length  ? Math.min(...validLows)  : 24;
+        const weekMax = validHighs.length ? Math.max(...validHighs) : 34;
+        const weekRange = Math.max(weekMax - weekMin, 1);
+        return (
+          <div className={`rounded-2xl backdrop-blur-2xl p-3 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}>
+            <h3 className={`text-xs font-semibold ${tertiaryTextColor} uppercase tracking-wide mb-2`}>
+              {dailyForecast.length}-Day Forecast
+            </h3>
+            <div className="space-y-0.5">
+              {dailyForecast.map((day, i) => {
+                const iconKey = getWeatherIcon(day.condition);
+                const DayIcon = iconMap[iconKey] || Cloud;
+                const isRainy = ["CloudRain", "CloudLightning"].includes(iconKey);
+                const iconColor = iconKey === "Sun" ? "text-amber-400"
+                  : iconKey === "CloudSun" ? "text-amber-300"
+                  : iconKey === "CloudLightning" ? "text-purple-400"
+                  : "text-sky-300";
+                const low  = day.low  !== null ? Math.round(day.low)  : null;
+                const high = day.high !== null ? Math.round(day.high) : null;
+                const barLeft  = low  !== null ? ((low  - weekMin) / weekRange) * 100 : 0;
+                const barWidth = (low !== null && high !== null) ? ((high - low) / weekRange) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-2 py-0.5">
+                    {/* Day name */}
+                    <span className={`text-sm font-medium ${textColor} w-9 shrink-0`}>
+                      {day.dayName}
                     </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 flex-1 justify-center">
-                  <span className={`text-[9px] ${tertiaryTextColor}`}>{day.source}</span>
-                  <div className="h-1 w-16 bg-gradient-to-r from-blue-400 to-orange-400 rounded-full opacity-60" />
-                </div>
-                <div className="flex gap-2 w-14 justify-end">
-                  <span className={`text-xs ${tertiaryTextColor}`}>
-                    {day.low !== null ? `${Math.round(day.low)}°` : "—"}
-                  </span>
-                  <span className={`text-xs ${textColor} font-medium`}>
-                    {day.high !== null ? `${Math.round(day.high)}°` : "—"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      )}
+                    {/* Weather icon */}
+                    <div className="w-8 flex flex-col items-center shrink-0">
+                      <DayIcon className={`h-4 w-4 ${iconColor}`} strokeWidth={1.5} />
+                      {isRainy && (
+                        <span className="text-[9px] text-sky-300 leading-none mt-0.5">
+                          {day.rainCategory ? day.rainCategory.replace("Thundery","") || "—" : "—"}
+                        </span>
+                      )}
+                    </div>
+                    {/* Low temp */}
+                    <span className={`text-xs ${tertiaryTextColor} w-6 text-right shrink-0`}>
+                      {low !== null ? `${low}°` : "—"}
+                    </span>
+                    {/* Proportional range bar */}
+                    <div className="flex-1 relative h-1.5 rounded-full overflow-hidden" style={{ background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }}>
+                      <div
+                        className="absolute h-full rounded-full"
+                        style={{
+                          left: `${barLeft}%`,
+                          width: `${Math.max(barWidth, 4)}%`,
+                          background: "linear-gradient(to right, #fb923c, #f59e0b)",
+                        }}
+                      />
+                    </div>
+                    {/* High temp */}
+                    <span className={`text-xs font-semibold ${textColor} w-6 shrink-0`}>
+                      {high !== null ? `${high}°` : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ML Forecast Comparison */}
       <MLForecastComparison location={location} isDark={isDark} />

@@ -56,9 +56,11 @@ def predict_weather(hours: int = 24):
     # Generate predictions
     predictions = forecaster.predict_next_hours(sensor_data, hours)
     
+    from datetime import datetime as _dt
     return {
         "model_version": "ensemble_v1",
         "based_on_timestamp": sensor_data["timestamp"],
+        "generated_at": _dt.now().isoformat(),
         "predictions": predictions,
         "metadata": {
             "model_type": "ensemble",

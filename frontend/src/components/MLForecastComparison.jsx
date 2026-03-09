@@ -220,10 +220,10 @@ export function MLForecastComparison({ isDark = false }) {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Updated:</span>
+                      <span>Generated:</span>
                       <span className={secondaryTextColor}>
                         {new Date(
-                          mlForecast.based_on_timestamp,
+                          mlForecast.generated_at || mlForecast.based_on_timestamp,
                         ).toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
