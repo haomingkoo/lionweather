@@ -133,13 +133,52 @@ def load_actual_rainfall_year(year: int) -> pd.DataFrame | None:
     return result[["window_start", "mean_station_mm", "actual_binary"]]
 
 
-# ── DB weather_records for ML features ───────────────────────────────────────
+# ── Historical weather records for ML features ────────────────────────────────
+# Priority: parquet cache (2016-2024, same source as training) → DB fallback
 
-def load_db_weather_records() -> pd.DataFrame:
+CACHE_DIR = Path("models/cache")
+
+def load_historical_weather() -> pd.DataFrame:
     """
-    Load hourly Singapore-wide averages from DB.
-    Returns DataFrame indexed by Asia/Singapore timezone timestamps.
+    Load hourly Singapore-wide averages used for ML feature construction.
+
+    Tries the parquet cache produced by train_full_analysis.py first
+    (covers 2016-2024, same data used for training). Falls back to DB
+    weather_records (live data from 2024-03-18 onwards) if cache is missing.
+
+    Returns DataFrame with columns [temperature, rainfall, humidity, wind_speed]
+    indexed by Asia/Singapore timezone timestamps.
     """
+    parquet_files = {
+        "rainfall":    CACHE_DIR / "rainfall_hourly.parquet",
+        "temperature": CACHE_DIR / "temperature_hourly.parquet",
+        "humidity":    CACHE_DIR / "humidity_hourly.parquet",
+        "wind_speed":  CACHE_DIR / "wind_speed_hourly.parquet",
+    }
+
+    if all(p.exists() for p in parquet_files.values()):
+        log.info("Loading weather history from parquet cache (2016-2024)…")
+        series = {}
+        for col, path in parquet_files.items():
+            s = pd.read_parquet(path).squeeze()
+            s.index = pd.DatetimeIndex(s.index)
+            if s.index.tz is None:
+                s.index = s.index.tz_localize("Asia/Singapore")
+            else:
+                s.index = s.index.tz_convert("Asia/Singapore")
+            series[col] = s
+
+        df = pd.DataFrame(series)
+        df = df.resample("1h").mean().ffill().bfill()
+        log.info(f"Cache: {len(df)} hourly rows  {df.index.min()} → {df.index.max()}")
+        return df
+
+    # Fallback: DB (only covers 2024-03-18 onwards)
+    log.warning("Parquet cache not found — falling back to DB weather_records")
+    return _load_db_weather_records()
+
+
+def _load_db_weather_records() -> pd.DataFrame:
     sys.path.insert(0, str(Path(__file__).parent))
     from app.db.database import get_engine
     from sqlalchemy import text
@@ -165,7 +204,6 @@ def load_db_weather_records() -> pd.DataFrame:
         "wind_speed":  row[4] or 0.0,
     } for row in rows])
 
-    # Normalise timezone: assume UTC if naive
     if df["timestamp"].dt.tz is None:
         df["timestamp"] = df["timestamp"].dt.tz_localize("UTC")
     df["timestamp"] = df["timestamp"].dt.tz_convert("Asia/Singapore")
@@ -464,7 +502,7 @@ def summarise(yearly: list[dict]) -> dict:
 
 def main():
     log.info("Starting historical benchmark")
-    db_df  = load_db_weather_records()
+    db_df  = load_historical_weather()
     models = load_ml_models()
 
     yearly = []
