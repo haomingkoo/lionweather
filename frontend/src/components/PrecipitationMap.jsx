@@ -92,6 +92,13 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
   const [radarFrames, setRadarFrames] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   const textColor = isDark ? "text-white" : "text-slate-900";
 
   // Generate timestamps for last 12 frames (1 hour at 5-minute intervals)
@@ -227,7 +234,7 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
       >
         {/* Header */}
         <div
-          className={`absolute top-0 left-0 right-0 z-10 p-4 ${isDark ? "bg-gradient-to-b from-slate-900/90 to-transparent" : "bg-gradient-to-b from-white/90 to-transparent"}`}
+          className={`absolute top-0 left-0 right-0 z-[1500] p-4 ${isDark ? "bg-gradient-to-b from-slate-900/90 to-transparent" : "bg-gradient-to-b from-white/90 to-transparent"}`}
         >
           <div className="flex items-center justify-between">
             <div>
