@@ -862,7 +862,7 @@ export function MLAnalysisDashboard() {
       )}
 
       {/* 1. EDA */}
-      <Section key={`eda-${selectedVar}`} icon={BarChart3} title="Exploratory Data Analysis" forceOpen={allOpen}>
+      <Section icon={BarChart3} title="Exploratory Data Analysis" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
@@ -1050,7 +1050,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 2. ACF / PACF */}
-      <Section key={`acf-${selectedVar}`} icon={Activity} title="ACF / PACF (Autocorrelation)" forceOpen={allOpen}>
+      <Section icon={Activity} title="ACF / PACF (Autocorrelation)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
@@ -1124,7 +1124,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 3. Spectral / FFT */}
-      <Section key={`fft-${selectedVar}`} icon={Waves} title="Frequency Analysis (FFT Periodogram)" forceOpen={allOpen}>
+      <Section icon={Waves} title="Frequency Analysis (FFT Periodogram)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
