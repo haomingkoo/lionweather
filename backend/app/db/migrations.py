@@ -270,7 +270,55 @@ def migrate_add_weather_code():
     con.close()
 
 
+def migrate_rain_forecast_log():
+    """Create rain_forecast_log table for logging live ML rain predictions and scoring them against actuals."""
+    database_url = get_database_url()
+    is_postgres = database_url.startswith("postgresql")
+    id_column = "id SERIAL PRIMARY KEY" if is_postgres else "id INTEGER PRIMARY KEY AUTOINCREMENT"
+
+    con = get_connection()
+    cursor = con.cursor()
+
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS rain_forecast_log (
+            {id_column},
+            prediction_time TEXT NOT NULL,
+            target_time TEXT NOT NULL,
+            horizon_h INTEGER NOT NULL,
+            predicted_class INTEGER NOT NULL,
+            predicted_label TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            prob_no_rain REAL,
+            prob_light_rain REAL,
+            prob_heavy_rain REAL,
+            prob_thundery REAL,
+            -- scored fields (filled in later)
+            actual_rainfall REAL,
+            actual_class INTEGER,
+            correct INTEGER,
+            binary_correct INTEGER,
+            scored_at TEXT,
+            UNIQUE(prediction_time, horizon_h)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rain_log_target
+        ON rain_forecast_log(target_time, scored_at)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rain_log_horizon
+        ON rain_forecast_log(horizon_h, scored_at)
+    """)
+
+    con.commit()
+    con.close()
+    print("rain_forecast_log table created successfully")
+
+
 if __name__ == "__main__":
     migrate_ml_tables()
     migrate_forecast_tables()
     migrate_add_weather_code()
+    migrate_rain_forecast_log()

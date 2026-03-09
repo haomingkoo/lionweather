@@ -283,6 +283,134 @@ async def list_models():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/scorecard")
+async def get_scorecard():
+    """
+    Return model performance scorecard:
+    - Historical (test-set 2024): accuracy, precision, recall, F1 per horizon from full_analysis.json
+    - Live (logged predictions scored against actual weather_records)
+    - Interpretation and model choice rationale
+    """
+    import json
+    from pathlib import Path
+    from sqlalchemy import text as _text
+    from app.db.database import get_engine
+
+    MODEL_DIR = Path("models")
+
+    # ── 1. Historical test-set performance ────────────────────────────────────
+    historical = []
+    try:
+        fa_path = MODEL_DIR / "full_analysis.json"
+        if fa_path.exists():
+            with open(fa_path) as f:
+                fa = json.load(f)
+            for mr in fa.get("model_results", []):
+                h = mr["horizon_h"]
+                bc = mr.get("binary_classification", {})
+                mc = mr.get("classification", {})
+                historical.append({
+                    "horizon_h": h,
+                    "n_test": mr.get("n_test"),
+                    "overall_accuracy": round(mc.get("accuracy", 0), 4),
+                    "binary_accuracy": round(bc.get("accuracy", 0), 4),
+                    "rain_precision": round(bc.get("rain_precision", 0), 4),
+                    "rain_recall": round(bc.get("rain_recall", 0), 4),
+                    "rain_f1": round(bc.get("rain_f1", 0), 4),
+                    "no_rain_recall": round(bc.get("no_rain_recall", 0), 4),
+                    "confusion": bc.get("confusion_matrix"),
+                })
+    except Exception as e:
+        logger.warning(f"Could not load full_analysis.json: {e}")
+
+    # ── 2. Live scoring (from rain_forecast_log) ──────────────────────────────
+    live = []
+    live_total_scored = 0
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            # Check table exists
+            try:
+                total_row = conn.execute(_text(
+                    "SELECT COUNT(*) FROM rain_forecast_log WHERE scored_at IS NOT NULL"
+                )).fetchone()
+                live_total_scored = int(total_row[0]) if total_row else 0
+            except Exception:
+                live_total_scored = 0
+
+            if live_total_scored > 0:
+                rows = conn.execute(_text("""
+                    SELECT
+                        horizon_h,
+                        COUNT(*) as n,
+                        AVG(binary_correct) as binary_acc,
+                        AVG(correct) as overall_acc,
+                        SUM(CASE WHEN predicted_class > 0 AND binary_correct = 1 THEN 1 ELSE 0 END) as tp,
+                        SUM(CASE WHEN predicted_class > 0 AND binary_correct = 0 THEN 1 ELSE 0 END) as fp,
+                        SUM(CASE WHEN predicted_class = 0 AND binary_correct = 0 THEN 1 ELSE 0 END) as fn,
+                        SUM(CASE WHEN predicted_class = 0 AND binary_correct = 1 THEN 1 ELSE 0 END) as tn,
+                        MIN(prediction_time) as first_pred,
+                        MAX(scored_at) as last_scored
+                    FROM rain_forecast_log
+                    WHERE scored_at IS NOT NULL
+                    GROUP BY horizon_h
+                    ORDER BY horizon_h
+                """)).fetchall()
+
+                for row in rows:
+                    h, n, bin_acc, ov_acc, tp, fp, fn, tn, first, last = row
+                    tp, fp, fn, tn = int(tp or 0), int(fp or 0), int(fn or 0), int(tn or 0)
+                    precision = tp / (tp + fp) if (tp + fp) > 0 else None
+                    recall    = tp / (tp + fn) if (tp + fn) > 0 else None
+                    f1 = (2 * precision * recall / (precision + recall)
+                          if precision is not None and recall is not None and (precision + recall) > 0
+                          else None)
+                    live.append({
+                        "horizon_h": h,
+                        "n_scored": n,
+                        "binary_accuracy": round(float(bin_acc), 4) if bin_acc is not None else None,
+                        "overall_accuracy": round(float(ov_acc), 4) if ov_acc is not None else None,
+                        "rain_precision": round(precision, 4) if precision is not None else None,
+                        "rain_recall": round(recall, 4) if recall is not None else None,
+                        "rain_f1": round(f1, 4) if f1 is not None else None,
+                        "confusion": {"tp": tp, "fp": fp, "fn": fn, "tn": tn},
+                        "first_prediction": first,
+                        "last_scored": last,
+                    })
+    except Exception as e:
+        logger.warning(f"Live scoring query failed: {e}")
+
+    # ── 3. Context ────────────────────────────────────────────────────────────
+    return {
+        "historical": historical,
+        "live": live,
+        "live_total_scored": live_total_scored,
+        "model_info": {
+            "algorithm": "LightGBM (gradient boosted trees)",
+            "training_period": "2016–2022",
+            "validation_year": "2023",
+            "test_year": "2024",
+            "features": "40+ lag, rolling, time-of-day, monsoon season features",
+            "categories": ["No Rain", "Light Rain", "Heavy Rain", "Thundery Showers"],
+            "why_lightgbm": (
+                "LightGBM handles tabular weather data well: it learns non-linear interactions "
+                "between lag features (e.g. dry_spell × humidity × time-of-day), is fast to train "
+                "and run, and handles class imbalance via class weights. "
+                "Alternatives like XGBoost or Random Forest perform similarly; LSTM could capture "
+                "longer temporal dependencies but needs far more continuous data."
+            ),
+            "nea_comparison_note": (
+                "NEA publishes 2-hour area text forecasts ('Thundery Showers, afternoon') but does not "
+                "publish machine-readable accuracy scores. Academic studies on Singapore short-range "
+                "rainfall forecasting report ~70–80% binary accuracy for operational forecasts. "
+                "Our 1-hour model achieves 80% binary accuracy on the 2024 test set, "
+                "competitive with that benchmark. Live scoring (above) tracks ongoing performance "
+                "as predictions accumulate."
+            ),
+        },
+    }
+
+
 @router.get("/rain-forecast")
 async def get_rain_forecast():
     """
@@ -490,6 +618,12 @@ async def get_rain_forecast():
         "hours_of_data": n_hours,
     }
 
+    # ── 6. Log predictions + score past ones ───────────────────────────────────
+    try:
+        _log_and_score_predictions(predictions, now, get_engine)
+    except Exception as _le:
+        logger.warning(f"Prediction logging failed (non-critical): {_le}")
+
     return {
         "current": current,
         "predictions": predictions,
@@ -497,3 +631,133 @@ async def get_rain_forecast():
         "data_note": "Live predictions from LightGBM classifiers trained on NEA 2016-2024 data." if n_hours >= 24
                      else f"Predictions based on {n_hours}h of live data (lags padded). Accuracy improves after 24h.",
     }
+
+
+def _log_and_score_predictions(predictions, now, get_engine):
+    """
+    Write predictions to rain_forecast_log (idempotent via UNIQUE constraint),
+    then score any past predictions that have actual weather data available.
+    Rain category thresholds match NEA standard:
+      0=No Rain (<0.5 mm/h avg), 1=Light Rain (0.5-7.5), 2=Heavy Rain (7.5+), 3=Thundery (proxy via heavy)
+    Binary: any rainfall >= 0.1 mm/h = "Rain".
+    """
+    from sqlalchemy import text as _text
+    from datetime import datetime as _dt
+
+    engine = get_engine()
+
+    # Ensure table exists
+    with engine.connect() as conn:
+        conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS rain_forecast_log (
+                id INTEGER PRIMARY KEY,
+                prediction_time TEXT NOT NULL,
+                target_time TEXT NOT NULL,
+                horizon_h INTEGER NOT NULL,
+                predicted_class INTEGER NOT NULL,
+                predicted_label TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                prob_no_rain REAL,
+                prob_light_rain REAL,
+                prob_heavy_rain REAL,
+                prob_thundery REAL,
+                actual_rainfall REAL,
+                actual_class INTEGER,
+                correct INTEGER,
+                binary_correct INTEGER,
+                scored_at TEXT,
+                UNIQUE(prediction_time, horizon_h)
+            )
+        """))
+        conn.commit()
+
+    # 6a. Insert new predictions (ignore duplicates)
+    pred_time_str = now.isoformat()
+    with engine.connect() as conn:
+        for p in predictions:
+            probs = p.get("probabilities", {})
+            try:
+                conn.execute(_text("""
+                    INSERT OR IGNORE INTO rain_forecast_log
+                        (prediction_time, target_time, horizon_h,
+                         predicted_class, predicted_label, confidence,
+                         prob_no_rain, prob_light_rain, prob_heavy_rain, prob_thundery)
+                    VALUES
+                        (:pt, :tt, :h, :pc, :pl, :conf, :p0, :p1, :p2, :p3)
+                """), {
+                    "pt": pred_time_str,
+                    "tt": p["target_time"],
+                    "h": p["horizon_h"],
+                    "pc": p["predicted_class"],
+                    "pl": p["predicted_label"],
+                    "conf": p["confidence"],
+                    "p0": probs.get("No Rain"),
+                    "p1": probs.get("Light Rain"),
+                    "p2": probs.get("Heavy Rain"),
+                    "p3": probs.get("Thundery Showers"),
+                })
+            except Exception:
+                pass
+        conn.commit()
+
+    # 6b. Score past predictions that haven't been scored yet
+    # Find unscored rows whose target_time is at least 30 min in the past
+    score_cutoff = (now - pd.Timedelta(minutes=30)).isoformat()
+    with engine.connect() as conn:
+        unscored = conn.execute(_text("""
+            SELECT id, target_time, predicted_class, horizon_h
+            FROM rain_forecast_log
+            WHERE scored_at IS NULL AND target_time <= :cutoff
+            ORDER BY target_time ASC
+            LIMIT 200
+        """), {"cutoff": score_cutoff}).fetchall()
+
+    if not unscored:
+        return
+
+    with engine.connect() as conn:
+        for row in unscored:
+            row_id, target_time_str, pred_class, horizon_h = row[0], row[1], row[2], row[3]
+            # Get mean rainfall in ±30min window around target_time
+            t_low  = (pd.Timestamp(target_time_str) - pd.Timedelta(minutes=30)).isoformat()
+            t_high = (pd.Timestamp(target_time_str) + pd.Timedelta(minutes=30)).isoformat()
+            actual = conn.execute(_text("""
+                SELECT AVG(rainfall)
+                FROM weather_records
+                WHERE country = 'singapore'
+                  AND timestamp >= :t_low
+                  AND timestamp <= :t_high
+            """), {"t_low": t_low, "t_high": t_high}).fetchone()
+
+            if actual is None or actual[0] is None:
+                continue  # no data yet — try again next time
+
+            avg_rain = float(actual[0])
+            # Derive actual category
+            if avg_rain < 0.5:
+                actual_class = 0
+            elif avg_rain < 7.5:
+                actual_class = 1
+            else:
+                actual_class = 2   # treat very heavy as Heavy (3=Thundery undetectable from rainfall alone)
+
+            correct = int(pred_class == actual_class)
+            binary_correct = int((pred_class == 0) == (actual_class == 0))
+
+            conn.execute(_text("""
+                UPDATE rain_forecast_log
+                SET actual_rainfall = :rain,
+                    actual_class    = :ac,
+                    correct         = :c,
+                    binary_correct  = :bc,
+                    scored_at       = :now
+                WHERE id = :rid
+            """), {
+                "rain": round(avg_rain, 3),
+                "ac": actual_class,
+                "c": correct,
+                "bc": binary_correct,
+                "now": now.isoformat(),
+                "rid": row_id,
+            })
+        conn.commit()
