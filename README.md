@@ -8,24 +8,35 @@ Live: [weather.kooexperience.com](https://weather.kooexperience.com)
 
 ## What it does
 
-- **Real-time conditions** — pulls from Singapore's [data.gov.sg](https://api-open.data.gov.sg) every 10 minutes: temperature, rainfall, humidity, wind speed
-- **4-day official forecast** — NEA's 4-day outlook; extended days filled with Open-Meteo
-- **Rain category labels** — each forecast day is labelled No Rain / Light Rain / Heavy + Thundery, aligned to NEA's categories
-- **Smart notifications** — browser push alerts only when rain starts or clears (no spam)
+- **Real-time conditions** — pulls from Singapore's [data.gov.sg](https://api-open.data.gov.sg) every 10 minutes: temperature, rainfall, humidity, wind speed/direction, UV index, visibility, pressure
+- **7-day forecast** — NEA 4-day outlook (Tue–Fri) + today's data from Open-Meteo, extended to 7 days; days labelled by actual SGT date (no mislabelling)
+- **Hourly forecast** — next 24 hours from Open-Meteo with weather icons and precip probability; sunset/sunrise slots inserted chronologically
+- **Weather detail cards** — Feels Like (Steadman heat index), Humidity (dew point), Wind (compass, hidden when no direction), Rainfall (NEA intensity legend), Visibility, Pressure, UV Index
+- **Sunrise / Sunset card** — live arc tracking sun position; after sunset flips to "Sunrise Tomorrow" with a night arc and moon dot
+- **Rainfall intensity legend** — Light / Moderate / Heavy / Intense colour dots on both the Rainfall card and the Map radar controls
+- **Rain category labels** — each forecast day labelled No Rain / Light Rain / Heavy + Thundery, aligned to NEA's categories
 - **NEA area name snapping** — pins resolve to the nearest official NEA neighbourhood (Ang Mo Kio, Tampines, etc.)
-- **Radar** — animated rain area radar from weather.gov.sg
-- **ML Analysis Dashboard** — EDA, ACF/PACF, FFT spectral analysis, SHAP feature importance, confusion matrix, training loss curves
-- **NEA benchmark** — ML model performance evaluated per-region vs NEA official forecasts, with ML+NEA ensemble
+- **Radar** — animated rain area radar from weather.gov.sg with scrub slider and intensity legend; play button works on mobile
+- **ML-Powered Forecast** — 6-hour ensemble prediction displayed in-card with generated time shown in SGT
+- **ML Analysis Dashboard** — full data science view:
+  - EDA: annual rainfall, rain category breakdown (with interpretation), temperature trend, STL decomposition (with interpretation)
+  - ACF/PACF: variable-specific interpretations for rainfall, temperature, humidity, wind speed
+  - FFT spectral analysis and spurious correlations
+  - Training Loss Curves with per-curve health notes and interpretation
+  - SHAP feature importance
+  - Classification performance: confusion matrix, precision/recall/F2
+  - NEA benchmark tables sorted by Rain F2 descending
+- **Geolocation** — single browser prompt (no double-ask); location stored in browser only, never sent to server
 
 ---
 
 ## How to use the app
 
-1. **Open** [weather.kooexperience.com](https://weather.kooexperience.com) — a prompt appears asking for your location
-2. **Allow location** to get your current neighbourhood's weather automatically (stays in your browser, never sent to a server)
-3. **Add locations** — type coordinates or drop a pin on Map View; names snap to official NEA neighbourhood names
-4. **View forecast** — click any card to see NEA forecast with rain labels, hourly breakdown, radar, and weather details
-5. **ML Dashboard** — shows time-series analysis, SHAP feature importance, and accuracy metrics
+1. **Open** [weather.kooexperience.com](https://weather.kooexperience.com)
+2. **Add your location** — click "📍 Use my location" in the sidebar; your browser will ask once for permission. Your location stays in your browser — never sent to our servers.
+3. **Add more locations** — type a place name or drop a pin on Map View; names snap to official NEA neighbourhood names
+4. **View forecast** — click any card to see NEA forecast with rain labels, hourly breakdown, radar, and detailed weather cards
+5. **ML Dashboard** — shows time-series analysis, SHAP feature importance, training loss curves, and accuracy metrics vs NEA
 6. **Notifications** — allow browser notifications to get rain start/clear alerts at tracked locations
 
 ---
@@ -37,9 +48,10 @@ Live: [weather.kooexperience.com](https://weather.kooexperience.com)
 | Frontend | React 18 + Vite + Tailwind CSS |
 | Backend | FastAPI + PostgreSQL (Railway) / SQLite (local) |
 | ML | LightGBM + SHAP + statsmodels |
+| Sun times | SunCalc (pure JS, no API) |
 | Rate limiting | slowapi |
 | Deployment | Railway (separate frontend + backend services) |
-| Data | Singapore data.gov.sg API (NEA) |
+| Data | Singapore data.gov.sg API (NEA) + Open-Meteo |
 
 ---
 
@@ -50,13 +62,18 @@ lionweather/
 ├── frontend/
 │   └── src/
 │       ├── components/             # UI components
+│       │   ├── DetailedWeatherCard.jsx   # Forecast + detail cards + sun arc
+│       │   ├── WeatherMap.jsx            # Leaflet map + NEA radar overlay
+│       │   ├── MLAnalysisDashboard.jsx   # Full ML analysis view
+│       │   └── MLForecastComparison.jsx  # In-card ML 6h forecast
 │       ├── hooks/useLocations.jsx  # Location state, weather refresh, notifications
 │       ├── api/                    # API client functions
+│       ├── utils/sunTimes.js       # SunCalc sunrise/sunset/tomorrow helpers
 │       └── pages/Dashboard.jsx
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                 # FastAPI app, CORS, startup, scheduler, admin endpoints
-│   │   ├── routers/                # API endpoints
+│   │   ├── routers/                # API endpoints (forecasts, ml_forecast, environmental…)
 │   │   ├── services/               # Data collection, radar, weather API
 │   │   ├── db/                     # SQLite + migrations
 │   │   └── ml/                     # ML scheduler, prediction engine
