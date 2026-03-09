@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { LocationForm } from "../components/LocationForm";
 import { EnhancedLocationList } from "../components/EnhancedLocationList";
 import { WeatherMap } from "../components/WeatherMap";
-import { MLDashboard } from "../components/MLDashboard";
+import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { GeolocationPrompt } from "../components/GeolocationPrompt";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
@@ -103,7 +103,7 @@ export function Dashboard() {
 
       {/* Hero Section */}
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-blue-400 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-bold mb-4">
           LionWeather Lab
         </h1>
         <p className="text-slate-400 text-lg mb-8">
@@ -166,7 +166,7 @@ export function Dashboard() {
         )}
         <div className="max-w-6xl mx-auto">
           {view === "map" && <WeatherMap />}
-          {view === "ml" && <MLDashboard isDark={true} />}
+          {view === "ml" && <MLAnalysisDashboard isDark={true} />}
         </div>
       </div>
     </div>
