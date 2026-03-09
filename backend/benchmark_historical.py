@@ -253,11 +253,11 @@ def build_features(hist: pd.DataFrame) -> dict:
         "cos_day_of_year":   np.cos(2 * np.pi * doy / 365),
         # Derived
         "rained_last1h":     int(lag("rainfall", 1) >= 0.1),
-        "rained_last3h":     int(any(lag("rainfall", i) >= 0.1 for i in range(1, 4))),
+        "rained_last3h":     int(roll_sum("rainfall", 6) > 0.3),
         "dry_spell_hours":   dry_spell,
         "rain_streak_hours": rain_streak,
-        "hum_deficit":       max(0.0, 80.0 - hum),
-        "hum_temp_product":  hum * temp,
+        "hum_deficit":       100.0 - hum,
+        "hum_temp_product":  hum * temp / 100.0,
         "wind_accel_3h":     wind_now - wind_3ago,
         "is_inter_monsoon":  int(month in [4, 5, 10, 11]),
         "is_afternoon_peak": int(13 <= hour <= 17),
@@ -359,9 +359,6 @@ def benchmark_year(year: int, db_df: pd.DataFrame, models: dict) -> dict | None:
     if db_df.empty or not models:
         log.info(f"  ML: no DB data or models — skipping")
     else:
-        db_start = db_df.index.min()
-        db_end   = db_df.index.max()
-
         # Only windows where we have enough DB history for the longest lag (24h)
         # For horizon h, prediction time = window_start - h hours
         for h, bundle in models.items():

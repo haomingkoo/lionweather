@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-09T13:09:05.446134",
+  "generated_at": "2026-03-09T13:27:55.945895",
   "methodology": {
     "time_unit": "2-hour NEA forecast windows",
     "space_unit": "Singapore-wide aggregate",
@@ -37,34 +37,34 @@
     "ml_by_horizon": {
       "1": {
         "lead_time_h": 1,
-        "mean_accuracy": 0.5353,
-        "mean_f1": 0.1011,
-        "hybrid_mean_accuracy": 0.5353,
-        "hybrid_mean_f1": 0.1011,
+        "mean_accuracy": 0.6163,
+        "mean_f1": 0.1145,
+        "hybrid_mean_accuracy": 0.6163,
+        "hybrid_mean_f1": 0.1145,
         "n_years": 1
       },
       "3": {
         "lead_time_h": 3,
-        "mean_accuracy": 0.424,
-        "mean_f1": 0.1362,
-        "hybrid_mean_accuracy": 0.424,
-        "hybrid_mean_f1": 0.1362,
+        "mean_accuracy": 0.6286,
+        "mean_f1": 0.167,
+        "hybrid_mean_accuracy": 0.6286,
+        "hybrid_mean_f1": 0.167,
         "n_years": 1
       },
       "6": {
         "lead_time_h": 6,
-        "mean_accuracy": 0.5859,
-        "mean_f1": 0.1724,
-        "hybrid_mean_accuracy": 0.5859,
-        "hybrid_mean_f1": 0.1724,
+        "mean_accuracy": 0.752,
+        "mean_f1": 0.1613,
+        "hybrid_mean_accuracy": 0.752,
+        "hybrid_mean_f1": 0.1613,
         "n_years": 1
       },
       "12": {
         "lead_time_h": 12,
-        "mean_accuracy": 0.7475,
-        "mean_f1": 0.2106,
-        "hybrid_mean_accuracy": 0.7475,
-        "hybrid_mean_f1": 0.2106,
+        "mean_accuracy": 0.7841,
+        "mean_f1": 0.1473,
+        "hybrid_mean_accuracy": 0.7841,
+        "hybrid_mean_f1": 0.1473,
         "n_years": 1
       }
     }
@@ -308,21 +308,21 @@
           "lead_time_h": 1,
           "ml": {
             "n": 3062,
-            "accuracy": 0.5353,
-            "rain_recall": 0.273,
-            "rain_precision": 0.062,
-            "specificity": 0.563,
-            "f1": 0.1011,
+            "accuracy": 0.6163,
+            "rain_recall": 0.2594,
+            "rain_precision": 0.0735,
+            "specificity": 0.654,
+            "f1": 0.1145,
             "rain_events": 293,
             "no_rain_events": 2769
           },
           "hybrid": {
             "n": 3062,
-            "accuracy": 0.5353,
-            "rain_recall": 0.273,
-            "rain_precision": 0.062,
-            "specificity": 0.563,
-            "f1": 0.1011,
+            "accuracy": 0.6163,
+            "rain_recall": 0.2594,
+            "rain_precision": 0.0735,
+            "specificity": 0.654,
+            "f1": 0.1145,
             "rain_events": 293,
             "no_rain_events": 2769
           }
@@ -332,21 +332,21 @@
           "lead_time_h": 3,
           "ml": {
             "n": 3061,
-            "accuracy": 0.424,
-            "rain_recall": 0.4744,
-            "rain_precision": 0.0795,
-            "specificity": 0.4187,
-            "f1": 0.1362,
+            "accuracy": 0.6286,
+            "rain_recall": 0.3891,
+            "rain_precision": 0.1063,
+            "specificity": 0.6539,
+            "f1": 0.167,
             "rain_events": 293,
             "no_rain_events": 2768
           },
           "hybrid": {
             "n": 3061,
-            "accuracy": 0.424,
-            "rain_recall": 0.4744,
-            "rain_precision": 0.0795,
-            "specificity": 0.4187,
-            "f1": 0.1362,
+            "accuracy": 0.6286,
+            "rain_recall": 0.3891,
+            "rain_precision": 0.1063,
+            "specificity": 0.6539,
+            "f1": 0.167,
             "rain_events": 293,
             "no_rain_events": 2768
           }
@@ -356,21 +356,21 @@
           "lead_time_h": 6,
           "ml": {
             "n": 3060,
-            "accuracy": 0.5859,
-            "rain_recall": 0.4505,
-            "rain_precision": 0.1066,
-            "specificity": 0.6003,
-            "f1": 0.1724,
+            "accuracy": 0.752,
+            "rain_recall": 0.2491,
+            "rain_precision": 0.1193,
+            "specificity": 0.8052,
+            "f1": 0.1613,
             "rain_events": 293,
             "no_rain_events": 2767
           },
           "hybrid": {
             "n": 3060,
-            "accuracy": 0.5859,
-            "rain_recall": 0.4505,
-            "rain_precision": 0.1066,
-            "specificity": 0.6003,
-            "f1": 0.1724,
+            "accuracy": 0.752,
+            "rain_recall": 0.2491,
+            "rain_precision": 0.1193,
+            "specificity": 0.8052,
+            "f1": 0.1613,
             "rain_events": 293,
             "no_rain_events": 2767
           }
@@ -380,21 +380,21 @@
           "lead_time_h": 12,
           "ml": {
             "n": 3057,
-            "accuracy": 0.7475,
-            "rain_recall": 0.3515,
-            "rain_precision": 0.1504,
-            "specificity": 0.7894,
-            "f1": 0.2106,
+            "accuracy": 0.7841,
+            "rain_recall": 0.1945,
+            "rain_precision": 0.1185,
+            "specificity": 0.8466,
+            "f1": 0.1473,
             "rain_events": 293,
             "no_rain_events": 2764
           },
           "hybrid": {
             "n": 3057,
-            "accuracy": 0.7475,
-            "rain_recall": 0.3515,
-            "rain_precision": 0.1504,
-            "specificity": 0.7894,
-            "f1": 0.2106,
+            "accuracy": 0.7841,
+            "rain_recall": 0.1945,
+            "rain_precision": 0.1185,
+            "specificity": 0.8466,
+            "f1": 0.1473,
             "rain_events": 293,
             "no_rain_events": 2764
           }
