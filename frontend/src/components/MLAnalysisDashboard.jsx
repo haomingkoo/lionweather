@@ -844,29 +844,6 @@ export function MLAnalysisDashboard() {
         </div>
       </div>
 
-      {/* Variable selector */}
-      <div className="space-y-1">
-        <div className="flex flex-wrap gap-2">
-          {varNames.map((v) => (
-            <button
-              key={v}
-              onClick={() => setSelectedVar(v)}
-              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
-                selectedVar === v
-                  ? "bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/25"
-                  : "bg-white/5 border-white/15 text-white/50 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-        <p className="text-white/30 text-[10px]">
-          Selected variable filters: <span className="text-white/50">EDA · ACF/PACF · Frequency Analysis</span>
-          {" "}— Climate Trends and Model Performance always show rainfall.
-        </p>
-      </div>
-
       {/* Expand / Collapse all */}
       <div className="flex justify-end">
         <button
