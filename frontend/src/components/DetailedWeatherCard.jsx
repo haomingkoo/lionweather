@@ -13,7 +13,6 @@ import {
   Sunrise,
   Sunset,
   ThermometerSun,
-  Navigation,
   MapPin,
   Zap,
 } from "lucide-react";
@@ -335,6 +334,56 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     : "No active rainfall."
     : null;
 
+  // Parse a time string like "7:18 PM" → minutes since midnight
+  const parseTimeStr = (s) => {
+    const m = (s || "").match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+    return h * 60 + min;
+  };
+
+  // Sunset arc progress (0–1) based on current time between sunrise and sunset
+  const sunriseMin = parseTimeStr(sunTimes.sunrise);
+  const sunsetMin  = parseTimeStr(sunTimes.sunset);
+  const nowMin     = new Date().getHours() * 60 + new Date().getMinutes();
+  const sunProgress = (sunriseMin !== null && sunsetMin !== null && sunsetMin > sunriseMin)
+    ? Math.max(0, Math.min(1, (nowMin - sunriseMin) / (sunsetMin - sunriseMin)))
+    : 0.5;
+
+  // UV — "Use sun protection until X" (2h before sunset for UV≥3, 1h for UV≥6)
+  const uvProtectionUntil = (() => {
+    if (uv === null || uv < 3 || sunsetMin === null) return null;
+    const offsetMins = uv >= 6 ? 60 : 120;
+    const safeMin = sunsetMin - offsetMins;
+    const sh = Math.floor(safeMin / 60);
+    const sm = safeMin % 60;
+    const period = sh >= 12 ? "PM" : "AM";
+    const displayH = sh > 12 ? sh - 12 : sh === 0 ? 12 : sh;
+    return `${displayH}:${sm.toString().padStart(2, "0")} ${period}`;
+  })();
+
+  // Next rainy day from forecast
+  const nextRainDay = (() => {
+    if (!dailyForecast.length) return null;
+    const rainy = dailyForecast.find((d, i) => {
+      if (i === 0) return false; // skip today
+      const c = (d.condition || "").toLowerCase();
+      return c.includes("rain") || c.includes("shower") || c.includes("thunder");
+    });
+    return rainy ? rainy.dayName : null;
+  })();
+
+  // Wind direction degrees
+  const windDir = comprehensiveData?.wind_direction ?? null;
+  const windDirLabel = (() => {
+    if (windDir === null) return null;
+    const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+    return dirs[Math.round(windDir / 45) % 8];
+  })();
+
   // Generate commentary once we have data
   const commentary = generateCommentary({
     condition: location.weather.condition,
@@ -571,15 +620,45 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           );
         })()}
 
-        {/* Sunset */}
+        {/* Sunset — arc */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+          className={`rounded-3xl backdrop-blur-2xl p-3 transition-all duration-200 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <Sunset className={`h-4 w-4 text-orange-400`} />
+          <div className="flex items-center gap-2 mb-1">
+            <Sunset className="h-4 w-4 text-orange-400" />
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
           </div>
-          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+          <div className={`text-2xl font-light ${textColor} mb-2`}>{sunTimes.sunset}</div>
+          {/* Arc SVG */}
+          <svg viewBox="0 0 100 55" width="100%" className="overflow-visible">
+            {/* Horizon line */}
+            <line x1="5" y1="50" x2="95" y2="50" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+            {/* Arc path */}
+            <path d="M 5,50 A 45,45 0 0 1 95,50" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+            {/* Progress arc (orange) */}
+            {(() => {
+              const prog = Math.min(sunProgress, 0.999);
+              const ex = 50 - 45 * Math.cos(prog * Math.PI);
+              const ey = 50 - 45 * Math.sin(prog * Math.PI);
+              return (
+                <>
+                  <path d={`M 5,50 A 45,45 0 0 1 ${ex},${ey}`}
+                    fill="none" stroke="rgba(251,146,60,0.6)" strokeWidth="1.5" />
+                  {/* Sun dot */}
+                  <circle cx={ex} cy={ey} r="4" fill="#fb923c" opacity="0.9" />
+                  <circle cx={ex} cy={ey} r="7" fill="rgba(251,146,60,0.2)" />
+                </>
+              );
+            })()}
+            {/* Sunrise label */}
+            <text x="5" y="58" fontSize="6" fill="rgba(255,255,255,0.35)" textAnchor="middle" fontFamily="sans-serif">
+              {sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}
+            </text>
+            {/* Sunset label */}
+            <text x="95" y="58" fontSize="6" fill="rgba(255,255,255,0.35)" textAnchor="middle" fontFamily="sans-serif">
+              {sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}
+            </text>
+          </svg>
         </div>
 
         {/* Feels Like */}
@@ -609,26 +688,69 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           {humidityDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{humidityDesc}</p>}
         </div>
 
-        {/* Wind */}
+        {/* Wind — compass dial */}
         <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+          className={`rounded-3xl backdrop-blur-2xl p-3 transition-all duration-200 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Wind className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Wind</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed || 12}</div>
-            <span className={`text-base ${secondaryTextColor}`}>km/h</span>
-          </div>
-          {comprehensiveData?.wind_direction && (
-            <div className="flex items-center gap-2 mt-1">
-              <Navigation className={`h-3 w-3 ${tertiaryTextColor}`}
-                style={{ transform: `rotate(${comprehensiveData.wind_direction}deg)` }} />
-              <span className={`text-xs ${tertiaryTextColor}`}>{comprehensiveData.wind_direction}°</span>
+          <div className="flex items-center gap-3">
+            {/* Compass SVG */}
+            <svg viewBox="0 0 100 100" width="72" height="72" className="shrink-0">
+              <circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none" />
+              <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+              {/* Cardinal ticks */}
+              {[0,45,90,135,180,225,270,315].map(deg => {
+                const r = (deg - 90) * Math.PI / 180;
+                const inner = deg % 90 === 0 ? 33 : 37;
+                return <line key={deg}
+                  x1={50 + inner * Math.cos(r)} y1={50 + inner * Math.sin(r)}
+                  x2={50 + 43 * Math.cos(r)} y2={50 + 43 * Math.sin(r)}
+                  stroke={deg % 90 === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)"}
+                  strokeWidth={deg % 90 === 0 ? 1.5 : 0.8} />;
+              })}
+              {/* N/S/E/W labels */}
+              <text x="50" y="11" textAnchor="middle" fontSize="8" fontWeight="600" fill="rgba(255,255,255,0.85)" fontFamily="sans-serif">N</text>
+              <text x="50" y="96" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">S</text>
+              <text x="92" y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">E</text>
+              <text x="8"  y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">W</text>
+              {/* Arrow needle */}
+              {windDir !== null && (() => {
+                const rad = (windDir - 90) * Math.PI / 180;
+                const tipX = 50 + 28 * Math.cos(rad);
+                const tipY = 50 + 28 * Math.sin(rad);
+                const tailX = 50 - 14 * Math.cos(rad);
+                const tailY = 50 - 14 * Math.sin(rad);
+                // Arrowhead perpendicular points
+                const perpRad = rad + Math.PI / 2;
+                const hw = 4;
+                const ahX1 = tipX - 8 * Math.cos(rad) + hw * Math.cos(perpRad);
+                const ahY1 = tipY - 8 * Math.sin(rad) + hw * Math.sin(perpRad);
+                const ahX2 = tipX - 8 * Math.cos(rad) - hw * Math.cos(perpRad);
+                const ahY2 = tipY - 8 * Math.sin(rad) - hw * Math.sin(perpRad);
+                return (
+                  <g>
+                    <line x1={tailX} y1={tailY} x2={tipX} y2={tipY} stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                    <polygon points={`${tipX},${tipY} ${ahX1},${ahY1} ${ahX2},${ahY2}`} fill="white" opacity="0.9" />
+                    <line x1="50" y1="50" x2={tailX} y2={tailY} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
+                  </g>
+                );
+              })()}
+              {/* Center dot */}
+              <circle cx="50" cy="50" r="3" fill="white" opacity="0.6" />
+            </svg>
+            {/* Speed + direction label */}
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed ?? 12}</span>
+                <span className={`text-sm ${secondaryTextColor}`}>km/h</span>
+              </div>
+              {windDirLabel && <p className={`text-xs ${tertiaryTextColor}`}>{windDirLabel} · {windDir}°</p>}
+              {windDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{windDesc}</p>}
             </div>
-          )}
-          {windDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{windDesc}</p>}
+          </div>
         </div>
 
         {/* Rainfall */}
@@ -644,6 +766,11 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-base ${secondaryTextColor}`}>mm</span>
           </div>
           {rainfallDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{rainfallDesc}</p>}
+          {rainfall === 0 && nextRainDay && (
+            <p className={`text-xs ${tertiaryTextColor} mt-0.5 leading-snug`}>
+              Next expected on {nextRainDay}.
+            </p>
+          )}
         </div>
 
         {/* Visibility */}
@@ -689,8 +816,15 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <Zap className={`h-4 w-4 ${tertiaryTextColor}`} />
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>UV Index</span>
           </div>
-          <div className={`text-2xl font-light ${uvColor}`}>{Math.round(uv)}</div>
-          {uvDesc && <p className={`text-xs mt-1 leading-snug ${uvColor} opacity-80`}>{uvDesc}</p>}
+          <div className="flex items-baseline gap-2">
+            <div className={`text-2xl font-light ${uvColor}`}>{Math.round(uv)}</div>
+            {uvDesc && <span className={`text-xs ${uvColor} opacity-80`}>{uvDesc.split("—")[0].trim()}</span>}
+          </div>
+          {uvProtectionUntil && (
+            <p className={`text-xs ${tertiaryTextColor} mt-0.5 leading-snug`}>
+              Use sun protection until {uvProtectionUntil}.
+            </p>
+          )}
           {/* UV bar */}
           <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7)" }}>
             <div className="h-full w-1 bg-white rounded-full opacity-90" style={{ marginLeft: `${Math.min(Math.round(uv) / 12 * 100, 96)}%` }} />
