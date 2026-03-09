@@ -283,6 +283,151 @@ async def list_models():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/comparison")
+async def get_comparison():
+    """
+    Three-way comparison: NEA official forecast vs ML model vs Hybrid, all scored against actuals.
+
+    Returns:
+    - Per-horizon aggregate stats (binary accuracy for each of the 3 signals)
+    - Recent scored predictions showing per-row result
+    - Head-to-head: who was right/wrong when they disagreed
+    """
+    from sqlalchemy import text as _text
+    from app.db.database import get_engine
+
+    engine = get_engine()
+
+    try:
+        with engine.connect() as conn:
+            # Check if we have any scored data with NEA
+            total_row = conn.execute(_text(
+                "SELECT COUNT(*) FROM rain_forecast_log WHERE scored_at IS NOT NULL"
+            )).fetchone()
+            total_scored = int(total_row[0]) if total_row else 0
+
+            if total_scored == 0:
+                return {
+                    "total_scored": 0,
+                    "message": "No scored predictions yet. Predictions are logged each time the forecast is loaded and scored once their target time passes.",
+                    "by_horizon": [],
+                    "recent": [],
+                    "head_to_head": None,
+                }
+
+            # Aggregate stats by horizon
+            by_horizon = conn.execute(_text("""
+                SELECT
+                    horizon_h,
+                    COUNT(*) as n,
+                    AVG(binary_correct) as ml_binary_acc,
+                    AVG(CASE WHEN nea_binary IS NOT NULL AND nea_binary >= 0 THEN nea_correct END) as nea_binary_acc,
+                    AVG(hybrid_correct) as hybrid_binary_acc,
+                    SUM(CASE WHEN nea_binary IS NOT NULL AND nea_binary >= 0 THEN 1 ELSE 0 END) as n_with_nea,
+                    MIN(prediction_time) as first_pred
+                FROM rain_forecast_log
+                WHERE scored_at IS NOT NULL
+                GROUP BY horizon_h
+                ORDER BY horizon_h
+            """)).fetchall()
+
+            horizon_stats = []
+            for row in by_horizon:
+                h, n, ml_acc, nea_acc, hybrid_acc, n_nea, first = row
+                horizon_stats.append({
+                    "horizon_h": h,
+                    "n_scored": n,
+                    "n_with_nea": n_nea,
+                    "ml_binary_accuracy": round(float(ml_acc), 4) if ml_acc is not None else None,
+                    "nea_binary_accuracy": round(float(nea_acc), 4) if nea_acc is not None else None,
+                    "hybrid_binary_accuracy": round(float(hybrid_acc), 4) if hybrid_acc is not None else None,
+                    "first_prediction": first,
+                })
+
+            # Head-to-head: when ML and NEA disagreed, who was right?
+            disagree_row = conn.execute(_text("""
+                SELECT
+                    COUNT(*) as n_disagree,
+                    AVG(CAST(binary_correct AS REAL)) as ml_right_rate,
+                    AVG(CAST(nea_correct AS REAL)) as nea_right_rate
+                FROM rain_forecast_log
+                WHERE scored_at IS NOT NULL
+                  AND nea_binary IS NOT NULL AND nea_binary >= 0
+                  AND (predicted_class > 0) != (nea_binary > 0)
+            """)).fetchone()
+
+            head_to_head = None
+            if disagree_row and disagree_row[0]:
+                n_dis = int(disagree_row[0])
+                head_to_head = {
+                    "n_disagreements": n_dis,
+                    "ml_win_rate": round(float(disagree_row[1]), 4) if disagree_row[1] is not None else None,
+                    "nea_win_rate": round(float(disagree_row[2]), 4) if disagree_row[2] is not None else None,
+                }
+
+            # Recent predictions with all three signals
+            recent_rows = conn.execute(_text("""
+                SELECT
+                    target_time, horizon_h, predicted_label, predicted_class,
+                    nea_forecast_text, nea_binary,
+                    actual_rainfall, actual_class,
+                    binary_correct, nea_correct, hybrid_correct, confidence
+                FROM rain_forecast_log
+                WHERE scored_at IS NOT NULL
+                ORDER BY target_time DESC
+                LIMIT 50
+            """)).fetchall()
+
+            recent = []
+            for row in recent_rows:
+                (target_time, horizon_h, pred_label, pred_class,
+                 nea_text, nea_bin, actual_rain, actual_class,
+                 ml_ok, nea_ok, hybrid_ok, conf) = row
+
+                actual_label = ["No Rain", "Light Rain", "Heavy Rain"][actual_class] if actual_class is not None else "Unknown"
+                actual_binary = int(actual_class > 0) if actual_class is not None else None
+
+                recent.append({
+                    "target_time": target_time,
+                    "horizon_h": horizon_h,
+                    "ml": {
+                        "prediction": pred_label,
+                        "rain": bool(pred_class > 0),
+                        "confidence": round(float(conf), 3) if conf else None,
+                        "correct": bool(ml_ok) if ml_ok is not None else None,
+                    },
+                    "nea": {
+                        "forecast_text": nea_text,
+                        "rain": bool(nea_bin) if nea_bin is not None and nea_bin >= 0 else None,
+                        "correct": bool(nea_ok) if nea_ok is not None else None,
+                    },
+                    "hybrid": {
+                        "correct": bool(hybrid_ok) if hybrid_ok is not None else None,
+                    },
+                    "actual": {
+                        "label": actual_label,
+                        "rain": bool(actual_binary) if actual_binary is not None else None,
+                        "rainfall_mm": round(float(actual_rain), 2) if actual_rain is not None else None,
+                    },
+                })
+
+    except Exception as e:
+        logger.error(f"Comparison query failed: {e}")
+        return {"total_scored": 0, "error": str(e), "by_horizon": [], "recent": [], "head_to_head": None}
+
+    return {
+        "total_scored": total_scored,
+        "by_horizon": horizon_stats,
+        "head_to_head": head_to_head,
+        "recent": recent,
+        "note": (
+            "NEA comparison requires real NEA 24-hour area forecasts stored in forecast_data. "
+            "Forecasts are collected hourly going forward. Historical rows are placeholders and excluded. "
+            "Hybrid = 60% ML probability + 40% NEA binary signal."
+        ),
+    }
+
+
 @router.get("/scorecard")
 async def get_scorecard():
     """
@@ -633,20 +778,42 @@ async def get_rain_forecast():
     }
 
 
+def _nea_text_to_binary(text: str) -> int:
+    """
+    Map NEA 24-hour forecast text to binary rain (1) / no-rain (0).
+    NEA uses descriptions like "Thundery Showers", "Partly Cloudy (afternoon)", "Fair & Warm".
+    """
+    if not text:
+        return -1  # unknown
+    t = text.lower()
+    if any(w in t for w in ["rain", "shower", "thunder", "storm", "drizzle"]):
+        return 1
+    return 0
+
+
 def _log_and_score_predictions(predictions, now, get_engine):
     """
     Write predictions to rain_forecast_log (idempotent via UNIQUE constraint),
     then score any past predictions that have actual weather data available.
-    Rain category thresholds match NEA standard:
-      0=No Rain (<0.5 mm/h avg), 1=Light Rain (0.5-7.5), 2=Heavy Rain (7.5+), 3=Thundery (proxy via heavy)
-    Binary: any rainfall >= 0.1 mm/h = "Rain".
+
+    Scoring tracks three signals:
+      - ML model (our LightGBM)
+      - NEA 24-hour area forecast (official)
+      - Hybrid (weighted ensemble: 60% ML + 40% NEA)
+
+    All compared against actual weather_records (ground truth).
+
+    Rain category thresholds:
+      0 = No Rain  (avg rainfall < 0.5 mm/h)
+      1 = Light Rain (0.5–7.5 mm/h)
+      2 = Heavy Rain  (≥ 7.5 mm/h)
+    Binary: predicted_class > 0 = "Rain predicted".
     """
     from sqlalchemy import text as _text
-    from datetime import datetime as _dt
 
     engine = get_engine()
 
-    # Ensure table exists
+    # Ensure table exists with all columns (including NEA + hybrid)
     with engine.connect() as conn:
         conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS rain_forecast_log (
@@ -665,10 +832,27 @@ def _log_and_score_predictions(predictions, now, get_engine):
                 actual_class INTEGER,
                 correct INTEGER,
                 binary_correct INTEGER,
+                nea_forecast_text TEXT,
+                nea_binary INTEGER,
+                nea_correct INTEGER,
+                hybrid_binary INTEGER,
+                hybrid_correct INTEGER,
                 scored_at TEXT,
                 UNIQUE(prediction_time, horizon_h)
             )
         """))
+        # Add new columns to existing tables if they don't exist (safe ALTER TABLE)
+        for col, typedef in [
+            ("nea_forecast_text", "TEXT"),
+            ("nea_binary", "INTEGER"),
+            ("nea_correct", "INTEGER"),
+            ("hybrid_binary", "INTEGER"),
+            ("hybrid_correct", "INTEGER"),
+        ]:
+            try:
+                conn.execute(_text(f"ALTER TABLE rain_forecast_log ADD COLUMN {col} {typedef}"))
+            except Exception:
+                pass  # column already exists — fine
         conn.commit()
 
     # 6a. Insert new predictions (ignore duplicates)
@@ -685,27 +869,22 @@ def _log_and_score_predictions(predictions, now, get_engine):
                     VALUES
                         (:pt, :tt, :h, :pc, :pl, :conf, :p0, :p1, :p2, :p3)
                 """), {
-                    "pt": pred_time_str,
-                    "tt": p["target_time"],
-                    "h": p["horizon_h"],
-                    "pc": p["predicted_class"],
-                    "pl": p["predicted_label"],
+                    "pt": pred_time_str, "tt": p["target_time"], "h": p["horizon_h"],
+                    "pc": p["predicted_class"], "pl": p["predicted_label"],
                     "conf": p["confidence"],
-                    "p0": probs.get("No Rain"),
-                    "p1": probs.get("Light Rain"),
-                    "p2": probs.get("Heavy Rain"),
-                    "p3": probs.get("Thundery Showers"),
+                    "p0": probs.get("No Rain"), "p1": probs.get("Light Rain"),
+                    "p2": probs.get("Heavy Rain"), "p3": probs.get("Thundery Showers"),
                 })
             except Exception:
                 pass
         conn.commit()
 
     # 6b. Score past predictions that haven't been scored yet
-    # Find unscored rows whose target_time is at least 30 min in the past
     score_cutoff = (now - pd.Timedelta(minutes=30)).isoformat()
     with engine.connect() as conn:
         unscored = conn.execute(_text("""
-            SELECT id, target_time, predicted_class, horizon_h
+            SELECT id, target_time, predicted_class, horizon_h,
+                   prob_no_rain, prob_light_rain, prob_heavy_rain, prob_thundery
             FROM rain_forecast_log
             WHERE scored_at IS NULL AND target_time <= :cutoff
             ORDER BY target_time ASC
@@ -717,47 +896,69 @@ def _log_and_score_predictions(predictions, now, get_engine):
 
     with engine.connect() as conn:
         for row in unscored:
-            row_id, target_time_str, pred_class, horizon_h = row[0], row[1], row[2], row[3]
-            # Get mean rainfall in ±30min window around target_time
+            row_id = row[0]
+            target_time_str = row[1]
+            pred_class = row[2]
+            prob_no_rain = float(row[4] or 0.5)
+
             t_low  = (pd.Timestamp(target_time_str) - pd.Timedelta(minutes=30)).isoformat()
             t_high = (pd.Timestamp(target_time_str) + pd.Timedelta(minutes=30)).isoformat()
+
+            # ── Actual (ground truth) ──
             actual = conn.execute(_text("""
                 SELECT AVG(rainfall)
                 FROM weather_records
                 WHERE country = 'singapore'
-                  AND timestamp >= :t_low
-                  AND timestamp <= :t_high
+                  AND timestamp >= :t_low AND timestamp <= :t_high
             """), {"t_low": t_low, "t_high": t_high}).fetchone()
 
             if actual is None or actual[0] is None:
-                continue  # no data yet — try again next time
+                continue
 
             avg_rain = float(actual[0])
-            # Derive actual category
-            if avg_rain < 0.5:
-                actual_class = 0
-            elif avg_rain < 7.5:
-                actual_class = 1
-            else:
-                actual_class = 2   # treat very heavy as Heavy (3=Thundery undetectable from rainfall alone)
+            actual_class = 0 if avg_rain < 0.5 else (1 if avg_rain < 7.5 else 2)
+            actual_binary = int(actual_class > 0)
 
-            correct = int(pred_class == actual_class)
-            binary_correct = int((pred_class == 0) == (actual_class == 0))
+            ml_binary = int(pred_class > 0)
+            correct      = int(pred_class == actual_class)
+            binary_correct = int(ml_binary == actual_binary)
+
+            # ── NEA forecast ──
+            nea_row = conn.execute(_text("""
+                SELECT forecast_description FROM forecast_data
+                WHERE country = 'singapore'
+                  AND forecast_description NOT LIKE 'Historical%'
+                  AND target_time_start <= :tt AND target_time_end >= :tt
+                ORDER BY prediction_time DESC
+                LIMIT 1
+            """), {"tt": target_time_str}).fetchone()
+
+            nea_text   = nea_row[0] if nea_row else None
+            nea_binary = _nea_text_to_binary(nea_text) if nea_text else -1
+            nea_correct = int(nea_binary == actual_binary) if nea_binary >= 0 else None
+
+            # ── Hybrid (60% ML probability + 40% NEA) ──
+            ml_rain_prob = 1.0 - prob_no_rain  # ML probability of rain
+            if nea_binary >= 0:
+                hybrid_prob  = 0.6 * ml_rain_prob + 0.4 * float(nea_binary)
+            else:
+                hybrid_prob  = ml_rain_prob  # fall back to ML only
+            hybrid_binary  = int(hybrid_prob >= 0.5)
+            hybrid_correct = int(hybrid_binary == actual_binary)
 
             conn.execute(_text("""
                 UPDATE rain_forecast_log
-                SET actual_rainfall = :rain,
-                    actual_class    = :ac,
-                    correct         = :c,
-                    binary_correct  = :bc,
-                    scored_at       = :now
+                SET actual_rainfall = :rain, actual_class = :ac,
+                    correct = :c, binary_correct = :bc,
+                    nea_forecast_text = :nft, nea_binary = :nb, nea_correct = :nc,
+                    hybrid_binary = :hb, hybrid_correct = :hc,
+                    scored_at = :now
                 WHERE id = :rid
             """), {
-                "rain": round(avg_rain, 3),
-                "ac": actual_class,
-                "c": correct,
-                "bc": binary_correct,
-                "now": now.isoformat(),
-                "rid": row_id,
+                "rain": round(avg_rain, 3), "ac": actual_class,
+                "c": correct, "bc": binary_correct,
+                "nft": nea_text, "nb": nea_binary if nea_binary >= 0 else None,
+                "nc": nea_correct, "hb": hybrid_binary, "hc": hybrid_correct,
+                "now": now.isoformat(), "rid": row_id,
             })
         conn.commit()
