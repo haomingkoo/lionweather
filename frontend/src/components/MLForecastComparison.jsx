@@ -185,16 +185,16 @@ export function MLForecastComparison({ isDark = false }) {
                         <div className={`text-xl font-semibold ${textColor}`}>
                           {pred.temperature?.toFixed(0)}°
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-col items-center gap-0.5">
                           <span className={`text-xs ${tertiaryTextColor}`}>
-                            {(pred.confidence * 100).toFixed(0)}%
+                            {(pred.confidence * 100).toFixed(0)}% conf.
                           </span>
+                          {pred.rain_probability > 0 && (
+                            <span className="text-xs text-sky-400">
+                              {pred.rain_probability.toFixed(0)}% rain
+                            </span>
+                          )}
                         </div>
-                        {pred.rain_probability > 30 && (
-                          <div className="text-xs text-blue-400">
-                            {pred.rain_probability.toFixed(0)}% rain
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>

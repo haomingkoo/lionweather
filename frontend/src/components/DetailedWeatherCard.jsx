@@ -573,7 +573,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                   </span>
                   {/* Always show precip prob for consistent row height */}
                   <span className={`text-[9px] font-medium ${hour.precip_prob ? "text-sky-300" : "text-transparent"}`}>
-                    {hour.precip_prob != null ? `${hour.precip_prob}%` : "0%"}
+                    {hour.precip_prob != null ? `💧${hour.precip_prob}%` : "0%"}
                   </span>
                 </div>
               );
