@@ -38,12 +38,54 @@ function buildLocationName(result, originalQuery) {
   return isSingaporePostal ? `Postal ${originalQuery.trim()}` : parts[0] || "Unknown";
 }
 
+// Build a readable name from a OneMap result (BLK_NO + ROAD_NAME or BUILDING).
+function buildOneMapName(result, postalCode) {
+  const blk = (result.BLK_NO || "").trim();
+  const road = toTitleCase(result.ROAD_NAME || "");
+  const building = toTitleCase(result.BUILDING || "");
+
+  // Prefer "Blk 123 Road Name" if a block number exists
+  if (blk && blk !== "NIL" && road) return `Blk ${blk} ${road}`;
+  // Named building (not just the road repeated)
+  if (building && building !== "NIL" && building !== road) return building;
+  // Road name with postal code
+  if (road) return `${road} (${postalCode})`;
+  return `Postal ${postalCode}`;
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Geocode a Singapore postal code via OneMap (official SG geocoder).
+const geocodeSingaporePostal = async (postalCode) => {
+  const response = await fetch(
+    `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`,
+  );
+  if (!response.ok) throw new Error("OneMap request failed");
+  const data = await response.json();
+  if (!data.results || data.results.length === 0) return null;
+
+  return data.results.map((r) => ({
+    lat: parseFloat(r.LATITUDE),
+    lon: parseFloat(r.LONGITUDE),
+    display_name: r.ADDRESS,
+    name: buildOneMapName(r, postalCode),
+  }));
+};
+
 // Geocode postal code or place name to coordinates
 const geocodeLocation = async (query) => {
   try {
     const isSingaporePostal = /^\d{6}$/.test(query.trim());
-    const searchQuery = isSingaporePostal ? `${query.trim()}, Singapore` : query;
 
+    // For SG postal codes, try OneMap first (returns proper road/building names)
+    if (isSingaporePostal) {
+      const oneMapResults = await geocodeSingaporePostal(query.trim()).catch(() => null);
+      if (oneMapResults && oneMapResults.length > 0) return oneMapResults;
+    }
+
+    const searchQuery = isSingaporePostal ? `${query.trim()}, Singapore` : query;
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&countrycodes=sg,my,id&limit=5`,
       { headers: { "User-Agent": "LionWeather/1.0" } },
