@@ -1,20 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { LocationForm } from "../components/LocationForm";
 import { EnhancedLocationList } from "../components/EnhancedLocationList";
 import { WeatherMap } from "../components/WeatherMap";
 import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { MLLiveForecast } from "../components/MLLiveForecast";
-import { GeolocationPrompt } from "../components/GeolocationPrompt";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
 import { Github } from "lucide-react";
 
 export function Dashboard() {
   const [view, setView] = useState("list");
-  const [showGeolocationPrompt, setShowGeolocationPrompt] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState(null);
   const {
     locations,
-    getGeolocationPermissionState,
     addLocationFromGeolocation,
   } = useLocations();
 
@@ -23,31 +22,30 @@ export function Dashboard() {
     (loc) => loc.source === "geolocation",
   );
 
-  // Check if we should show the geolocation prompt on mount
-  useEffect(() => {
-    const permissionState = getGeolocationPermissionState();
-    // Show prompt only if no permission state exists (first visit)
-    if (!permissionState) {
-      setShowGeolocationPrompt(true);
-    }
-  }, [getGeolocationPermissionState]);
-
-  const handleLocationDetected = async (coords) => {
-    try {
-      await addLocationFromGeolocation(coords);
-      setShowGeolocationPrompt(false);
-    } catch (error) {
-      console.error("Failed to add location from geolocation:", error);
-      // Keep prompt open so user can try again or dismiss
-    }
-  };
-
-  const handleDismissPrompt = () => {
-    setShowGeolocationPrompt(false);
-  };
-
+  // Directly request geolocation — one browser prompt, no custom toast
   const handleAddCurrentLocation = () => {
-    setShowGeolocationPrompt(true);
+    if (!navigator.geolocation) {
+      setGeoError("Not supported by your browser.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await addLocationFromGeolocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        } catch (err) {
+          setGeoError("Could not load weather for your location.");
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      () => {
+        setGeoError("Location access denied.");
+        setGeoLoading(false);
+      },
+      { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false },
+    );
   };
 
   return (
@@ -60,13 +58,6 @@ export function Dashboard() {
         />
       )}
 
-      {/* Geolocation Prompt */}
-      {showGeolocationPrompt && (
-        <GeolocationPrompt
-          onLocationDetected={handleLocationDetected}
-          onDismiss={handleDismissPrompt}
-        />
-      )}
 
       {/* Header matching Handwriting Lab style */}
       <header className="border-b border-slate-800">
@@ -153,13 +144,26 @@ export function Dashboard() {
             sidebarHeader={
               <div className="space-y-3">
                 <LocationForm compact />
-                {!hasCurrentLocation && locations.length > 0 && (
-                  <button
-                    onClick={handleAddCurrentLocation}
-                    className="w-full px-4 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-sm font-medium transition-all"
-                  >
-                    📍 Use my location
-                  </button>
+                {!hasCurrentLocation && (
+                  <div>
+                    <button
+                      onClick={handleAddCurrentLocation}
+                      disabled={geoLoading}
+                      className="w-full px-4 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {geoLoading ? (
+                        <span className="w-3.5 h-3.5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                      ) : (
+                        "📍"
+                      )}
+                      {geoLoading ? "Detecting…" : "Use my location"}
+                    </button>
+                    {geoError ? (
+                      <p className="text-red-400 text-[11px] mt-1 text-center">{geoError}</p>
+                    ) : (
+                      <p className="text-slate-500 text-[11px] mt-1 text-center">Your location stays in your browser — never sent to our servers.</p>
+                    )}
+                  </div>
                 )}
               </div>
             }
