@@ -407,31 +407,47 @@ function CommentaryBox({ points, tip, variant = "indigo" }) {
 function StackedBarChart({ years, stacks, height = 70 }) {
   // stacks = [{ key, color, label }]
   if (!years || years.length === 0) return null;
-  const W = years.length * 28;
-  const H = height;
+  const BAR_W = 28;
+  const W = years.length * BAR_W;
+  const LABEL_H = 12;
+  const SVG_H = height + LABEL_H;
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
-      {years.map((_y, xi) => {
-        let cumY = H;
-        return stacks.map((s) => {
-          const pct = s.data[xi] ?? 0;
-          const barH = (pct / 100) * H;
-          cumY -= barH;
-          const rect = (
-            <rect
-              key={s.key}
-              x={xi * 28 + 2}
-              y={cumY}
-              width={24}
-              height={barH}
-              fill={s.color}
-              opacity={0.85}
-            />
-          );
-          return rect;
-        });
-      })}
-    </svg>
+    <div style={{ maxWidth: `${W}px` }}>
+      <svg width="100%" viewBox={`0 0 ${W} ${SVG_H}`} className="overflow-visible">
+        {years.map((_y, xi) => {
+          let cumY = height;
+          return stacks.map((s) => {
+            const pct = s.data[xi] ?? 0;
+            const barH = (pct / 100) * height;
+            cumY -= barH;
+            return (
+              <rect
+                key={s.key}
+                x={xi * BAR_W + 2}
+                y={cumY}
+                width={BAR_W - 4}
+                height={barH}
+                fill={s.color}
+                opacity={0.85}
+              />
+            );
+          });
+        })}
+        {years.map((y, xi) => (
+          <text
+            key={y}
+            x={xi * BAR_W + BAR_W / 2}
+            y={SVG_H - 1}
+            fontSize="7"
+            fill="#ffffff35"
+            textAnchor="middle"
+            fontFamily="monospace"
+          >
+            {y}
+          </text>
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -577,10 +593,12 @@ function ClimateTrendsSection({ ct }) {
         <p className="text-white/25 text-[10px] mb-1.5 italic">
           ⚠ Island-wide station aggregate — sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
         </p>
-        <MiniBarChart data={displayRainfallTotals} height={70} color="#60a5fa" />
-        <div className="flex justify-between text-white/30 text-[10px] mt-1">
-          {displayYears.map((y) => <span key={y}>{y}</span>)}
-        </div>
+        <MiniBarChart
+          data={displayRainfallTotals}
+          height={84}
+          color="#60a5fa"
+          xTicks={displayYears.map((y, i) => ({ label: String(y), index: i }))}
+        />
         {rTrend?.significant && (
           <p className="text-amber-300 text-[10px] mt-1">
             Trend: {rTrend.trend} {rTrend.slope_per_year > 0 ? "+" : ""}{rTrend.slope_per_year.toFixed(0)} mm/yr
@@ -604,9 +622,6 @@ function ClimateTrendsSection({ ct }) {
       <div>
         <p className="text-white/50 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
         <StackedBarChart years={displayYears} stacks={rainCatStacks} height={70} />
-        <div className="flex justify-between text-white/30 text-[10px] mt-1">
-          {displayYears.map((y) => <span key={y}>{y}</span>)}
-        </div>
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
             <div key={s.key} className="flex items-center gap-1">
@@ -817,6 +832,14 @@ export function MLAnalysisDashboard() {
 
       {/* 1. EDA */}
       <Section key={`eda-${selectedVar}`} icon={BarChart3} title="Exploratory Data Analysis">
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {varNames.map((v) => (
+            <button key={v} onClick={() => setSelectedVar(v)}
+              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              {v}
+            </button>
+          ))}
+        </div>
         {data.eda?.[selectedVar] && (() => {
           const e = data.eda[selectedVar];
           return (
@@ -958,6 +981,14 @@ export function MLAnalysisDashboard() {
 
       {/* 2. ACF / PACF */}
       <Section key={`acf-${selectedVar}`} icon={Activity} title="ACF / PACF (Autocorrelation)">
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {varNames.map((v) => (
+            <button key={v} onClick={() => setSelectedVar(v)}
+              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              {v}
+            </button>
+          ))}
+        </div>
         {data.acf_pacf?.[selectedVar] && (() => {
           const ap = data.acf_pacf[selectedVar];
           return (
@@ -1004,6 +1035,14 @@ export function MLAnalysisDashboard() {
 
       {/* 3. Spectral / FFT */}
       <Section key={`fft-${selectedVar}`} icon={Waves} title="Frequency Analysis (FFT Periodogram)">
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {varNames.map((v) => (
+            <button key={v} onClick={() => setSelectedVar(v)}
+              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              {v}
+            </button>
+          ))}
+        </div>
         {data.spectral?.[selectedVar] && (() => {
           const sp = data.spectral[selectedVar];
           const chartData = sp.chart_data || [];
@@ -1347,7 +1386,6 @@ export function MLAnalysisDashboard() {
         // 2h area benchmark
         const nb2 = data.nea_2h_benchmark;
         const c3_2h = nb2?.overall?.class3 || {};
-        const paKeys = ["per_area_nea", "per_area_ml", "per_area_ensemble"];
         const paNea = c3_2h.per_area_nea || {};
         const paMl  = c3_2h.per_area_ml  || {};
         const paEns = c3_2h.per_area_ensemble || {};

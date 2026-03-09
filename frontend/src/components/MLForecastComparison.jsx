@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Brain, Cloud, TrendingUp, Award, Activity } from "lucide-react";
 import { getModelComparison } from "../api/ml";
 
-export function MLForecastComparison({ location, isDark = false }) {
+export function MLForecastComparison({ isDark = false }) {
   const [mlForecast, setMlForecast] = useState(null);
   const [benchmark, setBenchmark] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -174,10 +174,11 @@ export function MLForecastComparison({ location, isDark = false }) {
                       >
                         <span className={`text-xs ${secondaryTextColor}`}>
                           {new Date(pred.timestamp).toLocaleTimeString(
-                            "en-US",
+                            "en-SG",
                             {
                               hour: "numeric",
                               hour12: true,
+                              timeZone: "Asia/Singapore",
                             },
                           )}
                         </span>
@@ -223,7 +224,7 @@ export function MLForecastComparison({ location, isDark = false }) {
                       <span className={secondaryTextColor}>
                         {new Date(
                           mlForecast.based_on_timestamp,
-                        ).toLocaleTimeString()}
+                        ).toLocaleTimeString("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
                   </div>

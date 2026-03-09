@@ -174,10 +174,13 @@ export function AnimatedRadarLayer({
   }
 
   // Render animated radar overlay (Requirement 1.1, 1.2)
+  // key forces React-Leaflet to remount the ImageOverlay on each frame change,
+  // matching PrecipitationMap behaviour — without this the image never updates.
   return (
     <ImageOverlay
+      key={currentFrame.imageUrl}
       url={currentFrame.imageUrl}
-      bounds={currentFrame.bounds}
+      bounds={currentFrame.bounds || [[1.1550, 103.565], [1.4750, 104.130]]}
       opacity={0.6}
       zIndex={1000}
     />

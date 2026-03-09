@@ -415,8 +415,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
             const riseDate = parseSunTime(sunTimes.sunrise);
             const setDate  = parseSunTime(sunTimes.sunset);
-            if (riseDate) slots.push({ type: "sunrise", sortKey: riseDate.getTime(), data: riseDate });
-            if (setDate)  slots.push({ type: "sunset",  sortKey: setDate.getTime(),  data: setDate });
+            const nowSlot  = new Date();
+            if (riseDate && riseDate > nowSlot) slots.push({ type: "sunrise", sortKey: riseDate.getTime(), data: riseDate });
+            if (setDate  && setDate  > nowSlot) slots.push({ type: "sunset",  sortKey: setDate.getTime(),  data: setDate });
 
             slots.sort((a, b) => a.sortKey - b.sortKey);
 
