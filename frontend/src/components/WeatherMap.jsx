@@ -78,6 +78,7 @@ export function WeatherMap({ isDark = false }) {
   const [totalFrames, setTotalFrames] = useState(0);
   const [frameTimestamps, setFrameTimestamps] = useState([]);
   const [sliderIndex, setSliderIndex] = useState(null);  // null = free-running
+  const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
 
   const textColor = isDark ? "text-white" : "text-slate-900";
 
@@ -270,7 +271,7 @@ export function WeatherMap({ isDark = false }) {
                     min={0}
                     max={totalFrames - 1}
                     step={1}
-                    value={sliderIndex ?? totalFrames - 1}
+                    value={sliderIndex ?? currentFrameIdx}
                     onChange={(e) => {
                       const idx = Number(e.target.value);
                       setSliderIndex(idx);
@@ -339,7 +340,7 @@ export function WeatherMap({ isDark = false }) {
               animationSpeed={animationSpeed}
               isPlaying={sliderIndex === null && isAnimationPlaying}
               forcedIndex={sliderIndex}
-              onFrameChange={(timestamp) => setCurrentFrameTimestamp(timestamp)}
+              onFrameChange={(timestamp, idx) => { setCurrentFrameTimestamp(timestamp); if (idx !== undefined) setCurrentFrameIdx(idx); }}
               onFramesLoaded={(count, timestamps) => {
                 setTotalFrames(count);
                 setFrameTimestamps(timestamps);

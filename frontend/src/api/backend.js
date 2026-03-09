@@ -55,6 +55,7 @@ export async function getCurrentWeather(latitude, longitude) {
       temperature: data.temperature ?? null,
       humidity: data.humidity ?? null,
       wind_speed: data.wind_speed ?? null,
+      wind_direction: data.wind_direction ?? null,
       pressure: data.pressure ?? null,
       visibility: data.visibility ?? null,
       uv_index: data.uv_index ?? null,

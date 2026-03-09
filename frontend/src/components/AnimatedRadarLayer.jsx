@@ -136,7 +136,7 @@ export function AnimatedRadarLayer({
         const nextIndex = (prevIndex + 1) % preloadedImages.length;
         // Notify parent of frame change
         if (onFrameChange && preloadedImages[nextIndex]) {
-          onFrameChange(preloadedImages[nextIndex].timestamp);
+          onFrameChange(preloadedImages[nextIndex].timestamp, nextIndex);
         }
         return nextIndex;
       });

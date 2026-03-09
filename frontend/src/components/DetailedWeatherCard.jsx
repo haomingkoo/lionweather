@@ -474,9 +474,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               if (slot.type === "sunrise") {
                 return (
                   <div key="sunrise" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
-                    <span className="text-xs font-medium text-amber-300">Rise</span>
+                    <span className="text-xs font-medium text-amber-300">{sunTimes.sunrise}</span>
                     <Sunrise className="h-5 w-5 text-amber-400" strokeWidth={1.5} />
-                    <span className="text-xs font-semibold text-amber-300">{sunTimes.sunrise}</span>
+                    <span className="text-xs font-semibold text-amber-300">Sunrise</span>
                     <span className="text-[9px] text-transparent select-none">0%</span>
                   </div>
                 );
@@ -484,9 +484,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               if (slot.type === "sunset") {
                 return (
                   <div key="sunset" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
-                    <span className="text-xs font-medium text-orange-300">Set</span>
+                    <span className="text-xs font-medium text-orange-300">{sunTimes.sunset}</span>
                     <Sunset className="h-5 w-5 text-orange-400" strokeWidth={1.5} />
-                    <span className="text-xs font-semibold text-orange-300">{sunTimes.sunset}</span>
+                    <span className="text-xs font-semibold text-orange-300">Sunset</span>
                     <span className="text-[9px] text-transparent select-none">0%</span>
                   </div>
                 );
@@ -628,36 +628,25 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <Sunset className="h-4 w-4 text-orange-400" />
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
           </div>
-          <div className={`text-2xl font-light ${textColor} mb-2`}>{sunTimes.sunset}</div>
-          {/* Arc SVG */}
-          <svg viewBox="0 0 100 55" width="100%" className="overflow-visible">
-            {/* Horizon line */}
-            <line x1="5" y1="50" x2="95" y2="50" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-            {/* Arc path */}
-            <path d="M 5,50 A 45,45 0 0 1 95,50" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
-            {/* Progress arc (orange) */}
+          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+          {/* Compact arc */}
+          <svg viewBox="0 0 100 30" width="100%" className="mt-1">
+            <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+            <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
             {(() => {
               const prog = Math.min(sunProgress, 0.999);
-              const ex = 50 - 45 * Math.cos(prog * Math.PI);
-              const ey = 50 - 45 * Math.sin(prog * Math.PI);
+              const ax = 50 - 46 * Math.cos(prog * Math.PI);
+              const ay = 22 - 18 * Math.sin(prog * Math.PI);
               return (
                 <>
-                  <path d={`M 5,50 A 45,45 0 0 1 ${ex},${ey}`}
-                    fill="none" stroke="rgba(251,146,60,0.6)" strokeWidth="1.5" />
-                  {/* Sun dot */}
-                  <circle cx={ex} cy={ey} r="4" fill="#fb923c" opacity="0.9" />
-                  <circle cx={ex} cy={ey} r="7" fill="rgba(251,146,60,0.2)" />
+                  <path d={`M 4,22 A 46,18 0 0 1 ${ax},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.5" />
+                  <circle cx={ax} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
+                  <circle cx={ax} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
                 </>
               );
             })()}
-            {/* Sunrise label */}
-            <text x="5" y="58" fontSize="6" fill="rgba(255,255,255,0.35)" textAnchor="middle" fontFamily="sans-serif">
-              {sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}
-            </text>
-            {/* Sunset label */}
-            <text x="95" y="58" fontSize="6" fill="rgba(255,255,255,0.35)" textAnchor="middle" fontFamily="sans-serif">
-              {sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}
-            </text>
+            <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+            <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
           </svg>
         </div>
 

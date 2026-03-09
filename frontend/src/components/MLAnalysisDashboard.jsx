@@ -544,8 +544,10 @@ function ClimateTrendsSection({ ct }) {
   const rec = ct.all_time_records || {};
 
   const rainfallTotals = years.map((y) => annual[y]?.rainfall?.total_mm ?? 0);
-  // Drop years with effectively no data (< 100 mm total is clearly incomplete)
-  const validYearMask = years.map((_, i) => rainfallTotals[i] >= 100);
+  // Drop partial years: < 100mm absolute OR < 60% of the median full year
+  const sorted = [...rainfallTotals].filter(v => v > 100).sort((a,b) => a-b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 1000;
+  const validYearMask = years.map((_, i) => rainfallTotals[i] >= 100 && rainfallTotals[i] >= median * 0.6);
   const displayYears = years.filter((_, i) => validYearMask[i]);
   const displayRainfallTotals = rainfallTotals.filter((_, i) => validYearMask[i]);
   const tempMeans = displayYears.map((y) => annual[y]?.temperature?.mean_c ?? 0);
@@ -677,7 +679,17 @@ function ClimateTrendsSection({ ct }) {
       <AnalysisSummary ct={ct} />
 
       {/* STL decomposition */}
-      {stl.observed?.length > 0 && (
+      {stl.observed?.length > 0 && (() => {
+        const nMonths = stl.observed.length;
+        // Generate year tick marks every 12 months
+        const stlTickIndices = [];
+        const stlTicks = [];
+        for (let i = 0; i < nMonths; i += 12) {
+          stlTickIndices.push(i);
+          const yearIdx = Math.floor(i / 12);
+          stlTicks.push(years[yearIdx] ? String(years[yearIdx]) : "");
+        }
+        return (
         <div>
           <p className="text-white/50 text-xs mb-2">
             STL Decomposition — Monthly Rainfall
@@ -688,18 +700,23 @@ function ClimateTrendsSection({ ct }) {
               { name: "Trend",    data: stl.trend,    color: "#f472b6" },
             ]}
             height={80}
-            xLabel="Month"
+            xTicks={stlTicks}
+            xTickIndices={stlTickIndices}
+            xLabel="Year"
             yLabel="mm"
           />
           <LineChart
             series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
             height={50}
+            xTicks={stlTicks}
+            xTickIndices={stlTickIndices}
             xLabel=""
             yLabel="Residual"
           />
           <p className="text-white/30 text-[10px] mt-1">{stl.note}</p>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
