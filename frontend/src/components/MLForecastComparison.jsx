@@ -17,8 +17,8 @@ export function MLForecastComparison({ location, isDark = false }) {
       try {
         setIsLoading(true);
         const [mlData, benchmarkData] = await Promise.all([
-          getMLPrediction(24),
-          getMLBenchmark(),
+          get24HourPredictions("singapore"),
+          getModelComparison(),
         ]);
         setMlForecast(mlData);
         setBenchmark(benchmarkData);

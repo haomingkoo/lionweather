@@ -297,37 +297,35 @@ async def get_rain_forecast():
     import numpy as np
     import joblib
     from pathlib import Path
-    from app.db.database import get_connection
+    from datetime import datetime, timedelta
+    from sqlalchemy import text
+    from app.db.database import get_engine
 
     HORIZONS = [1, 3, 6, 12]
     MODEL_DIR = Path("models")
     CATEGORIES = {0: "No Rain", 1: "Light Rain", 2: "Heavy Rain", 3: "Thundery Showers"}
 
     # ── 1. Load records ────────────────────────────────────────────────────────
-    con = get_connection()
-    try:
-        cursor = con.cursor()
-        cursor.execute("""
+    cutoff = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+    with get_engine().connect() as conn:
+        rows = conn.execute(text("""
             SELECT timestamp, temperature, rainfall, humidity, wind_speed
             FROM weather_records
             WHERE country = 'singapore'
-              AND timestamp >= datetime('now', '-48 hours')
+              AND timestamp >= :cutoff
             ORDER BY timestamp ASC
-        """)
-        rows = cursor.fetchall()
-    finally:
-        con.close()
+        """), {"cutoff": cutoff}).fetchall()
 
     if not rows:
         raise HTTPException(status_code=503, detail="No Singapore weather data collected yet. Check back in a few hours.")
 
     # ── 2. Build hourly series (mean across stations) ──────────────────────────
     df = pd.DataFrame([{
-        "timestamp": pd.to_datetime(row["timestamp"]),
-        "rainfall": row["rainfall"] or 0.0,
-        "temperature": row["temperature"] or 0.0,
-        "humidity": row["humidity"] or 0.0,
-        "wind_speed": row["wind_speed"] or 0.0,
+        "timestamp": pd.to_datetime(row[0]),
+        "rainfall": row[2] or 0.0,
+        "temperature": row[1] or 0.0,
+        "humidity": row[3] or 0.0,
+        "wind_speed": row[4] or 0.0,
     } for row in rows])
 
     df = df.set_index("timestamp").resample("1h").mean().dropna(how="all")

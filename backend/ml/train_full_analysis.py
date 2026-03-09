@@ -87,6 +87,26 @@ RAIN_CATEGORIES = {
     3: "Thundery Showers",
 }
 
+RAIN_CATEGORIES_3 = {0: "No Rain", 1: "Light Rain", 2: "Heavy + Thundery"}
+
+# NEA forecast code → 4-class and 3-class
+_NEA_CODE_4 = {
+    "CL": 0, "FA": 0, "FN": 0, "FW": 0, "PC": 0, "PN": 0, "WD": 0,
+    "LR": 1, "LS": 1, "SH": 1, "PS": 1,
+    "RA": 2,
+    "TL": 3, "HT": 3, "HG": 3,
+}
+_NEA_CODE_3 = {k: (0 if v == 0 else (1 if v == 1 else 2)) for k, v in _NEA_CODE_4.items()}
+
+# Region station bounding boxes (lat_min, lat_max, lon_min, lon_max)
+REGION_BOUNDS = {
+    "north":   (1.38, 1.50, 103.75, 103.90),
+    "south":   (1.22, 1.32, 103.75, 103.87),
+    "east":    (1.30, 1.38, 103.87, 104.02),
+    "west":    (1.30, 1.43, 103.62, 103.80),
+    "central": (1.30, 1.38, 103.80, 103.87),
+}
+
 def rainfall_to_category(mm_per_hour: float) -> int:
     """
     NEA-aligned rainfall intensity classification.
@@ -103,6 +123,16 @@ def rainfall_to_category(mm_per_hour: float) -> int:
         return 2  # Heavy rain
     else:
         return 3  # Thundery showers
+
+
+def rainfall_to_3class(mm_per_hour: float) -> int:
+    """3-class: No Rain / Light Rain / Heavy+Thundery (deployed in app)"""
+    if mm_per_hour < 0.1:
+        return 0
+    elif mm_per_hour < 7.6:
+        return 1
+    else:
+        return 2
 
 
 # ===========================================================================
@@ -670,9 +700,12 @@ def make_features(rain: pd.Series, temp: pd.Series,
 
     # Targets
     for h in horizons:
-        df[f"target_rain_{h}h"]    = df["rainfall"].shift(-h)
-        df[f"target_class_{h}h"]   = df[f"target_rain_{h}h"].apply(
+        df[f"target_rain_{h}h"]     = df["rainfall"].shift(-h)
+        df[f"target_class_{h}h"]    = df[f"target_rain_{h}h"].apply(
             lambda v: rainfall_to_category(v) if pd.notna(v) else np.nan
+        )
+        df[f"target_class3_{h}h"]   = df[f"target_rain_{h}h"].apply(
+            lambda v: rainfall_to_3class(v) if pd.notna(v) else np.nan
         )
 
     return df
@@ -811,7 +844,292 @@ def compute_shap(model, X_test: np.ndarray, feature_cols: list,
 
 
 # ===========================================================================
-# 10. Main
+# 10. NEA forecast benchmark (from historical CSV)
+# ===========================================================================
+
+def _assign_region(lat: float, lon: float) -> str | None:
+    """Assign a station to one of the 5 NEA regions based on coordinates."""
+    for region, (lat_min, lat_max, lon_min, lon_max) in REGION_BOUNDS.items():
+        if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
+            return region
+    return None
+
+
+def load_regional_rainfall_6h(years: list) -> pd.DataFrame:
+    """
+    Load per-station rainfall, assign to NEA regions, aggregate to 6h regional sums.
+    Returns a DataFrame indexed by (period_start, region) with column 'rainfall_mm'.
+    """
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / "regional_6h_rainfall.parquet"
+    if cache_path.exists():
+        logger.info("  [regional] loading 6h regional rainfall from cache")
+        return pd.read_parquet(cache_path)
+
+    logger.info("  [regional] building 6h regional rainfall from station CSVs...")
+    records = []
+    for year in years:
+        path = DATA_DIR / f"HistoricalRainfallacrossSingapore{year}.csv"
+        if not path.exists():
+            continue
+        for chunk in pd.read_csv(
+            path,
+            usecols=["timestamp", "station_id", "location_latitude", "location_longitude", "reading_value"],
+            chunksize=500_000,
+            parse_dates=["timestamp"],
+        ):
+            chunk["region"] = chunk.apply(
+                lambda r: _assign_region(r["location_latitude"], r["location_longitude"]), axis=1
+            )
+            chunk = chunk.dropna(subset=["region"])
+            lo, hi = BOUNDS["rainfall"]
+            chunk = chunk[(chunk["reading_value"] >= lo) & (chunk["reading_value"] <= hi)]
+            chunk["timestamp"] = pd.to_datetime(chunk["timestamp"], utc=True).dt.tz_convert("Asia/Singapore")
+            # 6h buckets aligned to 0,6,12,18 SGT
+            chunk["period_start"] = chunk["timestamp"].dt.floor("6h")
+            records.append(chunk[["period_start", "region", "station_id", "reading_value"]])
+
+    if not records:
+        return pd.DataFrame()
+
+    df = pd.concat(records, ignore_index=True)
+    # Sum readings per station per period, then average across stations in region
+    # (rainfall values are 5-min readings in mm, sum per station per 6h = total mm for that station)
+    station_period = (
+        df.groupby(["period_start", "region", "station_id"])["reading_value"]
+        .sum()
+        .reset_index()
+        .rename(columns={"reading_value": "station_total_mm"})
+    )
+    regional = (
+        station_period.groupby(["period_start", "region"])["station_total_mm"]
+        .mean()  # mean across stations in region (mm per station per 6h)
+        .reset_index()
+        .rename(columns={"station_total_mm": "rainfall_mm"})
+    )
+    regional.to_parquet(cache_path)
+    logger.info(f"  [regional] {len(regional)} region-period rows cached")
+    return regional
+
+
+def load_nea_forecasts_6h(years: list) -> pd.DataFrame:
+    """
+    Load NEA 24h forecast CSVs. Returns DataFrame with columns:
+    period_start (SGT tz-aware), region, nea_class4, nea_class3
+    """
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / "nea_forecasts_6h.parquet"
+    if cache_path.exists():
+        logger.info("  [nea] loading NEA forecasts from cache")
+        df = pd.read_parquet(cache_path)
+        df["period_start"] = pd.to_datetime(df["period_start"]).dt.tz_localize("Asia/Singapore")
+        return df
+
+    logger.info("  [nea] parsing NEA forecast CSVs...")
+    rows = []
+    regions = ["north", "south", "east", "west", "central"]
+    for year in years:
+        path = DATA_DIR / f"Historical24hourWeatherForecast{year}.csv"
+        if not path.exists():
+            continue
+        df = pd.read_csv(path, parse_dates=["time_period_start", "time_period_end"])
+        df["time_period_start"] = pd.to_datetime(df["time_period_start"], utc=True).dt.tz_convert("Asia/Singapore")
+
+        for _, row in df.iterrows():
+            for region in regions:
+                code = row.get(f"{region}_forecast_code")
+                if pd.isna(code):
+                    continue
+                code = str(code).strip()
+                cls4 = _NEA_CODE_4.get(code)
+                cls3 = _NEA_CODE_3.get(code)
+                if cls4 is None:
+                    continue
+                rows.append({
+                    "period_start": row["time_period_start"].replace(tzinfo=None),
+                    "region": region,
+                    "nea_code": code,
+                    "nea_class4": cls4,
+                    "nea_class3": cls3,
+                })
+
+    result = pd.DataFrame(rows)
+    # Drop duplicate (period_start, region) — keep last (most recent forecast update)
+    result = result.drop_duplicates(subset=["period_start", "region"], keep="last")
+    result.to_parquet(cache_path)
+    logger.info(f"  [nea] {len(result)} region-period forecast rows cached")
+    result["period_start"] = pd.to_datetime(result["period_start"]).dt.tz_localize("Asia/Singapore")
+    return result
+
+
+def compute_nea_regional_benchmark(
+    regional_rain: pd.DataFrame,
+    nea_forecasts: pd.DataFrame,
+    feat_df: pd.DataFrame,
+    cls_models: dict,       # {horizon_h: lgb_model}
+    cls3_models: dict,      # {horizon_h: lgb_model}
+    feature_cols: list,
+    test_year: int,
+) -> dict:
+    """
+    Apples-to-apples benchmark: NEA 6h regional forecasts vs actual 6h regional rainfall.
+    Also evaluates ML island-wide model on same 6h blocks, and blends them.
+
+    Returns dict with per-region and overall metrics.
+    """
+    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+    regions = ["north", "south", "east", "west", "central"]
+
+    # Filter to test year
+    actual = regional_rain[regional_rain["period_start"].dt.year == test_year].copy()
+    nea    = nea_forecasts[nea_forecasts["period_start"].dt.year == test_year].copy()
+
+    # ML: get island-wide hourly predictions for test year, aggregate to 6h
+    # Use the 1h-ahead classifier (closest to nowcast) for each block's start
+    ml_hourly = feat_df[feat_df.index.year == test_year].copy()
+    # Ensure tz-aware index in SGT
+    if ml_hourly.index.tz is None:
+        ml_hourly.index = ml_hourly.index.tz_localize("Asia/Singapore")
+
+    # Precompute ML 3-class and 4-class predictions hour-by-hour
+    ml_preds = {}
+    for n_class, models_dict in [(4, cls_models), (3, cls3_models)]:
+        model = models_dict.get(1)  # use 1h model
+        if model is None:
+            continue
+        valid = ml_hourly[feature_cols].dropna()
+        proba = model.predict(valid.values)  # shape (N, n_class)
+        pred_classes = np.argmax(proba, axis=1)
+        # Map each hour → 6h period
+        period_starts = valid.index.floor("6h")
+        ml_preds[n_class] = pd.DataFrame({
+            "period_start": period_starts,
+            "ml_class": pred_classes,
+            **{f"ml_p{c}": proba[:, c] for c in range(n_class)},
+        })
+        # Per-period: take the max predicted class (worst case is most useful)
+        # or majority vote. We'll do majority vote (mode).
+        ml_preds[n_class] = (
+            ml_preds[n_class]
+            .groupby("period_start")
+            .agg(ml_class=("ml_class", lambda x: x.mode().iloc[0]),
+                 **{f"ml_p{c}": (f"ml_p{c}", "mean") for c in range(n_class)})
+            .reset_index()
+        )
+
+    overall_results = {}
+    per_region_results = {}
+
+    for n_class in [3, 4]:
+        target_col = f"nea_class{n_class}"
+        cats = RAIN_CATEGORIES_3 if n_class == 3 else RAIN_CATEGORIES
+        fn_cls = rainfall_to_3class if n_class == 3 else rainfall_to_category
+
+        actual_cls = actual.copy()
+        actual_cls["actual_class"] = actual_cls["rainfall_mm"].apply(fn_cls)
+
+        ml_df = ml_preds.get(n_class)
+
+        merged = actual_cls.merge(nea[["period_start", "region", target_col]], on=["period_start", "region"], how="inner")
+        if ml_df is not None:
+            merged = merged.merge(ml_df[["period_start", "ml_class"] + [f"ml_p{c}" for c in range(n_class)]], on="period_start", how="left")
+
+        if merged.empty:
+            logger.warning(f"  NEA benchmark: no matched rows for {n_class}-class")
+            continue
+
+        # ---- Overall metrics ----
+        y_true = merged["actual_class"].values
+        y_nea  = merged[target_col].values
+        valid_mask = ~(pd.isna(y_nea))
+        y_true = y_true[valid_mask].astype(int)
+        y_nea  = y_nea[valid_mask].astype(int)
+
+        nea_acc = float(accuracy_score(y_true, y_nea))
+        nea_cm  = confusion_matrix(y_true, y_nea, labels=list(range(n_class))).tolist()
+        nea_cr  = classification_report(y_true, y_nea, labels=list(range(n_class)),
+                                        target_names=list(cats.values()),
+                                        output_dict=True, zero_division=0)
+
+        ml_acc = None; ml_cm = None; ml_cr = None
+        ens_acc = None; ens_cm = None; ens_cr = None
+
+        if ml_df is not None and "ml_class" in merged.columns:
+            y_ml = merged["ml_class"].values[valid_mask]
+            y_ml_valid = y_ml[~pd.isna(y_ml)].astype(int)
+            y_true_ml  = y_true[~pd.isna(y_ml)]
+            if len(y_ml_valid):
+                ml_acc = float(accuracy_score(y_true_ml, y_ml_valid))
+                ml_cm  = confusion_matrix(y_true_ml, y_ml_valid, labels=list(range(n_class))).tolist()
+                ml_cr  = classification_report(y_true_ml, y_ml_valid, labels=list(range(n_class)),
+                                               target_names=list(cats.values()),
+                                               output_dict=True, zero_division=0)
+
+                # Ensemble: 60% ML + 40% NEA (one-hot softened)
+                ens_rows = merged[valid_mask][~pd.isna(merged["ml_class"].values[valid_mask])].copy()
+                ml_proba = ens_rows[[f"ml_p{c}" for c in range(n_class)]].values
+                # NEA soft: 0.7 for predicted class, rest shared
+                nea_soft = np.zeros((len(ens_rows), n_class))
+                for i, cls in enumerate(ens_rows[target_col].values):
+                    if not pd.isna(cls):
+                        nea_soft[i, int(cls)] = 0.7
+                        for j in range(n_class):
+                            if j != int(cls):
+                                nea_soft[i, j] = 0.3 / (n_class - 1)
+                ens_proba = 0.6 * ml_proba + 0.4 * nea_soft
+                y_ens = np.argmax(ens_proba, axis=1)
+                y_true_ens = ens_rows["actual_class"].values.astype(int)
+                ens_acc = float(accuracy_score(y_true_ens, y_ens))
+                ens_cm  = confusion_matrix(y_true_ens, y_ens, labels=list(range(n_class))).tolist()
+                ens_cr  = classification_report(y_true_ens, y_ens, labels=list(range(n_class)),
+                                                target_names=list(cats.values()),
+                                                output_dict=True, zero_division=0)
+
+                logger.info(f"  [{n_class}-class] NEA acc={nea_acc:.3f} | ML acc={ml_acc:.3f} | Ensemble acc={ens_acc:.3f}")
+
+        overall_results[f"class{n_class}"] = {
+            "n_samples": int(len(y_true)),
+            "nea": {"accuracy": round(nea_acc, 4), "confusion_matrix": nea_cm, "report": nea_cr},
+            "ml_island_wide": {"accuracy": round(ml_acc, 4), "confusion_matrix": ml_cm, "report": ml_cr} if ml_acc else None,
+            "ensemble_60ml_40nea": {"accuracy": round(ens_acc, 4), "confusion_matrix": ens_cm, "report": ens_cr} if ens_acc else None,
+        }
+
+        # ---- Per-region metrics ----
+        per_region_results[f"class{n_class}"] = {}
+        for region in regions:
+            r_merged = merged[merged["region"] == region]
+            if r_merged.empty:
+                continue
+            y_t = r_merged["actual_class"].values.astype(int)
+            y_n = r_merged[target_col].values
+            v = ~pd.isna(y_n)
+            y_t, y_n = y_t[v].astype(int), y_n[v].astype(int)
+            if len(y_t) == 0:
+                continue
+            per_region_results[f"class{n_class}"][region] = {
+                "n_samples": int(len(y_t)),
+                "nea_accuracy": round(float(accuracy_score(y_t, y_n)), 4),
+                "nea_confusion_matrix": confusion_matrix(y_t, y_n, labels=list(range(n_class))).tolist(),
+            }
+            if ml_df is not None and "ml_class" in r_merged.columns:
+                y_ml_r = r_merged["ml_class"].values[v]
+                v2 = ~pd.isna(y_ml_r)
+                if v2.sum():
+                    per_region_results[f"class{n_class}"][region]["ml_accuracy"] = round(
+                        float(accuracy_score(y_t[v2], y_ml_r[v2].astype(int))), 4
+                    )
+
+    return {
+        "description": "Apples-to-apples: NEA 6h regional forecast vs actual 6h regional mean station rainfall. ML uses island-wide 1h model predictions aggregated to 6h majority vote.",
+        "test_year": test_year,
+        "overall": overall_results,
+        "per_region": per_region_results,
+    }
+
+
+# ===========================================================================
+# 11. Main
 # ===========================================================================
 
 def main():
@@ -1043,6 +1361,103 @@ def main():
                 MODEL_DIR / f"rainfall_cls_{horizon}h.joblib",
             )
 
+    # --- 3-class model training ---
+    logger.info("\n[8b] Training 3-class models (No Rain / Light Rain / Heavy+Thundery)...")
+    cls3_models = {}
+    three_class_results = []
+
+    for horizon in HORIZONS:
+        cls3_target = f"target_class3_{horizon}h"
+        cols_needed = feature_cols + [cls3_target]
+        sub = feat_df[cols_needed].dropna()
+
+        train_sub = sub[sub.index.year.isin(TRAIN_YEARS)]
+        val_sub   = sub[sub.index.year == VAL_YEAR]
+        test_sub  = sub[sub.index.year == TEST_YEAR]
+
+        if len(train_sub) < 500:
+            continue
+
+        X_train = train_sub[feature_cols].values
+        X_val   = val_sub[feature_cols].values
+        X_test  = test_sub[feature_cols].values
+        y_train = train_sub[cls3_target].values.astype(int)
+        y_val   = val_sub[cls3_target].values.astype(int)
+        y_test  = test_sub[cls3_target].values.astype(int)
+
+        # Cost weights: No Rain=1, Light Rain=2, Heavy+Thundery=5
+        COST3 = np.array([1.0, 2.0, 5.0])
+        weights = COST3[y_train]
+
+        import lightgbm as lgb
+        train_set = lgb.Dataset(X_train, label=y_train, weight=weights)
+        val_set   = lgb.Dataset(X_val,   label=y_val, reference=train_set)
+        params = {
+            "objective": "multiclass", "num_class": 3,
+            "metric": ["multi_logloss"], "learning_rate": 0.05,
+            "num_leaves": 63, "min_child_samples": 50,
+            "feature_fraction": 0.8, "bagging_fraction": 0.8,
+            "bagging_freq": 5, "verbose": -1,
+        }
+        evals_result = {}
+        model3 = lgb.train(
+            params, train_set, num_boost_round=1000,
+            valid_sets=[train_set, val_set], valid_names=["train", "val"],
+            callbacks=[lgb.early_stopping(50, verbose=False),
+                       lgb.log_evaluation(200),
+                       lgb.record_evaluation(evals_result)],
+        )
+        cls3_models[horizon] = model3
+
+        y_pred = np.argmax(model3.predict(X_test), axis=1)
+        cr3 = classification_report(y_test, y_pred, target_names=list(RAIN_CATEGORIES_3.values()),
+                                    output_dict=True, zero_division=0)
+        cm3 = confusion_matrix(y_test, y_pred).tolist()
+        acc3 = float(cr3.get("accuracy", 0))
+
+        logger.info(f"  3-class h={horizon}h | Acc={acc3:.3f}")
+
+        joblib.dump({"model": model3, "feature_cols": feature_cols, "horizon_h": horizon,
+                     "trained_at": datetime.utcnow().isoformat(), "categories": RAIN_CATEGORIES_3,
+                     "test_accuracy": acc3},
+                    MODEL_DIR / f"rainfall_cls3_{horizon}h.joblib")
+
+        three_class_results.append({
+            "horizon_h": horizon,
+            "n_train": int(len(X_train)), "n_val": int(len(X_val)), "n_test": int(len(X_test)),
+            "accuracy": round(acc3, 4),
+            "confusion_matrix": cm3,
+            "report": cr3,
+            "categories": RAIN_CATEGORIES_3,
+        })
+
+    # --- NEA benchmark ---
+    logger.info("\n[8c] Computing NEA regional benchmark...")
+    nea_benchmark = {}
+    try:
+        # Also need 4-class cls_models dict — collect from the existing training loop
+        cls4_models = {}
+        for horizon in HORIZONS:
+            p = MODEL_DIR / f"rainfall_cls_{horizon}h.joblib"
+            if p.exists():
+                obj = joblib.load(p)
+                cls4_models[horizon] = obj["model"]
+
+        regional_rain = load_regional_rainfall_6h(all_years)
+        nea_fcst = load_nea_forecasts_6h(all_years)
+
+        if not regional_rain.empty and not nea_fcst.empty:
+            nea_benchmark = compute_nea_regional_benchmark(
+                regional_rain, nea_fcst, feat_df,
+                cls4_models, cls3_models, feature_cols, TEST_YEAR
+            )
+            logger.info("  NEA benchmark complete")
+        else:
+            logger.warning("  NEA benchmark skipped: insufficient data")
+    except Exception as e:
+        logger.warning(f"  NEA benchmark failed: {e}")
+        nea_benchmark = {"error": str(e)}
+
     # --- Assemble full analysis JSON ---
     logger.info("\n[9/9] Saving full_analysis.json...")
 
@@ -1064,6 +1479,8 @@ def main():
             "granger_causality": granger,
         },
         "model_results": horizon_results,
+        "three_class_results": three_class_results,
+        "nea_benchmark": nea_benchmark,
         "loss_curves": loss_curves,
         "shap": shap_results,
     }
