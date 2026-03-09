@@ -170,6 +170,11 @@ export function LocationsProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const reorderLocations = useCallback((newOrder) => {
+    saveLocations(newOrder);
+    setLocations(newOrder);
+  }, []);
+
   // Load locations and refresh stale data
   const reload = useCallback(async () => {
     try {
@@ -364,6 +369,7 @@ export function LocationsProvider({ children }) {
         isLoading,
         error,
         reload,
+        reorderLocations,
         getGeolocationPermissionState,
         setGeolocationPermissionState,
         addLocationFromGeolocation,
@@ -493,8 +499,13 @@ export function useDeleteLocation() {
     setError(null);
     try {
       const stored = getStoredLocations();
+      const toDelete = stored.find((loc) => loc.id === locationId);
       const updated = stored.filter((loc) => loc.id !== locationId);
       saveLocations(updated);
+      // If user explicitly removes their geolocation card, revoke auto-add permission
+      if (toDelete?.source === "geolocation") {
+        localStorage.removeItem("geolocation_permission");
+      }
       await reload();
     } catch (err) {
       setError(err);

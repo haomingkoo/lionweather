@@ -6,7 +6,7 @@ import {
 } from "../hooks/useLocations.jsx";
 import { DetailedWeatherCard } from "./DetailedWeatherCard";
 import { AnimatedBackground } from "./AnimatedBackground";
-import { RefreshCw, Trash2, Navigation } from "lucide-react";
+import { RefreshCw, Trash2, Navigation, GripVertical } from "lucide-react";
 
 function getRelativeTime(isoTimestamp) {
   if (!isoTimestamp) return "Unknown";
@@ -160,11 +160,38 @@ function LocationCard({ location, isSelected, onClick, onDelete, isRefreshing })
 }
 
 export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
-  const { locations, isLoading, error } = useLocations();
+  const { locations, isLoading, error, reorderLocations } = useLocations();
   const { refresh, isPending, refreshingId } = useRefreshLocation();
   const { deleteLocation, isPending: isDeleting } = useDeleteLocation();
   const [selectedId, setSelectedId] = useState(null);
   const [, setUpdateTrigger] = useState(0);
+  const [draggedId, setDraggedId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+
+  const handleDragStart = (e, id) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e, id) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (id !== draggedId) setDragOverId(id);
+  };
+  const handleDrop = (e, targetId) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) return;
+    const newOrder = [...locations];
+    const fromIdx = newOrder.findIndex((l) => l.id === draggedId);
+    const toIdx = newOrder.findIndex((l) => l.id === targetId);
+    newOrder.splice(toIdx, 0, newOrder.splice(fromIdx, 1)[0]);
+    reorderLocations(newOrder);
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
 
   // Auto-select first location
   useEffect(() => {
@@ -228,14 +255,34 @@ export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
         <div className="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
           {sidebarHeader && <div>{sidebarHeader}</div>}
           {locations.map((location) => (
-            <LocationCard
+            <div
               key={location.id}
-              location={location}
-              isSelected={location.id === selectedLocation?.id}
-              onClick={() => setSelectedId(location.id)}
-              onDelete={() => deleteLocation(location.id)}
-              isRefreshing={isPending && refreshingId === location.id}
-            />
+              draggable={locations.length > 1}
+              onDragStart={(e) => handleDragStart(e, location.id)}
+              onDragOver={(e) => handleDragOver(e, location.id)}
+              onDrop={(e) => handleDrop(e, location.id)}
+              onDragEnd={handleDragEnd}
+              className={`group/drag relative transition-all duration-150 ${
+                draggedId === location.id ? "opacity-40 scale-[0.98]" : ""
+              } ${
+                dragOverId === location.id && draggedId !== location.id
+                  ? "ring-2 ring-white/40 rounded-2xl scale-[1.01]"
+                  : ""
+              }`}
+            >
+              {locations.length > 1 && (
+                <div className="absolute left-1 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover/drag:opacity-60 transition-opacity cursor-grab active:cursor-grabbing">
+                  <GripVertical className="w-3 h-3 text-white" />
+                </div>
+              )}
+              <LocationCard
+                location={location}
+                isSelected={location.id === selectedLocation?.id}
+                onClick={() => setSelectedId(location.id)}
+                onDelete={() => deleteLocation(location.id)}
+                isRefreshing={isPending && refreshingId === location.id}
+              />
+            </div>
           ))}
         </div>
 
