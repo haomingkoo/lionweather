@@ -191,7 +191,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           location.longitude,
         );
 
-        // Use NEA 4-day forecast only — no Open-Meteo extension (avoids duplicate days)
+        // Hybrid: NEA 4-day (primary) + Open-Meteo extension for days 5-7
         const daily = [];
 
         if (forecast4day?.forecasts) {
@@ -211,10 +211,14 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               source: "NEA",
             }));
           daily.push(...neaForecasts);
-        } else if (openMeteoForecast.length > 0) {
-          // Fallback to Open-Meteo if NEA is unavailable
-          const openMeteoExtended = openMeteoForecast
-            .slice(0, 7)
+        }
+
+        // Extend with Open-Meteo days 5-7 (skip dates already covered by NEA)
+        if (openMeteoForecast.length > 0) {
+          const neaDates = new Set(daily.map((d) => d.date));
+          const extended = openMeteoForecast
+            .filter((d) => !neaDates.has(d.date))
+            .slice(0, 3)
             .map((day) => ({
               date: day.date,
               dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),
@@ -223,7 +227,21 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               condition: day.forecast,
               source: "Open-Meteo",
             }));
-          daily.push(...openMeteoExtended);
+          daily.push(...extended);
+        }
+
+        // Fallback: all Open-Meteo if NEA failed
+        if (daily.length === 0 && openMeteoForecast.length > 0) {
+          openMeteoForecast.slice(0, 7).forEach((day) => {
+            daily.push({
+              date: day.date,
+              dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),
+              high: day.temperature?.high || null,
+              low: day.temperature?.low || null,
+              condition: day.forecast,
+              source: "Open-Meteo",
+            });
+          });
         }
 
         setDailyForecast(daily);

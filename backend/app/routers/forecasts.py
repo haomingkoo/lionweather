@@ -90,8 +90,10 @@ async def get_forecasts(
         daily = data["daily"]
         forecasts = []
 
+        # Open-Meteo renamed "weathercode" to "weather_code" — handle both
+        wcode_key = "weather_code" if "weather_code" in daily else "weathercode"
         for i in range(len(daily["time"])):
-            weather_code = daily["weathercode"][i] if i < len(daily["weathercode"]) else 0
+            weather_code = daily[wcode_key][i] if i < len(daily[wcode_key]) else 0
 
             # Map weather code to condition
             if weather_code == 0:

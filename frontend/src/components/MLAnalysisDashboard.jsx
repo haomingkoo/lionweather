@@ -41,23 +41,37 @@ const PALETTE = [
 // ---------------------------------------------------------------------------
 // Tiny inline SVG chart primitives (no chart library dep)
 // ---------------------------------------------------------------------------
-function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = null }) {
+function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = null, showYAxis = false }) {
   if (!data || data.length === 0) return null;
   const vals = data.map((d) => (typeof d === "object" ? d.value ?? d : d));
   const max = Math.max(...vals, 0.001);
   const barW = Math.max(1, Math.floor(240 / vals.length));
-  const W = vals.length * (barW + 1);
   const PAD_B = xTicks && xTicks.length > 0 ? 14 : 0;
+  const PAD_L = showYAxis ? 30 : 0;
   const plotH = height - PAD_B;
+  const W = PAD_L + vals.length * (barW + 1);
+
+  const fmtY = (v) => v >= 10000 ? `${(v/1000).toFixed(0)}K` : v >= 1000 ? `${(v/1000).toFixed(1)}K` : v >= 100 ? Math.round(v) : v.toFixed(0);
+  const yLabels = showYAxis ? [
+    { val: fmtY(max), y: 1 },
+    { val: fmtY(max / 2), y: plotH / 2 },
+    { val: "0", y: plotH },
+  ] : [];
 
   return (
     <div>
       {label && <p className="text-white/50 text-xs mb-1">{label}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
+        {yLabels.map(({ val, y }, i) => (
+          <g key={i}>
+            <line x1={PAD_L} y1={y} x2={W} y2={y} stroke="#ffffff0a" strokeWidth="0.5" />
+            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="#ffffff40" textAnchor="end" fontFamily="monospace">{val}</text>
+          </g>
+        ))}
         {vals.map((v, i) => (
           <rect
             key={i}
-            x={i * (barW + 1)}
+            x={PAD_L + i * (barW + 1)}
             y={plotH - (v / max) * plotH}
             width={barW}
             height={(v / max) * plotH}
@@ -68,9 +82,9 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
         {xTicks && xTicks.map(({ label: tickLabel, index }, i) => (
           <text
             key={i}
-            x={index * (barW + 1) + barW / 2}
+            x={PAD_L + index * (barW + 1) + barW / 2}
             y={height - 2}
-            fontSize="7"
+            fontSize="6"
             fill="#ffffff40"
             textAnchor="middle"
             fontFamily="monospace"
@@ -211,35 +225,60 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
   );
 }
 
-function StemChart({ lags, values, ci, height = 80, color = "#60a5fa", title }) {
-  // ACF / PACF stem plot
+function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) {
+  // ACF / PACF stem plot with x/y axis labels
   if (!lags || !values) return null;
   const W = 360;
   const H = height;
-  const PAD_X = 16;
+  const PAD_L = 28;  // y-axis labels
+  const PAD_R = 8;
+  const PAD_B = 14; // x-axis labels
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_B;
   const nLags = lags.length;
-  const stepX = (W - PAD_X * 2) / (nLags - 1);
-  const midY = H / 2;
-  const scale = (midY - 4) * 0.95;
+  const stepX = plotW / Math.max(nLags - 1, 1);
+  const midY = plotH / 2;
+  const scale = (midY - 6) * 0.9;
 
-  const toX = (i) => PAD_X + i * stepX;
+  const toX = (i) => PAD_L + i * stepX;
   const toY = (v) => midY - v * scale;
   const ciY = ci ? midY - ci * scale : midY - 1.96 * scale / Math.sqrt(100);
+
+  // Y-axis: -1, 0, +1
+  const yLabels = [
+    { val: "1.0",  y: toY(1.0) },
+    { val: "0",    y: midY },
+    { val: "-1",   y: toY(-1.0) },
+  ];
+
+  // X-axis: show ~6 evenly spaced lag numbers
+  const xStep = Math.max(1, Math.floor(nLags / 6));
+  const xLabelIdxs = [...Array.from({ length: Math.ceil(nLags / xStep) }, (_, j) => j * xStep), nLags - 1]
+    .filter((v, i, a) => a.indexOf(v) === i && v < nLags);
 
   return (
     <div>
       {title && <p className="text-white/50 text-xs mb-1">{title}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
-        {/* zero line */}
-        <line x1={PAD_X} y1={midY} x2={W - PAD_X} y2={midY}
-              stroke="#ffffff22" strokeWidth="1" />
+        {/* Y-axis labels + gridlines */}
+        {yLabels.map(({ val, y }) => (
+          <g key={val}>
+            <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y}
+                  stroke="#ffffff08" strokeWidth="0.5" strokeDasharray="2,3" />
+            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="#ffffff40"
+                  textAnchor="end" fontFamily="monospace">{val}</text>
+          </g>
+        ))}
+        {/* zero line (slightly stronger) */}
+        <line x1={PAD_L} y1={midY} x2={W - PAD_R} y2={midY}
+              stroke="#ffffff25" strokeWidth="1" />
         {/* CI bounds */}
         {ci && (
           <>
-            <line x1={PAD_X} y1={ciY} x2={W - PAD_X} y2={ciY}
-                  stroke="#fbbf2466" strokeWidth="1" strokeDasharray="4,2" />
-            <line x1={PAD_X} y1={H - ciY} x2={W - PAD_X} y2={H - ciY}
-                  stroke="#fbbf2466" strokeWidth="1" strokeDasharray="4,2" />
+            <line x1={PAD_L} y1={ciY} x2={W - PAD_R} y2={ciY}
+                  stroke="#fbbf2455" strokeWidth="1" strokeDasharray="4,2" />
+            <line x1={PAD_L} y1={toY(-ci)} x2={W - PAD_R} y2={toY(-ci)}
+                  stroke="#fbbf2455" strokeWidth="1" strokeDasharray="4,2" />
           </>
         )}
         {/* stems */}
@@ -250,13 +289,20 @@ function StemChart({ lags, values, ci, height = 80, color = "#60a5fa", title }) 
           return (
             <g key={lag}>
               <line x1={x} y1={midY} x2={x} y2={y}
-                    stroke={aboveThreshold ? color : "#ffffff33"}
-                    strokeWidth="1.5" />
-              <circle cx={x} cy={y} r="2"
-                      fill={aboveThreshold ? color : "#ffffff33"} />
+                    stroke={aboveThreshold ? color : "#ffffff22"}
+                    strokeWidth="1.2" />
+              <circle cx={x} cy={y} r="1.8"
+                      fill={aboveThreshold ? color : "#ffffff22"} />
             </g>
           );
         })}
+        {/* X-axis lag labels */}
+        {xLabelIdxs.map((idx) => (
+          <text key={idx} x={toX(idx)} y={H - 2} fontSize="6"
+                fill="#ffffff30" textAnchor="middle" fontFamily="monospace">
+            {lags[idx]}
+          </text>
+        ))}
       </svg>
     </div>
   );
@@ -524,6 +570,9 @@ function ClimateTrendsSection({ ct }) {
       {/* Annual rainfall totals */}
       <div>
         <p className="text-white/50 text-xs mb-2">Annual Rainfall Total (mm) — each bar = one year</p>
+        <p className="text-white/25 text-[10px] mb-1.5 italic">
+          ⚠ Island-wide station aggregate — sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
+        </p>
         <MiniBarChart data={rainfallTotals} height={70} color="#60a5fa" />
         <div className="flex justify-between text-white/30 text-[10px] mt-1">
           {years.map((y) => <span key={y}>{y}</span>)}
@@ -739,10 +788,10 @@ export function MLAnalysisDashboard() {
             <button
               key={v}
               onClick={() => setSelectedVar(v)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-all ${
                 selectedVar === v
-                  ? "bg-blue-500/30 border-blue-400/60 text-blue-200"
-                  : "bg-white/8 border-white/15 text-white/60 hover:text-white"
+                  ? "bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/25"
+                  : "bg-white/5 border-white/15 text-white/50 hover:text-white hover:bg-white/10"
               }`}
             >
               {v}
@@ -797,8 +846,9 @@ export function MLAnalysisDashboard() {
                   <p className="text-white/50 text-xs mb-2">Distribution (value → frequency)</p>
                   <MiniBarChart
                     data={e.histogram.counts}
-                    height={74}
+                    height={80}
                     color="#60a5fa"
+                    showYAxis={true}
                     xTicks={(() => {
                       const edges = e.histogram.bin_edges;
                       if (!edges || edges.length < 2) return null;
@@ -1277,7 +1327,15 @@ export function MLAnalysisDashboard() {
       <Section icon={Activity} title="Training Loss Curves">
         {data.loss_curves?.length > 0 ? (
           <div className="space-y-4">
-            {data.loss_curves.slice(0, 4).map((lc, i) => (
+            {data.loss_curves.slice(0, 4).map((lc, i) => {
+              const totalRounds = lc.train?.length || 0;
+              const xTicks = totalRounds > 0
+                ? [0, 1, 2, 3, 4].map((j) => {
+                    const r = Math.round((j / 4) * totalRounds);
+                    return r >= 1000 ? `${(r / 1000).toFixed(1)}K` : String(r);
+                  })
+                : [];
+              return (
               <div key={i}>
                 <p className="text-white/50 text-xs mb-1">
                   {lc.task} — {lc.horizon_h}h ahead · best iter={lc.best_iteration}
@@ -1287,12 +1345,14 @@ export function MLAnalysisDashboard() {
                     { name: "Train", data: _decimate(lc.train, 100), color: "#60a5fa" },
                     { name: "Val",   data: _decimate(lc.val,   100), color: "#f472b6" },
                   ]}
-                  height={60}
+                  height={65}
+                  xTicks={xTicks}
                   xLabel="Rounds"
                   yLabel={lc.metric}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-white/40 text-sm text-center py-4">No loss curves available yet</p>
