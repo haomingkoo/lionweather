@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { ImageOverlay, useMap } from "react-leaflet";
+import { useMap } from "react-leaflet";
+import L from "leaflet";
 import { getRadarFrames } from "../api/radar";
 import { RainfallOverlay } from "./RainfallOverlay";
 
@@ -7,12 +8,8 @@ import { RainfallOverlay } from "./RainfallOverlay";
  * AnimatedRadarLayer Component
  *
  * Displays animated radar imagery showing rainfall patterns over time.
- * Features:
- * - Fetches radar frames from backend API
- * - Preloads all images before starting animation
- * - Cycles through frames with configurable speed (300-1000ms)
- * - Pauses animation when map not visible
- * - Falls back to static RainfallOverlay on error
+ * Uses native Leaflet imageOverlay (same approach as PrecipitationMap)
+ * so frame updates are reliable across all browsers.
  *
  * Requirements: 1.1, 1.3, 1.7, 6.1, 6.2, 6.3, 6.5, 10.2
  */
@@ -32,6 +29,7 @@ export function AnimatedRadarLayer({
   const [preloadedImages, setPreloadedImages] = useState([]);
   const map = useMap();
   const intervalRef = useRef(null);
+  const overlayRef = useRef(null);  // native Leaflet overlay instance
 
   // Constrain animation speed to 300-1000ms (Requirement 1.7)
   const constrainedSpeed = Math.max(300, Math.min(1000, animationSpeed));
@@ -47,9 +45,11 @@ export function AnimatedRadarLayer({
 
         const data = await getRadarFrames();
 
-        if (!data.frames || data.frames.length === 0) {
+        if (!data || !data.frames || data.frames.length === 0) {
           throw new Error("No radar frames available");
         }
+
+        console.log("[Radar] Fetched", data.frames.length, "frames from API");
 
         setFrames(data.frames);
 
@@ -58,7 +58,7 @@ export function AnimatedRadarLayer({
 
         setIsLoading(false);
       } catch (err) {
-        console.error("Failed to fetch radar frames:", err);
+        console.error("[Radar] Failed to fetch frames:", err);
         setError(err.message || "Failed to load radar animation");
         setIsLoading(false);
 
@@ -81,33 +81,35 @@ export function AnimatedRadarLayer({
     const promises = frameList.map((frame) => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => resolve(frame);
+        img.onload = () => {
+          console.log("[Radar] Preloaded frame:", frame.imageUrl);
+          resolve(frame);
+        };
         img.onerror = () => {
-          // Silently skip failed images
+          console.warn("[Radar] Failed to preload frame:", frame.imageUrl);
           resolve(null);
         };
         img.src = frame.imageUrl;
       });
     });
 
-    try {
-      const results = await Promise.all(promises);
-      const successfulFrames = results.filter((f) => f !== null);
-      setPreloadedImages(successfulFrames);
+    const results = await Promise.all(promises);
+    const successfulFrames = results.filter((f) => f !== null);
 
-      if (successfulFrames.length === 0) {
-        throw new Error("Failed to preload any radar images");
-      }
+    console.log("[Radar] Preloaded", successfulFrames.length, "of", frameList.length, "frames");
 
-      // Notify parent how many frames loaded and their timestamps
-      if (onFramesLoaded) {
-        onFramesLoaded(
-          successfulFrames.length,
-          successfulFrames.map((f) => f.timestamp),
-        );
-      }
-    } catch (err) {
-      throw err;
+    if (successfulFrames.length === 0) {
+      throw new Error("Failed to preload any radar images");
+    }
+
+    setPreloadedImages(successfulFrames);
+
+    // Notify parent how many frames loaded and their timestamps
+    if (onFramesLoaded) {
+      onFramesLoaded(
+        successfulFrames.length,
+        successfulFrames.map((f) => f.timestamp),
+      );
     }
   };
 
@@ -149,40 +151,63 @@ export function AnimatedRadarLayer({
     };
   }, [isPlaying, preloadedImages, constrainedSpeed, visible, onFrameChange]);
 
+  // Render current frame using native Leaflet imageOverlay (same as PrecipitationMap)
+  // This approach is more reliable than React-Leaflet's <ImageOverlay> component.
+  useEffect(() => {
+    if (!map || !visible || preloadedImages.length === 0) {
+      // Remove overlay if not visible
+      if (overlayRef.current) {
+        map && map.removeLayer(overlayRef.current);
+        overlayRef.current = null;
+      }
+      return;
+    }
+
+    const currentFrame = preloadedImages[currentIndex];
+    if (!currentFrame) return;
+
+    const bounds = currentFrame.bounds || [[1.1550, 103.565], [1.4750, 104.130]];
+
+    console.log("[Radar] Showing frame", currentIndex, currentFrame.imageUrl);
+
+    // Remove previous overlay
+    if (overlayRef.current) {
+      map.removeLayer(overlayRef.current);
+      overlayRef.current = null;
+    }
+
+    // Add new native Leaflet imageOverlay
+    const overlay = L.imageOverlay(currentFrame.imageUrl, bounds, {
+      opacity: 0.7,
+      zIndex: 1000,
+      crossOrigin: true,
+    });
+    overlay.addTo(map);
+    overlayRef.current = overlay;
+
+    return () => {
+      if (overlayRef.current) {
+        map.removeLayer(overlayRef.current);
+        overlayRef.current = null;
+      }
+    };
+  }, [map, currentIndex, preloadedImages, visible]);
+
   // Don't render if not visible
   if (!visible) {
     return null;
   }
 
-  // Show loading indicator during preload (Requirement 6.3)
+  // Show nothing during preload (silent)
   if (isLoading) {
-    return null; // Silent loading, no visual indicator needed
+    return null;
   }
 
   // Fallback to static RainfallOverlay on error (Requirement 10.2, 6.3)
   if (error || preloadedImages.length === 0) {
-    // Silently fallback - don't spam console
     return <RainfallOverlay visible={visible} />;
   }
 
-  // Get current frame
-  const currentFrame = preloadedImages[currentIndex];
-
-  if (!currentFrame) {
-    // Fallback if current frame is invalid
-    return <RainfallOverlay visible={visible} />;
-  }
-
-  // Render animated radar overlay (Requirement 1.1, 1.2)
-  // key forces React-Leaflet to remount the ImageOverlay on each frame change,
-  // matching PrecipitationMap behaviour — without this the image never updates.
-  return (
-    <ImageOverlay
-      key={currentFrame.imageUrl}
-      url={currentFrame.imageUrl}
-      bounds={currentFrame.bounds || [[1.1550, 103.565], [1.4750, 104.130]]}
-      opacity={0.6}
-      zIndex={1000}
-    />
-  );
+  // All rendering is done imperatively via the useEffect above — no JSX overlay needed
+  return null;
 }

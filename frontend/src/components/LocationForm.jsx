@@ -19,10 +19,12 @@ function buildLocationName(result, originalQuery) {
     addr.borough ||
     null;
 
-  // For place-name searches, also try the result's own name attribute
+  // result.name is the specific place name (e.g. "ION Orchard", "Paragon").
+  // Prefer it over the generic neighbourhood/suburb (e.g. "Boulevard").
   const resultName = result.name && result.name !== "Singapore" ? result.name : null;
 
-  const base = areaName || resultName;
+  // Prioritise the specific named place over the area/neighbourhood label.
+  const base = resultName || areaName;
 
   if (base) {
     // Append postal code in parentheses if search was by postal code

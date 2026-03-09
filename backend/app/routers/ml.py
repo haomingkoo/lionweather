@@ -628,7 +628,11 @@ async def get_rain_forecast():
     def roll_sum(col, h):
         return float(df[col].iloc[max(0, n_hours - h):].sum())
 
-    now = df.index[-1]
+    # Use actual current SGT time for time features and prediction timestamps.
+    # df.index[-1] may be stale if data collection lagged — always predict from NOW.
+    from datetime import timezone, timedelta as _td
+    _SGT = timezone(_td(hours=8))
+    now = pd.Timestamp(datetime.now(_SGT)).tz_localize(None)
     hour = now.hour
     dow = now.dayofweek
     month = now.month

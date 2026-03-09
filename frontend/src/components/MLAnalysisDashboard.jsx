@@ -45,7 +45,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
   if (!data || data.length === 0) return null;
   const vals = data.map((d) => (typeof d === "object" ? d.value ?? d : d));
   const max = Math.max(...vals, 0.001);
-  const barW = Math.max(1, Math.floor(240 / vals.length));
+  const barW = Math.max(2, Math.floor(520 / vals.length));
   const PAD_B = xTicks && xTicks.length > 0 ? 14 : 0;
   const PAD_L = showYAxis ? 30 : 0;
   const plotH = height - PAD_B;
@@ -115,7 +115,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
   const maxY = rawMaxY + rangePad;
   const rangeY = Math.max(maxY - minY, 0.001);
 
-  const W = 360;
+  const W = 600;
   const H = height;
   const PAD_L = showYAxis ? 38 : 6;
   const PAD_R = 6;
@@ -143,7 +143,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
     : null;
 
   return (
-    <div style={{ maxWidth: "480px" }}>
+    <div style={{ maxWidth: "100%" }}>
       {(xLabel || yLabel) && (
         <div className="flex justify-between text-white/40 text-[10px] mb-0.5">
           <span>{yLabel}</span><span>{xLabel}</span>
@@ -228,7 +228,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
 function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) {
   // ACF / PACF stem plot with x/y axis labels
   if (!lags || !values) return null;
-  const W = 360;
+  const W = 600;
   const H = height;
   const PAD_L = 28;  // y-axis labels
   const PAD_R = 8;
@@ -257,7 +257,7 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
     .filter((v, i, a) => a.indexOf(v) === i && v < nLags);
 
   return (
-    <div style={{ maxWidth: "480px" }}>
+    <div style={{ maxWidth: "100%" }}>
       {title && <p className="text-white/50 text-xs mb-1">{title}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
         {/* Y-axis labels + gridlines */}
@@ -407,7 +407,7 @@ function CommentaryBox({ points, tip, variant = "indigo" }) {
 function StackedBarChart({ years, stacks, height = 70 }) {
   // stacks = [{ key, color, label }]
   if (!years || years.length === 0) return null;
-  const BAR_W = 28;
+  const BAR_W = 60;
   const W = years.length * BAR_W;
   const LABEL_H = 12;
   const SVG_H = height + LABEL_H;

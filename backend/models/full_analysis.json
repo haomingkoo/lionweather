@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-09T07:25:09.084332",
+  "generated_at": "2026-03-09T08:51:56.293039",
   "description": "LionWeather ML full analysis: climate trends, EDA, ACF/PACF, FFT, spurious correlations, SHAP, loss curves, classification & regression benchmarks. Train 2016-2022 | Val 2023 | Test 2024.",
   "rain_categories": {
     "0": "No Rain",
@@ -15448,145 +15448,145 @@
       "global_importance": [
         {
           "feature": "dry_spell_hours",
-          "mean_abs_shap": 4.869375
-        },
-        {
-          "feature": "rain_lag_1h",
-          "mean_abs_shap": 2.58667
+          "mean_abs_shap": 5.261996
         },
         {
           "feature": "wind_accel_3h",
-          "mean_abs_shap": 2.427258
+          "mean_abs_shap": 2.877179
+        },
+        {
+          "feature": "rain_lag_1h",
+          "mean_abs_shap": 2.636821
         },
         {
           "feature": "hum_deficit",
-          "mean_abs_shap": 2.118686
+          "mean_abs_shap": 2.497476
         },
         {
           "feature": "temp_lag_1h",
-          "mean_abs_shap": 1.909565
+          "mean_abs_shap": 2.180746
         },
         {
           "feature": "hum_temp_product",
-          "mean_abs_shap": 1.602277
+          "mean_abs_shap": 1.837742
         },
         {
           "feature": "hum_lag_1h",
-          "mean_abs_shap": 1.573568
-        },
-        {
-          "feature": "rain_streak_hours",
-          "mean_abs_shap": 0.642456
+          "mean_abs_shap": 1.712753
         },
         {
           "feature": "wind_lag_1h",
-          "mean_abs_shap": 0.641166
+          "mean_abs_shap": 0.718553
         },
         {
           "feature": "temp_lag_6h",
-          "mean_abs_shap": 0.562258
+          "mean_abs_shap": 0.665435
         },
         {
-          "feature": "hum_lag_2h",
-          "mean_abs_shap": 0.524914
+          "feature": "rain_streak_hours",
+          "mean_abs_shap": 0.658782
         },
         {
           "feature": "cos_day_of_year",
-          "mean_abs_shap": 0.451882
+          "mean_abs_shap": 0.572958
+        },
+        {
+          "feature": "hum_lag_2h",
+          "mean_abs_shap": 0.549684
         },
         {
           "feature": "temp_roll_6h",
-          "mean_abs_shap": 0.424899
+          "mean_abs_shap": 0.429445
         },
         {
           "feature": "hour_of_day",
-          "mean_abs_shap": 0.331816
-        },
-        {
-          "feature": "temp_lag_2h",
-          "mean_abs_shap": 0.309701
-        },
-        {
-          "feature": "wind_dir_cos",
-          "mean_abs_shap": 0.303529
+          "mean_abs_shap": 0.392644
         },
         {
           "feature": "wind_lag_3h",
-          "mean_abs_shap": 0.298245
+          "mean_abs_shap": 0.37369
         },
         {
-          "feature": "cloud_cover_roll_6h",
-          "mean_abs_shap": 0.280086
+          "feature": "wind_dir_cos",
+          "mean_abs_shap": 0.360087
+        },
+        {
+          "feature": "temp_lag_2h",
+          "mean_abs_shap": 0.354553
         },
         {
           "feature": "temp_roll_3h",
-          "mean_abs_shap": 0.275412
+          "mean_abs_shap": 0.309098
+        },
+        {
+          "feature": "cloud_cover_roll_6h",
+          "mean_abs_shap": 0.300165
         },
         {
           "feature": "cos_hour",
-          "mean_abs_shap": 0.266638
+          "mean_abs_shap": 0.288642
         }
       ],
       "waterfall_first_sample": [
         {
           "feature": "dry_spell_hours",
-          "shap_value": 7.169055
+          "shap_value": 3.064071
         },
         {
-          "feature": "temp_roll_6h",
-          "shap_value": 1.903635
+          "feature": "wind_accel_3h",
+          "shap_value": -2.69326
         },
         {
-          "feature": "rain_roll_6h",
-          "shap_value": 1.852869
-        },
-        {
-          "feature": "rain_streak_hours",
-          "shap_value": 1.822686
-        },
-        {
-          "feature": "hum_deficit",
-          "shap_value": -1.733678
-        },
-        {
-          "feature": "rain_roll_std_6h",
-          "shap_value": 1.483879
-        },
-        {
-          "feature": "hum_temp_product",
-          "shap_value": 0.924768
-        },
-        {
-          "feature": "cos_day_of_year",
-          "shap_value": -0.855249
-        },
-        {
-          "feature": "cloud_cover_roll_6h",
-          "shap_value": -0.831534
-        },
-        {
-          "feature": "hum_lag_1h",
-          "shap_value": -0.765764
-        },
-        {
-          "feature": "wind_lag_1h",
-          "shap_value": 0.722502
-        },
-        {
-          "feature": "wind_dir_sin",
-          "shap_value": 0.681454
-        },
-        {
-          "feature": "cloud_cover",
-          "shap_value": -0.56747
-        },
-        {
-          "feature": "temp_roll_3h",
-          "shap_value": 0.531052
+          "feature": "temp_lag_1h",
+          "shap_value": -2.586663
         },
         {
           "feature": "rain_lag_1h",
-          "shap_value": -0.492773
+          "shap_value": -2.087876
+        },
+        {
+          "feature": "hum_temp_product",
+          "shap_value": 0.814305
+        },
+        {
+          "feature": "wind_lag_1h",
+          "shap_value": 0.809916
+        },
+        {
+          "feature": "hum_lag_1h",
+          "shap_value": -0.764259
+        },
+        {
+          "feature": "rain_streak_hours",
+          "shap_value": 0.45564
+        },
+        {
+          "feature": "hour_of_day",
+          "shap_value": -0.441091
+        },
+        {
+          "feature": "hum_lag_2h",
+          "shap_value": -0.41546
+        },
+        {
+          "feature": "temp_roll_6h",
+          "shap_value": -0.391925
+        },
+        {
+          "feature": "temp_roll_3h",
+          "shap_value": -0.343804
+        },
+        {
+          "feature": "wind_lag_4h",
+          "shap_value": -0.333554
+        },
+        {
+          "feature": "wind_dir_cos",
+          "shap_value": 0.292116
+        },
+        {
+          "feature": "cos_hour",
+          "shap_value": -0.263383
         }
       ],
       "n_samples_used": 500

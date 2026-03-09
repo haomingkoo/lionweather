@@ -165,8 +165,11 @@ async def get_hourly_forecast(
         if not hourly.get("time"):
             return []
 
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).astimezone()
+        from datetime import datetime, timezone, timedelta
+        SGT = timezone(timedelta(hours=8))
+        now = datetime.now(SGT)
+        # Include current hour and future — floor to hour start for comparison
+        now_hour = now.replace(minute=0, second=0, microsecond=0, tzinfo=None)
         results = []
 
         precip_list = hourly.get("precipitation_probability") or []
@@ -177,10 +180,9 @@ async def get_hourly_forecast(
                 slot_time = datetime.fromisoformat(time_str)
             except ValueError:
                 continue
-            # Make naive comparison — both naive local
+            # Compare SGT slot time against SGT now — both naive SGT
             slot_naive = slot_time.replace(tzinfo=None)
-            now_naive = now.replace(tzinfo=None)
-            if slot_naive >= now_naive and len(results) < 24:
+            if slot_naive >= now_hour and len(results) < 24:
                 results.append({
                     "time": time_str,
                     "temperature": hourly["temperature_2m"][i],
