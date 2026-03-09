@@ -732,7 +732,11 @@ async def get_rain_forecast():
         clf = bundle["model"]
         feature_cols = bundle["feature_cols"]
         X = pd.DataFrame([[feat.get(f, 0.0) for f in feature_cols]], columns=feature_cols)
-        proba = clf.predict_proba(X)[0]
+        # sklearn wrapper has predict_proba; native LightGBM Booster uses predict()
+        if hasattr(clf, "predict_proba"):
+            proba = clf.predict_proba(X)[0]
+        else:
+            proba = clf.predict(X)[0]
         pred_class = int(np.argmax(proba))
         target_time = (now + pd.Timedelta(hours=h)).isoformat()
         predictions.append({
@@ -812,35 +816,64 @@ def _log_and_score_predictions(predictions, now, get_engine):
     from sqlalchemy import text as _text
 
     engine = get_engine()
+    is_postgres = engine.dialect.name == "postgresql"
 
     # Ensure table exists with all columns (including NEA + hybrid)
     with engine.connect() as conn:
-        conn.execute(_text("""
-            CREATE TABLE IF NOT EXISTS rain_forecast_log (
-                id INTEGER PRIMARY KEY,
-                prediction_time TEXT NOT NULL,
-                target_time TEXT NOT NULL,
-                horizon_h INTEGER NOT NULL,
-                predicted_class INTEGER NOT NULL,
-                predicted_label TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                prob_no_rain REAL,
-                prob_light_rain REAL,
-                prob_heavy_rain REAL,
-                prob_thundery REAL,
-                actual_rainfall REAL,
-                actual_class INTEGER,
-                correct INTEGER,
-                binary_correct INTEGER,
-                nea_forecast_text TEXT,
-                nea_binary INTEGER,
-                nea_correct INTEGER,
-                hybrid_binary INTEGER,
-                hybrid_correct INTEGER,
-                scored_at TEXT,
-                UNIQUE(prediction_time, horizon_h)
-            )
-        """))
+        if is_postgres:
+            conn.execute(_text("""
+                CREATE TABLE IF NOT EXISTS rain_forecast_log (
+                    id SERIAL PRIMARY KEY,
+                    prediction_time TEXT NOT NULL,
+                    target_time TEXT NOT NULL,
+                    horizon_h INTEGER NOT NULL,
+                    predicted_class INTEGER NOT NULL,
+                    predicted_label TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    prob_no_rain REAL,
+                    prob_light_rain REAL,
+                    prob_heavy_rain REAL,
+                    prob_thundery REAL,
+                    actual_rainfall REAL,
+                    actual_class INTEGER,
+                    correct INTEGER,
+                    binary_correct INTEGER,
+                    nea_forecast_text TEXT,
+                    nea_binary INTEGER,
+                    nea_correct INTEGER,
+                    hybrid_binary INTEGER,
+                    hybrid_correct INTEGER,
+                    scored_at TEXT,
+                    UNIQUE(prediction_time, horizon_h)
+                )
+            """))
+        else:
+            conn.execute(_text("""
+                CREATE TABLE IF NOT EXISTS rain_forecast_log (
+                    id INTEGER PRIMARY KEY,
+                    prediction_time TEXT NOT NULL,
+                    target_time TEXT NOT NULL,
+                    horizon_h INTEGER NOT NULL,
+                    predicted_class INTEGER NOT NULL,
+                    predicted_label TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    prob_no_rain REAL,
+                    prob_light_rain REAL,
+                    prob_heavy_rain REAL,
+                    prob_thundery REAL,
+                    actual_rainfall REAL,
+                    actual_class INTEGER,
+                    correct INTEGER,
+                    binary_correct INTEGER,
+                    nea_forecast_text TEXT,
+                    nea_binary INTEGER,
+                    nea_correct INTEGER,
+                    hybrid_binary INTEGER,
+                    hybrid_correct INTEGER,
+                    scored_at TEXT,
+                    UNIQUE(prediction_time, horizon_h)
+                )
+            """))
         # Add new columns to existing tables if they don't exist (safe ALTER TABLE)
         for col, typedef in [
             ("nea_forecast_text", "TEXT"),
@@ -857,18 +890,25 @@ def _log_and_score_predictions(predictions, now, get_engine):
 
     # 6a. Insert new predictions (ignore duplicates)
     pred_time_str = now.isoformat()
+    insert_sql = (
+        """INSERT INTO rain_forecast_log
+               (prediction_time, target_time, horizon_h,
+                predicted_class, predicted_label, confidence,
+                prob_no_rain, prob_light_rain, prob_heavy_rain, prob_thundery)
+           VALUES (:pt, :tt, :h, :pc, :pl, :conf, :p0, :p1, :p2, :p3)
+           ON CONFLICT (prediction_time, horizon_h) DO NOTHING"""
+        if is_postgres else
+        """INSERT OR IGNORE INTO rain_forecast_log
+               (prediction_time, target_time, horizon_h,
+                predicted_class, predicted_label, confidence,
+                prob_no_rain, prob_light_rain, prob_heavy_rain, prob_thundery)
+           VALUES (:pt, :tt, :h, :pc, :pl, :conf, :p0, :p1, :p2, :p3)"""
+    )
     with engine.connect() as conn:
         for p in predictions:
             probs = p.get("probabilities", {})
             try:
-                conn.execute(_text("""
-                    INSERT OR IGNORE INTO rain_forecast_log
-                        (prediction_time, target_time, horizon_h,
-                         predicted_class, predicted_label, confidence,
-                         prob_no_rain, prob_light_rain, prob_heavy_rain, prob_thundery)
-                    VALUES
-                        (:pt, :tt, :h, :pc, :pl, :conf, :p0, :p1, :p2, :p3)
-                """), {
+                conn.execute(_text(insert_sql), {
                     "pt": pred_time_str, "tt": p["target_time"], "h": p["horizon_h"],
                     "pc": p["predicted_class"], "pl": p["predicted_label"],
                     "conf": p["confidence"],

@@ -16,7 +16,7 @@ const API_BASE_URL = _secureBase.startsWith("http") ? _secureBase : "";
  * @returns {Promise<Object>} Radar frames data with metadata
  * @throws {Error} If the request fails
  */
-export async function getRadarFrames(count = 6) {
+export async function getRadarFrames(count = 20) {
   try {
     const response = await fetch(
       `${API_BASE_URL}/api/radar/frames?count=${count}`,

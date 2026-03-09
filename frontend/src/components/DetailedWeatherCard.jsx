@@ -22,7 +22,7 @@ import { request } from "../api/client";
 import { get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
-import { getSunTimes } from "../utils/sunTimes";
+import { getSunTimesSync } from "../utils/sunTimes";
 import { getCurrentWeather, get7DayForecast, getHourlyForecast } from "../api/backend";
 
 // Map WMO weather codes to simple condition strings
@@ -114,7 +114,10 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const [dailyForecast, setDailyForecast] = useState([]);
   const [showPrecipMap, setShowPrecipMap] = useState(false);
   const [error, setError] = useState(null);
-  const [sunTimes, setSunTimes] = useState({ sunrise: "N/A", sunset: "N/A" });
+  // Compute synchronously — SunCalc is pure JS, no API call needed, so no layout shift
+  const [sunTimes] = useState(() =>
+    getSunTimesSync(location.latitude, location.longitude),
+  );
   const [openMeteoData, setOpenMeteoData] = useState({
     visibility: null,
     pressure: null,
@@ -124,21 +127,6 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const textColor = isDark ? "text-white" : "text-slate-900";
   const secondaryTextColor = isDark ? "text-white/80" : "text-slate-700";
   const tertiaryTextColor = isDark ? "text-white/60" : "text-slate-600";
-
-  // Calculate sunrise/sunset times based on location coordinates
-  useEffect(() => {
-    const fetchSunTimes = async () => {
-      try {
-        const times = await getSunTimes(location.latitude, location.longitude);
-        setSunTimes(times);
-      } catch (err) {
-        console.error("Error calculating sun times:", err);
-        // Keep default N/A values if calculation fails
-      }
-    };
-
-    fetchSunTimes();
-  }, [location.latitude, location.longitude]);
 
   // Fetch Open-Meteo data for visibility, pressure, and UV index
   useEffect(() => {

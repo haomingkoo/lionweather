@@ -55,8 +55,8 @@ class RadarService:
     - Total API impact: ~6 calls/hour (well under 36/hour limit)
     """
     
-    # Singapore bounds for radar imagery
-    SINGAPORE_BOUNDS = ((1.1, 103.6), (1.5, 104.1))
+    # Exact bounds from weather.gov.sg JS: map_latitude_bottom/top/longitude_left/right
+    SINGAPORE_BOUNDS = ((1.1450, 103.565), (1.4572, 104.130))
     
     def __init__(
         self,
@@ -207,7 +207,9 @@ class RadarService:
         
         if not frames:
             raise NEAAPIError("No radar frames could be fetched")
-        
+
+        # Reverse so frames are in chronological order (oldest → newest)
+        frames.reverse()
         logger.info(f"Successfully fetched {len(frames)} radar frames via scraping")
         return frames
     

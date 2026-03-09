@@ -18,7 +18,7 @@ router = APIRouter(prefix="/radar", tags=["radar"])
 
 
 @router.get("/frames")
-async def get_radar_frames(count: int = Query(default=6, ge=1, le=12)):
+async def get_radar_frames(count: int = Query(default=20, ge=1, le=24)):
     """
     Get radar frame metadata for animated visualization.
     

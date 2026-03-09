@@ -918,6 +918,13 @@ export function MLAnalysisDashboard() {
         {data.spectral?.[selectedVar] && (() => {
           const sp = data.spectral[selectedVar];
           const chartData = sp.chart_data || [];
+          // Build x-axis ticks at key periods (6h, 12h, 24h, 72h, 168h)
+          const keyPeriods = [6, 12, 24, 48, 168];
+          const fftTicks = [], fftTickIndices = [];
+          keyPeriods.forEach((p) => {
+            const idx = chartData.findIndex((d) => d.period_h >= p);
+            if (idx >= 0) { fftTicks.push(`${p}h`); fftTickIndices.push(idx); }
+          });
           return (
             <div className="space-y-3">
               <div className="text-white/50 text-xs">
@@ -930,8 +937,9 @@ export function MLAnalysisDashboard() {
                   data: chartData.map((d) => d.power),
                   color: "#34d399",
                 }]}
-                height={70}
-                xLabel="Period (hours)"
+                height={80}
+                xTicks={fftTicks}
+                xTickIndices={fftTickIndices}
                 yLabel="Power"
               />
               {/* Top periods table */}
