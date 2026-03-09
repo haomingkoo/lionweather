@@ -271,9 +271,35 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   };
 
   const temperature = location.weather.temperature || "N/A";
-  const feelsLike =
-    comprehensiveData?.temperature ||
-    (temperature !== "N/A" ? parseInt(temperature) - 2 : "N/A");
+  // Heat index (feels like) — Steadman formula adapted for Celsius
+  const feelsLike = (() => {
+    const T = parseFloat(comprehensiveData?.temperature || temperature);
+    const RH = parseFloat(comprehensiveData?.humidity || 75);
+    if (isNaN(T) || isNaN(RH)) return "N/A";
+    if (T < 27) return Math.round(T); // Below 27°C heat index less meaningful
+    const HI =
+      -8.78469 + 1.61139 * T + 2.33855 * RH
+      - 0.14612 * T * RH - 0.01231 * T * T
+      - 0.01642 * RH * RH + 0.00221 * T * T * RH
+      + 0.00073 * T * RH * RH - 0.0000036 * T * T * RH * RH;
+    return Math.round(HI);
+  })();
+  const feelsLikeLabel = (() => {
+    const v = typeof feelsLike === "number" ? feelsLike : parseFloat(feelsLike);
+    if (isNaN(v)) return null;
+    if (v < 27) return "Comfortable";
+    if (v < 32) return "Warm";
+    if (v < 38) return "Hot";
+    return "Very hot";
+  })();
+  const feelsLikeDiff = (() => {
+    const fl = typeof feelsLike === "number" ? feelsLike : parseFloat(feelsLike);
+    const T  = parseFloat(comprehensiveData?.temperature || temperature);
+    if (isNaN(fl) || isNaN(T)) return null;
+    const diff = fl - Math.round(T);
+    if (Math.abs(diff) < 1) return "Same as actual temperature.";
+    return diff > 0 ? `Humidity makes it feel ${diff}° warmer.` : `Breeze makes it feel ${Math.abs(diff)}° cooler.`;
+  })();
 
   // Apple Weather-style contextual descriptions
   const humidity = comprehensiveData?.humidity || location.weather?.humidity || null;
@@ -661,6 +687,12 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             </span>
           </div>
           <div className={`text-2xl font-light ${textColor}`}>{feelsLike}°</div>
+          {feelsLikeLabel && (
+            <div className={`text-sm font-medium mt-1 ${secondaryTextColor}`}>{feelsLikeLabel}</div>
+          )}
+          {feelsLikeDiff && (
+            <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{feelsLikeDiff}</p>
+          )}
         </div>
 
         {/* Humidity */}
@@ -686,50 +718,47 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Wind</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Compass SVG */}
-            <svg viewBox="0 0 100 100" width="72" height="72" className="shrink-0">
-              <circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none" />
-              <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
-              {/* Cardinal ticks */}
-              {[0,45,90,135,180,225,270,315].map(deg => {
-                const r = (deg - 90) * Math.PI / 180;
-                const inner = deg % 90 === 0 ? 33 : 37;
-                return <line key={deg}
-                  x1={50 + inner * Math.cos(r)} y1={50 + inner * Math.sin(r)}
-                  x2={50 + 43 * Math.cos(r)} y2={50 + 43 * Math.sin(r)}
-                  stroke={deg % 90 === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)"}
-                  strokeWidth={deg % 90 === 0 ? 1.5 : 0.8} />;
-              })}
-              {/* N/S/E/W labels */}
-              <text x="50" y="11" textAnchor="middle" fontSize="8" fontWeight="600" fill="rgba(255,255,255,0.85)" fontFamily="sans-serif">N</text>
-              <text x="50" y="96" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">S</text>
-              <text x="92" y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">E</text>
-              <text x="8"  y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">W</text>
-              {/* Arrow needle */}
-              {windDir !== null && (() => {
-                const rad = (windDir - 90) * Math.PI / 180;
-                const tipX = 50 + 28 * Math.cos(rad);
-                const tipY = 50 + 28 * Math.sin(rad);
-                const tailX = 50 - 14 * Math.cos(rad);
-                const tailY = 50 - 14 * Math.sin(rad);
-                // Arrowhead perpendicular points
-                const perpRad = rad + Math.PI / 2;
-                const hw = 4;
-                const ahX1 = tipX - 8 * Math.cos(rad) + hw * Math.cos(perpRad);
-                const ahY1 = tipY - 8 * Math.sin(rad) + hw * Math.sin(perpRad);
-                const ahX2 = tipX - 8 * Math.cos(rad) - hw * Math.cos(perpRad);
-                const ahY2 = tipY - 8 * Math.sin(rad) - hw * Math.sin(perpRad);
-                return (
-                  <g>
-                    <line x1={tailX} y1={tailY} x2={tipX} y2={tipY} stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                    <polygon points={`${tipX},${tipY} ${ahX1},${ahY1} ${ahX2},${ahY2}`} fill="white" opacity="0.9" />
-                    <line x1="50" y1="50" x2={tailX} y2={tailY} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
-                  </g>
-                );
-              })()}
-              {/* Center dot */}
-              <circle cx="50" cy="50" r="3" fill="white" opacity="0.6" />
-            </svg>
+            {/* Compass SVG — only when direction is known */}
+            {windDir !== null && (
+              <svg viewBox="0 0 100 100" width="72" height="72" className="shrink-0">
+                <circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none" />
+                <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+                {[0,45,90,135,180,225,270,315].map(deg => {
+                  const r = (deg - 90) * Math.PI / 180;
+                  const inner = deg % 90 === 0 ? 33 : 37;
+                  return <line key={deg}
+                    x1={50 + inner * Math.cos(r)} y1={50 + inner * Math.sin(r)}
+                    x2={50 + 43 * Math.cos(r)} y2={50 + 43 * Math.sin(r)}
+                    stroke={deg % 90 === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)"}
+                    strokeWidth={deg % 90 === 0 ? 1.5 : 0.8} />;
+                })}
+                <text x="50" y="11" textAnchor="middle" fontSize="8" fontWeight="600" fill="rgba(255,255,255,0.85)" fontFamily="sans-serif">N</text>
+                <text x="50" y="96" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">S</text>
+                <text x="92" y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">E</text>
+                <text x="8"  y="53" textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.35)" fontFamily="sans-serif">W</text>
+                {(() => {
+                  const rad = (windDir - 90) * Math.PI / 180;
+                  const tipX = 50 + 28 * Math.cos(rad);
+                  const tipY = 50 + 28 * Math.sin(rad);
+                  const tailX = 50 - 14 * Math.cos(rad);
+                  const tailY = 50 - 14 * Math.sin(rad);
+                  const perpRad = rad + Math.PI / 2;
+                  const hw = 4;
+                  const ahX1 = tipX - 8 * Math.cos(rad) + hw * Math.cos(perpRad);
+                  const ahY1 = tipY - 8 * Math.sin(rad) + hw * Math.sin(perpRad);
+                  const ahX2 = tipX - 8 * Math.cos(rad) - hw * Math.cos(perpRad);
+                  const ahY2 = tipY - 8 * Math.sin(rad) - hw * Math.sin(perpRad);
+                  return (
+                    <g>
+                      <line x1={tailX} y1={tailY} x2={tipX} y2={tipY} stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                      <polygon points={`${tipX},${tipY} ${ahX1},${ahY1} ${ahX2},${ahY2}`} fill="white" opacity="0.9" />
+                      <line x1="50" y1="50" x2={tailX} y2={tailY} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
+                    </g>
+                  );
+                })()}
+                <circle cx="50" cy="50" r="3" fill="white" opacity="0.6" />
+              </svg>
+            )}
             {/* Speed + direction label */}
             <div>
               <div className="flex items-baseline gap-1">
