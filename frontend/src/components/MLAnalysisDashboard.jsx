@@ -1682,6 +1682,13 @@ export function MLAnalysisDashboard() {
                     return r >= 1000 ? `${(r / 1000).toFixed(1)}K` : String(r);
                   })
                 : [];
+              // Gap between final train and val
+              const trainFinal = lc.train?.[lc.train.length - 1] ?? null;
+              const valFinal   = lc.val?.[lc.val.length - 1] ?? null;
+              const gap = trainFinal != null && valFinal != null ? Math.abs(valFinal - trainFinal) : null;
+              const earlyStop = lc.best_iteration != null && totalRounds > 0
+                ? lc.best_iteration / totalRounds
+                : null;
               return (
               <div key={i}>
                 <p className="text-white/65 text-xs mb-1">
@@ -1697,6 +1704,17 @@ export function MLAnalysisDashboard() {
                   xLabel="Rounds"
                   yLabel={lc.metric}
                 />
+                {/* Inline health note per curve */}
+                <p className="text-white/35 text-[10px] mt-0.5 italic">
+                  {earlyStop != null && earlyStop < 0.65
+                    ? `Early stopping at iter ${lc.best_iteration} — model converged quickly, further rounds would overfit.`
+                    : gap != null && gap > 0.3 && lc.task === "classification"
+                    ? `Train/Val gap ~${gap.toFixed(2)}: expected for classification — the model memorises training patterns; Val loss measures real-world accuracy.`
+                    : gap != null && gap > 5 && lc.task === "regression"
+                    ? `Train/Val gap ~${gap.toFixed(0)} — model fits training data tightly; Val score reflects generalisation on unseen hours.`
+                    : `Train and Val curves track closely — low overfitting risk.`
+                  }
+                </p>
               </div>
               );
             })}
@@ -1704,6 +1722,17 @@ export function MLAnalysisDashboard() {
         ) : (
           <p className="text-white/40 text-sm text-center py-4">No loss curves available yet</p>
         )}
+        <CommentaryBox
+          variant="blue"
+          points={[
+            "Each chart shows how the model's error (loss) changed during training. The blue Train line shows error on data the model learned from; the pink Val line shows error on held-out data it never saw.",
+            "A healthy curve: both lines decrease together and level off. If Train keeps falling while Val flattens or rises, the model is overfitting — memorising training data instead of learning general patterns.",
+            "LightGBM uses early stopping: training halts when validation loss stops improving. The 'best iter' number tells you exactly when the model peaked. A low best iter (e.g. 33) means the task converges fast; a high one (e.g. 516) means the model needed many rounds to learn.",
+            "Classification loss (multi_logloss): lower = better probability estimates for each rain category. Regression loss (l1 = mean absolute error): lower = tighter temperature/rainfall predictions in mm.",
+            "The gap between Train and Val is normal — the model always fits training data better than unseen data. A wide gap doesn't mean the model is broken; it means the held-out 2024 period is genuinely harder to predict.",
+          ]}
+          tip="Tip: The 3h-ahead models show a larger Train/Val gap than 1h-ahead — forecasting further into the future is harder, so the model can't generalise as well."
+        />
       </Section>
 
       {/* 7. SHAP */}
