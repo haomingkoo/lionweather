@@ -129,7 +129,13 @@ function LineChart({ series, height = 80, xTicks, xLabel, yLabel, showYAxis = tr
             {showYAxis && (
               <text x={PAD_L - 4} y={y + 3.5}
                     fontSize="7.5" fill="#ffffff50" textAnchor="end" fontFamily="monospace">
-                {Math.abs(val) < 10 ? val.toFixed(1) : Math.round(val)}
+                {(() => {
+                  const abs = Math.abs(val);
+                  const sign = val < 0 ? "−" : "";
+                  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}K`;
+                  if (abs < 10) return val.toFixed(1);
+                  return `${sign}${Math.round(abs)}`;
+                })()}
               </text>
             )}
           </g>
@@ -748,18 +754,24 @@ export function MLAnalysisDashboard() {
               {/* Stats grid */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  ["Mean", e.mean],
-                  ["Std", e.std],
+                  ["Mean",     e.mean],
+                  ["Std",      e.std],
                   ["Skewness", e.skewness],
                   ["Kurtosis", e.kurtosis],
-                  ["P50", e.p50],
-                  ["P99", e.p99],
-                ].map(([label, val]) => (
-                  <div key={label} className="bg-white/5 rounded-xl p-2 text-center">
-                    <p className="text-white/40 text-[10px]">{label}</p>
-                    <p className="text-white font-semibold text-sm">{val}</p>
+                  ["P50",      e.p50],
+                  ["P99",      e.p99],
+                ].map(([label, val]) => {
+                  const num = parseFloat(val);
+                  const display = Number.isFinite(num)
+                    ? (Math.abs(num) >= 100 ? num.toFixed(1) : num.toFixed(2))
+                    : (val ?? "—");
+                  return (
+                  <div key={label} className="bg-white/5 rounded-xl px-2 py-2 text-center">
+                    <p className="text-white/40 text-[10px] mb-0.5">{label}</p>
+                    <p className="text-white font-semibold text-xs tabular-nums">{display}</p>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Distribution histogram */}

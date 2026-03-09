@@ -408,49 +408,86 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
           }}
         >
-          {hourlyForecast.map((hour, i) => {
-            const hourIconKey = getWeatherIcon(hour.condition);
-            const HourIcon = iconMap[hourIconKey];
-            return (
-              <div
-                key={i}
-                className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl transition-all duration-200 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
-              >
-                <span className={`text-xs font-medium ${i === 0 ? textColor : secondaryTextColor}`}>
-                  {hour.time}
-                </span>
-                {HourIcon ? (
-                  <HourIcon className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
-                ) : (
-                  <Sun className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
-                )}
-                <span className={`text-sm font-semibold ${textColor}`}>
-                  {hour.temperature !== null ? `${hour.temperature}°` : "—"}
-                </span>
-                {hour.precip_prob !== null && hour.precip_prob > 0 && (
-                  <span className="text-[9px] text-sky-300 font-medium">
-                    {hour.precip_prob}%
+          {(() => {
+            // Build a merged list: hourly slots + sunrise/sunset inserted chronologically
+            const slots = hourlyForecast.map((hour, i) => ({
+              type: "hour",
+              sortKey: hour.isActualTime ? hour.isActualTime.getTime() : i * 3_600_000,
+              data: hour,
+              origIndex: i,
+            }));
+
+            // Parse "7:14 AM" / "7:19 PM" → today's Date for sorting
+            function parseSunTime(str) {
+              if (!str || str === "N/A") return null;
+              const m = str.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+              if (!m) return null;
+              let h = parseInt(m[1], 10);
+              const min = parseInt(m[2], 10);
+              const ap = m[3].toUpperCase();
+              if (ap === "PM" && h !== 12) h += 12;
+              if (ap === "AM" && h === 12) h = 0;
+              const d = new Date();
+              d.setHours(h, min, 0, 0);
+              return d;
+            }
+
+            const riseDate = parseSunTime(sunTimes.sunrise);
+            const setDate  = parseSunTime(sunTimes.sunset);
+            if (riseDate) slots.push({ type: "sunrise", sortKey: riseDate.getTime(), data: riseDate });
+            if (setDate)  slots.push({ type: "sunset",  sortKey: setDate.getTime(),  data: setDate });
+
+            slots.sort((a, b) => a.sortKey - b.sortKey);
+
+            return slots.map((slot, i) => {
+              if (slot.type === "sunrise") {
+                return (
+                  <div key="sunrise" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
+                    <span className="text-xs font-medium text-amber-300">Rise</span>
+                    <Sunrise className="h-5 w-5 text-amber-400" strokeWidth={1.5} />
+                    <span className="text-xs font-semibold text-amber-300">{sunTimes.sunrise}</span>
+                    <span className="text-[9px] text-transparent select-none">0%</span>
+                  </div>
+                );
+              }
+              if (slot.type === "sunset") {
+                return (
+                  <div key="sunset" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
+                    <span className="text-xs font-medium text-orange-300">Set</span>
+                    <Sunset className="h-5 w-5 text-orange-400" strokeWidth={1.5} />
+                    <span className="text-xs font-semibold text-orange-300">{sunTimes.sunset}</span>
+                    <span className="text-[9px] text-transparent select-none">0%</span>
+                  </div>
+                );
+              }
+              const hour = slot.data;
+              const idx  = slot.origIndex;
+              const hourIconKey = getWeatherIcon(hour.condition);
+              const HourIcon = iconMap[hourIconKey];
+              return (
+                <div
+                  key={idx}
+                  className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl transition-all duration-200 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
+                >
+                  <span className={`text-xs font-medium ${idx === 0 ? textColor : secondaryTextColor}`}>
+                    {hour.time}
                   </span>
-                )}
-              </div>
-            );
-          })}
-          {/* Sunrise slot in hourly */}
-          {sunTimes.sunrise !== "N/A" && (
-            <div className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
-              <span className={`text-xs font-medium text-amber-300`}>Rise</span>
-              <Sunrise className="h-5 w-5 text-amber-400" strokeWidth={1.5} />
-              <span className={`text-xs font-semibold text-amber-300`}>{sunTimes.sunrise}</span>
-            </div>
-          )}
-          {/* Sunset slot in hourly */}
-          {sunTimes.sunset !== "N/A" && (
-            <div className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
-              <span className={`text-xs font-medium text-orange-300`}>Set</span>
-              <Sunset className="h-5 w-5 text-orange-400" strokeWidth={1.5} />
-              <span className={`text-xs font-semibold text-orange-300`}>{sunTimes.sunset}</span>
-            </div>
-          )}
+                  {HourIcon ? (
+                    <HourIcon className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
+                  ) : (
+                    <Sun className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
+                  )}
+                  <span className={`text-sm font-semibold ${textColor}`}>
+                    {hour.temperature !== null ? `${hour.temperature}°` : "—"}
+                  </span>
+                  {/* Always show precip prob for consistent row height */}
+                  <span className={`text-[9px] font-medium ${hour.precip_prob ? "text-sky-300" : "text-transparent"}`}>
+                    {hour.precip_prob != null ? `${hour.precip_prob}%` : "0%"}
+                  </span>
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
 

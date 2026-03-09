@@ -5,7 +5,9 @@
  */
 
 const _rawBase = import.meta.env.VITE_API_BASE_URL || "";
-const API_BASE_URL = _rawBase.startsWith("http") ? _rawBase : "";
+// Force https — mixed-content errors when served over HTTPS
+const _secureBase = _rawBase.replace(/^http:\/\//, "https://");
+const API_BASE_URL = _secureBase.startsWith("http") ? _secureBase : "";
 
 /**
  * Fetch radar frames for animation

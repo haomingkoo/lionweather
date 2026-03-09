@@ -1,0 +1,405 @@
+{
+  "generated_at": "2026-03-09T11:19:56.249323",
+  "methodology": {
+    "time_unit": "2-hour NEA forecast windows",
+    "space_unit": "Singapore-wide aggregate",
+    "nea_binary": "majority vote across all 47 NEA areas (\u226550% areas predict rain \u2192 1)",
+    "actual_binary": "mean total mm per station across all 64 rainfall stations in 2h window \u2265 1.0mm \u2192 1",
+    "ml_prediction": "LightGBM classifier run at (window_start - lead_time_h), using ONLY weather_records data before prediction time. rain_prob = P(class\u22651) \u2265 0.5 \u2192 binary 1. Features: lag/rolling of rainfall, temperature, humidity, wind_speed + time encoding.",
+    "hybrid": "60% ML rain_prob + 40% NEA binary, \u2265 0.5 \u2192 binary 1",
+    "persistence": "predict rain if previous 2h window had actual rain (naive baseline)",
+    "note_nea": "NEA issues a categorical area forecast (text like 'Thundery Showers', 'Cloudy'). No probability given \u2014 binary only.",
+    "db_range": {
+      "start": "2024-03-18 08:00:00+08:00",
+      "end": "2026-03-09 07:00:00+08:00"
+    }
+  },
+  "summary": {
+    "years_benchmarked": [
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024
+    ],
+    "nea": {
+      "mean_accuracy": 0.864,
+      "mean_f1": 0.539
+    },
+    "persistence": {
+      "mean_accuracy": 0.8631,
+      "mean_f1": 0.4028
+    },
+    "ml_by_horizon": {
+      "1": {
+        "lead_time_h": 1,
+        "mean_accuracy": 0.5353,
+        "mean_f1": 0.1011,
+        "hybrid_mean_accuracy": 0.5353,
+        "hybrid_mean_f1": 0.1011,
+        "n_years": 1
+      },
+      "3": {
+        "lead_time_h": 3,
+        "mean_accuracy": 0.424,
+        "mean_f1": 0.1362,
+        "hybrid_mean_accuracy": 0.424,
+        "hybrid_mean_f1": 0.1362,
+        "n_years": 1
+      },
+      "6": {
+        "lead_time_h": 6,
+        "mean_accuracy": 0.5859,
+        "mean_f1": 0.1724,
+        "hybrid_mean_accuracy": 0.5859,
+        "hybrid_mean_f1": 0.1724,
+        "n_years": 1
+      },
+      "12": {
+        "lead_time_h": 12,
+        "mean_accuracy": 0.7475,
+        "mean_f1": 0.2106,
+        "hybrid_mean_accuracy": 0.7475,
+        "hybrid_mean_f1": 0.2106,
+        "n_years": 1
+      }
+    }
+  },
+  "yearly": [
+    {
+      "year": 2016,
+      "n_windows": 6,
+      "actual_rain_fraction": 0.1667,
+      "nea": {
+        "n": 6,
+        "accuracy": 0.6667,
+        "rain_recall": 1.0,
+        "rain_precision": 0.3333,
+        "specificity": 0.6,
+        "f1": 0.5,
+        "rain_events": 1,
+        "no_rain_events": 5
+      },
+      "persistence": {
+        "n": 6,
+        "accuracy": 0.6667,
+        "rain_recall": 0.0,
+        "rain_precision": 0.0,
+        "specificity": 0.8,
+        "f1": 0.0,
+        "rain_events": 1,
+        "no_rain_events": 5
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2017,
+      "n_windows": 3772,
+      "actual_rain_fraction": 0.1058,
+      "nea": {
+        "n": 3772,
+        "accuracy": 0.8897,
+        "rain_recall": 0.589,
+        "rain_precision": 0.4825,
+        "specificity": 0.9253,
+        "f1": 0.5305,
+        "rain_events": 399,
+        "no_rain_events": 3373
+      },
+      "persistence": {
+        "n": 3772,
+        "accuracy": 0.8804,
+        "rain_recall": 0.4336,
+        "rain_precision": 0.4347,
+        "specificity": 0.9333,
+        "f1": 0.4341,
+        "rain_events": 399,
+        "no_rain_events": 3373
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2018,
+      "n_windows": 3596,
+      "actual_rain_fraction": 0.1093,
+      "nea": {
+        "n": 3596,
+        "accuracy": 0.8835,
+        "rain_recall": 0.631,
+        "rain_precision": 0.4751,
+        "specificity": 0.9145,
+        "f1": 0.5421,
+        "rain_events": 393,
+        "no_rain_events": 3203
+      },
+      "persistence": {
+        "n": 3596,
+        "accuracy": 0.8826,
+        "rain_recall": 0.4631,
+        "rain_precision": 0.4631,
+        "specificity": 0.9341,
+        "f1": 0.4631,
+        "rain_events": 393,
+        "no_rain_events": 3203
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2019,
+      "n_windows": 4011,
+      "actual_rain_fraction": 0.077,
+      "nea": {
+        "n": 4011,
+        "accuracy": 0.925,
+        "rain_recall": 0.5922,
+        "rain_precision": 0.5112,
+        "specificity": 0.9527,
+        "f1": 0.5487,
+        "rain_events": 309,
+        "no_rain_events": 3702
+      },
+      "persistence": {
+        "n": 4011,
+        "accuracy": 0.9162,
+        "rain_recall": 0.4563,
+        "rain_precision": 0.4563,
+        "specificity": 0.9546,
+        "f1": 0.4563,
+        "rain_events": 309,
+        "no_rain_events": 3702
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2020,
+      "n_windows": 3658,
+      "actual_rain_fraction": 0.1047,
+      "nea": {
+        "n": 3658,
+        "accuracy": 0.8855,
+        "rain_recall": 0.6423,
+        "rain_precision": 0.4659,
+        "specificity": 0.9139,
+        "f1": 0.5401,
+        "rain_events": 383,
+        "no_rain_events": 3275
+      },
+      "persistence": {
+        "n": 3658,
+        "accuracy": 0.889,
+        "rain_recall": 0.47,
+        "rain_precision": 0.47,
+        "specificity": 0.938,
+        "f1": 0.47,
+        "rain_events": 383,
+        "no_rain_events": 3275
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2021,
+      "n_windows": 4004,
+      "actual_rain_fraction": 0.1054,
+      "nea": {
+        "n": 4004,
+        "accuracy": 0.8869,
+        "rain_recall": 0.6422,
+        "rain_precision": 0.4729,
+        "specificity": 0.9157,
+        "f1": 0.5447,
+        "rain_events": 422,
+        "no_rain_events": 3582
+      },
+      "persistence": {
+        "n": 4004,
+        "accuracy": 0.8916,
+        "rain_recall": 0.4858,
+        "rain_precision": 0.4858,
+        "specificity": 0.9394,
+        "f1": 0.4858,
+        "rain_events": 422,
+        "no_rain_events": 3582
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2022,
+      "n_windows": 4076,
+      "actual_rain_fraction": 0.1114,
+      "nea": {
+        "n": 4076,
+        "accuracy": 0.871,
+        "rain_recall": 0.6608,
+        "rain_precision": 0.4464,
+        "specificity": 0.8973,
+        "f1": 0.5329,
+        "rain_events": 454,
+        "no_rain_events": 3622
+      },
+      "persistence": {
+        "n": 4076,
+        "accuracy": 0.8763,
+        "rain_recall": 0.4449,
+        "rain_precision": 0.4449,
+        "specificity": 0.9304,
+        "f1": 0.4449,
+        "rain_events": 454,
+        "no_rain_events": 3622
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2023,
+      "n_windows": 3685,
+      "actual_rain_fraction": 0.1088,
+      "nea": {
+        "n": 3685,
+        "accuracy": 0.8871,
+        "rain_recall": 0.6883,
+        "rain_precision": 0.4868,
+        "specificity": 0.9114,
+        "f1": 0.5702,
+        "rain_events": 401,
+        "no_rain_events": 3284
+      },
+      "persistence": {
+        "n": 3685,
+        "accuracy": 0.8828,
+        "rain_recall": 0.4613,
+        "rain_precision": 0.4613,
+        "specificity": 0.9342,
+        "f1": 0.4613,
+        "rain_events": 401,
+        "no_rain_events": 3284
+      },
+      "ml_by_horizon": {}
+    },
+    {
+      "year": 2024,
+      "n_windows": 3812,
+      "actual_rain_fraction": 0.0999,
+      "nea": {
+        "n": 3812,
+        "accuracy": 0.8804,
+        "rain_recall": 0.7087,
+        "rain_precision": 0.439,
+        "specificity": 0.8994,
+        "f1": 0.5422,
+        "rain_events": 381,
+        "no_rain_events": 3431
+      },
+      "persistence": {
+        "n": 3812,
+        "accuracy": 0.882,
+        "rain_recall": 0.4094,
+        "rain_precision": 0.4094,
+        "specificity": 0.9344,
+        "f1": 0.4094,
+        "rain_events": 381,
+        "no_rain_events": 3431
+      },
+      "ml_by_horizon": {
+        "1": {
+          "n": "3062",
+          "lead_time_h": 1,
+          "ml": {
+            "n": 3062,
+            "accuracy": 0.5353,
+            "rain_recall": 0.273,
+            "rain_precision": 0.062,
+            "specificity": 0.563,
+            "f1": 0.1011,
+            "rain_events": 293,
+            "no_rain_events": 2769
+          },
+          "hybrid": {
+            "n": 3062,
+            "accuracy": 0.5353,
+            "rain_recall": 0.273,
+            "rain_precision": 0.062,
+            "specificity": 0.563,
+            "f1": 0.1011,
+            "rain_events": 293,
+            "no_rain_events": 2769
+          }
+        },
+        "3": {
+          "n": "3061",
+          "lead_time_h": 3,
+          "ml": {
+            "n": 3061,
+            "accuracy": 0.424,
+            "rain_recall": 0.4744,
+            "rain_precision": 0.0795,
+            "specificity": 0.4187,
+            "f1": 0.1362,
+            "rain_events": 293,
+            "no_rain_events": 2768
+          },
+          "hybrid": {
+            "n": 3061,
+            "accuracy": 0.424,
+            "rain_recall": 0.4744,
+            "rain_precision": 0.0795,
+            "specificity": 0.4187,
+            "f1": 0.1362,
+            "rain_events": 293,
+            "no_rain_events": 2768
+          }
+        },
+        "6": {
+          "n": "3060",
+          "lead_time_h": 6,
+          "ml": {
+            "n": 3060,
+            "accuracy": 0.5859,
+            "rain_recall": 0.4505,
+            "rain_precision": 0.1066,
+            "specificity": 0.6003,
+            "f1": 0.1724,
+            "rain_events": 293,
+            "no_rain_events": 2767
+          },
+          "hybrid": {
+            "n": 3060,
+            "accuracy": 0.5859,
+            "rain_recall": 0.4505,
+            "rain_precision": 0.1066,
+            "specificity": 0.6003,
+            "f1": 0.1724,
+            "rain_events": 293,
+            "no_rain_events": 2767
+          }
+        },
+        "12": {
+          "n": "3057",
+          "lead_time_h": 12,
+          "ml": {
+            "n": 3057,
+            "accuracy": 0.7475,
+            "rain_recall": 0.3515,
+            "rain_precision": 0.1504,
+            "specificity": 0.7894,
+            "f1": 0.2106,
+            "rain_events": 293,
+            "no_rain_events": 2764
+          },
+          "hybrid": {
+            "n": 3057,
+            "accuracy": 0.7475,
+            "rain_recall": 0.3515,
+            "rain_precision": 0.1504,
+            "specificity": 0.7894,
+            "f1": 0.2106,
+            "rain_events": 293,
+            "no_rain_events": 2764
+          }
+        }
+      }
+    }
+  ]
+}

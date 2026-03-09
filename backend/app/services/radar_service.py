@@ -290,20 +290,27 @@ class RadarService:
     async def get_frame_image(self, timestamp: int) -> Optional[bytes]:
         """
         Get image data for a specific frame by timestamp.
-        
+
         Args:
             timestamp: Unix timestamp of the frame
-            
+
         Returns:
             Image data as bytes, or None if not found
         """
-        target_dt = datetime.fromtimestamp(timestamp)
-        
+        # Use UTC-aware datetime to safely compare with tz-aware frame timestamps
+        target_dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
         for frame in self.frame_cache:
-            # Match within 1 second tolerance
-            if abs((frame.timestamp - target_dt).total_seconds()) < 1:
+            frame_ts = frame.timestamp
+            # Normalise to UTC if the frame has a different timezone
+            if frame_ts.tzinfo is None:
+                frame_ts = frame_ts.replace(tzinfo=timezone.utc)
+            else:
+                frame_ts = frame_ts.astimezone(timezone.utc)
+            # Match within 60-second window (5-min frames — generous tolerance)
+            if abs((frame_ts - target_dt).total_seconds()) < 60:
                 return frame.image_data
-        
+
         return None
     
     async def start_background_polling(self) -> None:

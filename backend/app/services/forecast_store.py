@@ -12,7 +12,7 @@ Phase 2 of the two-system architecture:
 import logging
 from datetime import datetime
 from typing import Dict, List
-from app.db.database import get_connection
+from app.db.database import get_connection, get_database_url
 
 logger = logging.getLogger(__name__)
 
@@ -44,29 +44,9 @@ class ForecastStore:
         try:
             # Get current timestamp
             created_at = datetime.now().isoformat()
-            
-            # Insert or replace forecast
-            cursor.execute("""
-                INSERT OR REPLACE INTO forecast_data (
-                    prediction_time,
-                    target_time_start,
-                    target_time_end,
-                    country,
-                    location,
-                    latitude,
-                    longitude,
-                    temperature_low,
-                    temperature_high,
-                    humidity_low,
-                    humidity_high,
-                    wind_speed_low,
-                    wind_speed_high,
-                    wind_direction,
-                    forecast_description,
-                    source_api,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+
+            is_postgres = get_database_url().startswith("postgresql")
+            values = (
                 forecast.get("prediction_time"),
                 forecast.get("target_time_start"),
                 forecast.get("target_time_end"),
@@ -83,8 +63,47 @@ class ForecastStore:
                 forecast.get("wind_direction"),
                 forecast.get("forecast_description"),
                 forecast.get("source_api"),
-                created_at
-            ))
+                created_at,
+            )
+
+            if is_postgres:
+                ph = "%s"
+                upsert_sql = f"""
+                    INSERT INTO forecast_data (
+                        prediction_time, target_time_start, target_time_end,
+                        country, location, latitude, longitude,
+                        temperature_low, temperature_high,
+                        humidity_low, humidity_high,
+                        wind_speed_low, wind_speed_high,
+                        wind_direction, forecast_description, source_api, created_at
+                    ) VALUES ({", ".join([ph] * 17)})
+                    ON CONFLICT (prediction_time, target_time_start, target_time_end, country, location)
+                    DO UPDATE SET
+                        temperature_low      = EXCLUDED.temperature_low,
+                        temperature_high     = EXCLUDED.temperature_high,
+                        humidity_low         = EXCLUDED.humidity_low,
+                        humidity_high        = EXCLUDED.humidity_high,
+                        wind_speed_low       = EXCLUDED.wind_speed_low,
+                        wind_speed_high      = EXCLUDED.wind_speed_high,
+                        wind_direction       = EXCLUDED.wind_direction,
+                        forecast_description = EXCLUDED.forecast_description,
+                        source_api           = EXCLUDED.source_api,
+                        created_at           = EXCLUDED.created_at
+                """
+            else:
+                ph = "?"
+                upsert_sql = f"""
+                    INSERT OR REPLACE INTO forecast_data (
+                        prediction_time, target_time_start, target_time_end,
+                        country, location, latitude, longitude,
+                        temperature_low, temperature_high,
+                        humidity_low, humidity_high,
+                        wind_speed_low, wind_speed_high,
+                        wind_direction, forecast_description, source_api, created_at
+                    ) VALUES ({", ".join([ph] * 17)})
+                """
+
+            cursor.execute(upsert_sql, values)
             
             forecast_id = cursor.lastrowid
             con.commit()
