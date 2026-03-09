@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-09T06:41:18.598098",
+  "generated_at": "2026-03-09T07:05:24.251361",
   "description": "LionWeather ML full analysis: climate trends, EDA, ACF/PACF, FFT, spurious correlations, SHAP, loss curves, classification & regression benchmarks. Train 2016-2022 | Val 2023 | Test 2024.",
   "rain_categories": {
     "0": "No Rain",
@@ -8192,11 +8192,12 @@
     }
   ],
   "nea_benchmark": {
-    "description": "Apples-to-apples: NEA 6h regional forecast vs actual 6h regional mean station rainfall. ML uses island-wide 1h model predictions aggregated to 6h majority vote.",
+    "description": "NEA 6h regional forecast vs actual 6h station observations (2024 holdout). overall.classN = per-region stacked (NEA has advantage: region-specific predictions). overall.classN.island_wide = FAIR comparison: both aggregated to island-wide majority vote per period.",
     "test_year": 2024,
     "overall": {
       "class3": {
         "n_samples": 7095,
+        "note": "Per-region comparison: NEA regional forecasts vs regional actuals. ML uses same island-wide prediction across all regions \u2014 not directly comparable to NEA here.",
         "nea": {
           "accuracy": 0.746,
           "confusion_matrix": [
@@ -8355,10 +8356,173 @@
               "support": 7095.0
             }
           }
+        },
+        "island_wide": {
+          "nea": {
+            "accuracy": 0.7541,
+            "confusion_matrix": [
+              [
+                954,
+                28,
+                35
+              ],
+              [
+                156,
+                70,
+                92
+              ],
+              [
+                13,
+                25,
+                46
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8495102404274265,
+                "recall": 0.9380530973451328,
+                "f1-score": 0.891588785046729,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5691056910569106,
+                "recall": 0.22012578616352202,
+                "f1-score": 0.31746031746031744,
+                "support": 318.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.2658959537572254,
+                "recall": 0.5476190476190477,
+                "f1-score": 0.35797665369649806,
+                "support": 84.0
+              },
+              "accuracy": 0.7540521494009866,
+              "macro avg": {
+                "precision": 0.5615039617471875,
+                "recall": 0.5685993103759008,
+                "f1-score": 0.5223419187345149,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7521231743385464,
+                "recall": 0.7540521494009866,
+                "f1-score": 0.731337712653566,
+                "support": 1419.0
+              }
+            }
+          },
+          "ml_island_wide": {
+            "accuracy": 0.7611,
+            "confusion_matrix": [
+              [
+                907,
+                85,
+                25
+              ],
+              [
+                96,
+                116,
+                106
+              ],
+              [
+                10,
+                17,
+                57
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8953603158933859,
+                "recall": 0.8918387413962635,
+                "f1-score": 0.8935960591133005,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5321100917431193,
+                "recall": 0.36477987421383645,
+                "f1-score": 0.43283582089552236,
+                "support": 318.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.30319148936170215,
+                "recall": 0.6785714285714286,
+                "f1-score": 0.41911764705882354,
+                "support": 84.0
+              },
+              "accuracy": 0.7610993657505285,
+              "macro avg": {
+                "precision": 0.5768872989994024,
+                "recall": 0.6450633480605096,
+                "f1-score": 0.5818498423558821,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7789010116591039,
+                "recall": 0.7610993657505285,
+                "f1-score": 0.7622514908498549,
+                "support": 1419.0
+              }
+            }
+          },
+          "n_samples": 1419,
+          "ensemble_60ml_40nea": {
+            "accuracy": 0.7696,
+            "confusion_matrix": [
+              [
+                940,
+                54,
+                23
+              ],
+              [
+                125,
+                89,
+                104
+              ],
+              [
+                2,
+                19,
+                63
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8809746954076851,
+                "recall": 0.9242871189773845,
+                "f1-score": 0.9021113243761996,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5493827160493827,
+                "recall": 0.279874213836478,
+                "f1-score": 0.37083333333333335,
+                "support": 318.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.33157894736842103,
+                "recall": 0.75,
+                "f1-score": 0.45985401459854014,
+                "support": 84.0
+              },
+              "accuracy": 0.7695560253699789,
+              "macro avg": {
+                "precision": 0.5873121196084963,
+                "recall": 0.6513871109379542,
+                "f1-score": 0.5775995574360243,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7741420722426123,
+                "recall": 0.7695560253699789,
+                "f1-score": 0.7568710036059706,
+                "support": 1419.0
+              }
+            }
+          }
         }
       },
       "class4": {
         "n_samples": 7095,
+        "note": "Per-region comparison: NEA regional forecasts vs regional actuals. ML uses same island-wide prediction across all regions \u2014 not directly comparable to NEA here.",
         "nea": {
           "accuracy": 0.7143,
           "confusion_matrix": [
@@ -8560,6 +8724,213 @@
               "recall": 0.7285412262156448,
               "f1-score": 0.7130214037612683,
               "support": 7095.0
+            }
+          }
+        },
+        "island_wide": {
+          "nea": {
+            "accuracy": 0.7259,
+            "confusion_matrix": [
+              [
+                954,
+                28,
+                1,
+                34
+              ],
+              [
+                157,
+                70,
+                14,
+                81
+              ],
+              [
+                11,
+                23,
+                2,
+                34
+              ],
+              [
+                1,
+                2,
+                3,
+                4
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8495102404274265,
+                "recall": 0.9380530973451328,
+                "f1-score": 0.891588785046729,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5691056910569106,
+                "recall": 0.21739130434782608,
+                "f1-score": 0.3146067415730337,
+                "support": 322.0
+              },
+              "Heavy Rain": {
+                "precision": 0.1,
+                "recall": 0.02857142857142857,
+                "f1-score": 0.044444444444444446,
+                "support": 70.0
+              },
+              "Thundery Showers": {
+                "precision": 0.026143790849673203,
+                "recall": 0.4,
+                "f1-score": 0.049079754601226995,
+                "support": 10.0
+              },
+              "accuracy": 0.7258632840028189,
+              "macro avg": {
+                "precision": 0.3861899305835026,
+                "recall": 0.39600395756609685,
+                "f1-score": 0.3249299314163585,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7431045700799962,
+                "recall": 0.7258632840028189,
+                "f1-score": 0.7129323987569863,
+                "support": 1419.0
+              }
+            }
+          },
+          "ml_island_wide": {
+            "accuracy": 0.7414,
+            "confusion_matrix": [
+              [
+                899,
+                101,
+                0,
+                17
+              ],
+              [
+                97,
+                143,
+                0,
+                82
+              ],
+              [
+                8,
+                23,
+                0,
+                39
+              ],
+              [
+                0,
+                0,
+                0,
+                10
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8954183266932271,
+                "recall": 0.8839724680432645,
+                "f1-score": 0.8896585848589807,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5355805243445693,
+                "recall": 0.4440993788819876,
+                "f1-score": 0.4855687606112054,
+                "support": 322.0
+              },
+              "Heavy Rain": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 70.0
+              },
+              "Thundery Showers": {
+                "precision": 0.06756756756756757,
+                "recall": 1.0,
+                "f1-score": 0.12658227848101267,
+                "support": 10.0
+              },
+              "accuracy": 0.7413671599718111,
+              "macro avg": {
+                "precision": 0.374641604651341,
+                "recall": 0.582017961731313,
+                "f1-score": 0.3754524059877997,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7637583106142628,
+                "recall": 0.7413671599718111,
+                "f1-score": 0.7486974943644832,
+                "support": 1419.0
+              }
+            }
+          },
+          "n_samples": 1419,
+          "ensemble_60ml_40nea": {
+            "accuracy": 0.7378,
+            "confusion_matrix": [
+              [
+                945,
+                50,
+                0,
+                22
+              ],
+              [
+                136,
+                92,
+                6,
+                88
+              ],
+              [
+                5,
+                25,
+                0,
+                40
+              ],
+              [
+                0,
+                0,
+                0,
+                10
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.8701657458563536,
+                "recall": 0.9292035398230089,
+                "f1-score": 0.8987161198288159,
+                "support": 1017.0
+              },
+              "Light Rain": {
+                "precision": 0.5508982035928144,
+                "recall": 0.2857142857142857,
+                "f1-score": 0.37627811860940696,
+                "support": 322.0
+              },
+              "Heavy Rain": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 70.0
+              },
+              "Thundery Showers": {
+                "precision": 0.0625,
+                "recall": 1.0,
+                "f1-score": 0.11764705882352941,
+                "support": 10.0
+              },
+              "accuracy": 0.7378435517970402,
+              "macro avg": {
+                "precision": 0.370890987362292,
+                "recall": 0.5537294563843236,
+                "f1-score": 0.3481603243154381,
+                "support": 1419.0
+              },
+              "weighted avg": {
+                "precision": 0.7490999190224087,
+                "recall": 0.7378435517970402,
+                "f1-score": 0.7303258059523398,
+                "support": 1419.0
+              }
             }
           }
         }
@@ -14087,145 +14458,145 @@
       "global_importance": [
         {
           "feature": "dry_spell_hours",
-          "mean_abs_shap": 5.316646
-        },
-        {
-          "feature": "rain_lag_1h",
-          "mean_abs_shap": 2.988149
+          "mean_abs_shap": 4.808442
         },
         {
           "feature": "wind_accel_3h",
-          "mean_abs_shap": 2.937323
+          "mean_abs_shap": 2.603328
+        },
+        {
+          "feature": "rain_lag_1h",
+          "mean_abs_shap": 2.541353
         },
         {
           "feature": "hum_deficit",
-          "mean_abs_shap": 2.449371
+          "mean_abs_shap": 2.222071
         },
         {
           "feature": "temp_lag_1h",
-          "mean_abs_shap": 2.175329
-        },
-        {
-          "feature": "hum_lag_1h",
-          "mean_abs_shap": 1.700346
+          "mean_abs_shap": 1.889553
         },
         {
           "feature": "hum_temp_product",
-          "mean_abs_shap": 1.616071
+          "mean_abs_shap": 1.619217
+        },
+        {
+          "feature": "hum_lag_1h",
+          "mean_abs_shap": 1.554483
         },
         {
           "feature": "wind_lag_1h",
-          "mean_abs_shap": 0.685883
+          "mean_abs_shap": 0.71724
         },
         {
           "feature": "rain_streak_hours",
-          "mean_abs_shap": 0.669968
+          "mean_abs_shap": 0.609761
         },
         {
           "feature": "temp_lag_6h",
-          "mean_abs_shap": 0.584664
+          "mean_abs_shap": 0.565557
         },
         {
           "feature": "hum_lag_2h",
-          "mean_abs_shap": 0.560736
+          "mean_abs_shap": 0.461878
         },
         {
           "feature": "cos_day_of_year",
-          "mean_abs_shap": 0.542575
+          "mean_abs_shap": 0.457
         },
         {
           "feature": "temp_roll_6h",
-          "mean_abs_shap": 0.414564
-        },
-        {
-          "feature": "wind_lag_3h",
-          "mean_abs_shap": 0.37714
+          "mean_abs_shap": 0.395279
         },
         {
           "feature": "hour_of_day",
-          "mean_abs_shap": 0.373137
+          "mean_abs_shap": 0.351421
         },
         {
-          "feature": "temp_lag_2h",
-          "mean_abs_shap": 0.355669
+          "feature": "wind_lag_3h",
+          "mean_abs_shap": 0.348304
         },
         {
           "feature": "wind_dir_cos",
-          "mean_abs_shap": 0.323731
+          "mean_abs_shap": 0.286097
         },
         {
-          "feature": "temp_roll_3h",
-          "mean_abs_shap": 0.294796
-        },
-        {
-          "feature": "cloud_cover_roll_6h",
-          "mean_abs_shap": 0.292454
+          "feature": "temp_lag_2h",
+          "mean_abs_shap": 0.280192
         },
         {
           "feature": "cos_hour",
-          "mean_abs_shap": 0.290961
+          "mean_abs_shap": 0.278962
+        },
+        {
+          "feature": "temp_roll_3h",
+          "mean_abs_shap": 0.278936
+        },
+        {
+          "feature": "cloud_cover_roll_6h",
+          "mean_abs_shap": 0.265427
         }
       ],
       "waterfall_first_sample": [
         {
-          "feature": "rain_lag_1h",
-          "shap_value": 27.496305
-        },
-        {
-          "feature": "hum_deficit",
-          "shap_value": 14.314327
-        },
-        {
           "feature": "dry_spell_hours",
-          "shap_value": 14.239071
+          "shap_value": 4.829279
         },
         {
-          "feature": "temp_lag_1h",
-          "shap_value": -5.330163
-        },
-        {
-          "feature": "hum_lag_1h",
-          "shap_value": -3.215764
-        },
-        {
-          "feature": "cloud_cover_roll_6h",
-          "shap_value": 2.423619
-        },
-        {
-          "feature": "rain_lag_18h",
-          "shap_value": -1.652639
-        },
-        {
-          "feature": "mjo_sin_phase",
-          "shap_value": 1.535211
-        },
-        {
-          "feature": "rain_streak_hours",
-          "shap_value": 1.298361
-        },
-        {
-          "feature": "hum_temp_product",
-          "shap_value": 1.205682
+          "feature": "rain_lag_1h",
+          "shap_value": -2.967021
         },
         {
           "feature": "wind_accel_3h",
-          "shap_value": 1.161651
+          "shap_value": -2.772759
         },
         {
-          "feature": "rain_lag_12h",
-          "shap_value": 1.122312
+          "feature": "hum_deficit",
+          "shap_value": -2.578829
         },
         {
-          "feature": "rain_roll_max_3h",
-          "shap_value": 1.055372
+          "feature": "cos_day_of_year",
+          "shap_value": -1.594012
         },
         {
-          "feature": "wind_lag_3h",
-          "shap_value": 1.011953
+          "feature": "temp_lag_1h",
+          "shap_value": 1.167988
         },
         {
-          "feature": "wind_lag_12h",
-          "shap_value": 0.997479
+          "feature": "wind_dir_cos",
+          "shap_value": -1.124359
+        },
+        {
+          "feature": "hum_temp_product",
+          "shap_value": 0.914158
+        },
+        {
+          "feature": "rain_streak_hours",
+          "shap_value": 0.842966
+        },
+        {
+          "feature": "temp_lag_6h",
+          "shap_value": -0.832297
+        },
+        {
+          "feature": "hum_lag_1h",
+          "shap_value": 0.810397
+        },
+        {
+          "feature": "cloud_cover_roll_6h",
+          "shap_value": 0.753031
+        },
+        {
+          "feature": "temp_roll_3h",
+          "shap_value": 0.746744
+        },
+        {
+          "feature": "temp_roll_6h",
+          "shap_value": 0.725707
+        },
+        {
+          "feature": "cloud_cover",
+          "shap_value": 0.500225
         }
       ],
       "n_samples_used": 500
