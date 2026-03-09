@@ -653,10 +653,77 @@ def granger_causality(series_dict: dict, target: str = "rainfall",
 # 7. Feature engineering
 # ===========================================================================
 
+def load_regional_hourly_rainfall(years: list) -> pd.DataFrame:
+    """Load per-station rainfall, aggregate to hourly per-region (5 cols)."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / "regional_hourly_rainfall.parquet"
+    if cache_path.exists():
+        logger.info("  [regional-hourly] loading from cache")
+        df = pd.read_parquet(cache_path)
+        df.index = pd.DatetimeIndex(df.index)
+        return df
+
+    logger.info("  [regional-hourly] building from CSVs...")
+    raw = load_variable("HistoricalRainfallacrossSingapore{year}.csv", years, BOUNDS["rainfall"])
+    raw["region"] = raw.apply(lambda r: _assign_region(r["location_latitude"], r["location_longitude"]), axis=1)
+    raw = raw.dropna(subset=["region"])
+    raw["hour"] = raw["timestamp"].dt.floor("1h")
+
+    # Sum per station per hour, then mean across stations in region
+    station_h = raw.groupby(["hour", "region", "station_id"])["reading_value"].sum().reset_index()
+    regional = station_h.groupby(["hour", "region"])["reading_value"].mean().reset_index()
+
+    wide = regional.pivot(index="hour", columns="region", values="reading_value")
+    wide.columns = [f"rain_{c}" for c in wide.columns]
+    wide.index = pd.DatetimeIndex(wide.index, tz="UTC").tz_convert("Asia/Singapore")
+    wide = wide.fillna(0)
+
+    wide.to_parquet(cache_path)
+    logger.info(f"  [regional-hourly] {len(wide)} rows, {len(wide.columns)} cols cached")
+    return wide
+
+
+def load_spatial_rainfall_features(years: list) -> pd.DataFrame:
+    """Hourly spatial summary stats across all rainfall stations."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / "spatial_rainfall_features.parquet"
+    if cache_path.exists():
+        logger.info("  [spatial] loading from cache")
+        df = pd.read_parquet(cache_path)
+        df.index = pd.DatetimeIndex(df.index)
+        return df
+
+    logger.info("  [spatial] building from CSVs...")
+    raw = load_variable("HistoricalRainfallacrossSingapore{year}.csv", years, BOUNDS["rainfall"])
+    raw["hour"] = raw["timestamp"].dt.floor("1h")
+
+    # Sum per station per hour
+    station_h = raw.groupby(["hour", "station_id"])["reading_value"].sum().reset_index()
+
+    # Spatial features per hour
+    feat = station_h.groupby("hour")["reading_value"].agg(
+        rain_spatial_std="std",
+        rain_max_station="max",
+        rain_n_stations="count",
+    ).fillna(0)
+    feat["rain_station_frac_wet"] = (
+        station_h[station_h["reading_value"] > 0.1].groupby("hour")["station_id"].count()
+        / feat["rain_n_stations"].clip(lower=1)
+    ).reindex(feat.index).fillna(0)
+    feat = feat.drop(columns=["rain_n_stations"])
+
+    feat.index = pd.DatetimeIndex(feat.index, tz="UTC").tz_convert("Asia/Singapore")
+    feat.to_parquet(cache_path)
+    logger.info(f"  [spatial] {len(feat)} rows, {len(feat.columns)} cols cached")
+    return feat
+
+
 def make_features(rain: pd.Series, temp: pd.Series,
                   humidity: pd.Series, wind: pd.Series,
                   horizons: list,
-                  ext_df: "pd.DataFrame | None" = None) -> pd.DataFrame:
+                  ext_df: "pd.DataFrame | None" = None,
+                  regional_df: "pd.DataFrame | None" = None,
+                  spatial_df: "pd.DataFrame | None" = None) -> pd.DataFrame:
     df = rain.to_frame(name="rainfall")
     df["temperature"] = temp
     df["humidity"]    = humidity
@@ -745,6 +812,29 @@ def make_features(rain: pd.Series, temp: pd.Series,
                     df[f"{col}_lag_1h"] = df[col].shift(1)
                     df[f"{col}_lag_3h"] = df[col].shift(3)
                     df[f"{col}_roll_6h"] = df[col].shift(1).rolling(6).mean()
+
+    # ---- Regional rainfall features (5 regions + lags + gradients) ----
+    if regional_df is not None and not regional_df.empty:
+        for col in regional_df.columns:
+            aligned = regional_df[col].reindex(df.index).ffill()
+            df[col] = aligned.values
+            df[f"{col}_lag_1h"] = df[col].shift(1)
+            df[f"{col}_lag_3h"] = df[col].shift(3)
+        # Spatial gradients: directional rain signals
+        if "rain_east" in df.columns and "rain_west" in df.columns:
+            df["rain_ew_gradient"] = df["rain_east"] - df["rain_west"]
+            df["rain_ns_gradient"] = df["rain_north"] - df["rain_south"]
+            # Max regional rain (localised intensity)
+            region_cols = [c for c in regional_df.columns if c.startswith("rain_")]
+            df["rain_region_max"] = df[region_cols].max(axis=1)
+            df["rain_region_range"] = df[region_cols].max(axis=1) - df[region_cols].min(axis=1)
+
+    # ---- Spatial summary features (station-level statistics) ----
+    if spatial_df is not None and not spatial_df.empty:
+        for col in spatial_df.columns:
+            aligned = spatial_df[col].reindex(df.index).ffill()
+            df[col] = aligned.values
+            df[f"{col}_lag_1h"] = df[col].shift(1)
 
     # Targets
     for h in horizons:
@@ -1742,9 +1832,26 @@ def main():
     cross_corr    = compute_cross_correlations(series_dict, max_lag=24)
     granger       = granger_causality(series_dict, target="rainfall", max_lag=6)
 
+    # --- Spatial features ---
+    logger.info("\n[8/10] Loading spatial features (regional + station-level)...")
+    try:
+        regional_rain = load_regional_hourly_rainfall(all_years)
+        logger.info(f"  Regional hourly rainfall: {regional_rain.shape}")
+    except Exception as e:
+        logger.warning(f"  Regional features unavailable ({e})")
+        regional_rain = None
+    try:
+        spatial_features = load_spatial_rainfall_features(all_years)
+        logger.info(f"  Spatial summary features: {spatial_features.shape}")
+    except Exception as e:
+        logger.warning(f"  Spatial features unavailable ({e})")
+        spatial_features = None
+
     # --- Feature engineering ---
-    logger.info("\n[8/9] Feature engineering & model training...")
-    feat_df = make_features(rain_h, temp_h, hum_h, wind_h, HORIZONS, ext_df=ext_df)
+    logger.info("\n[9/10] Feature engineering & model training...")
+    feat_df = make_features(rain_h, temp_h, hum_h, wind_h, HORIZONS,
+                            ext_df=ext_df, regional_df=regional_rain,
+                            spatial_df=spatial_features)
     feature_cols = [c for c in feat_df.columns
                     if not c.startswith("target_")
                     and c not in ("rainfall", "temperature", "humidity", "wind_speed")]
