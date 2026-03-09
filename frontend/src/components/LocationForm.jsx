@@ -104,53 +104,58 @@ export function LocationForm({ isDark = false, compact = false }) {
     }
   };
 
+  const cardPad = compact ? "p-3" : "p-6";
+  const cardRadius = compact ? "rounded-2xl" : "rounded-[2rem]";
+  const inputPad = compact ? "px-3 py-2 text-sm" : "px-4 py-3 text-base";
+  const btnPad = compact ? "px-3 py-2 text-sm" : "px-5 py-3 text-base";
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Search by Postal Code or Place Name */}
       <form
         onSubmit={handleSearch}
-        className={`rounded-[2rem] backdrop-blur-xl p-6 shadow-2xl ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
+        className={`${cardRadius} backdrop-blur-xl ${cardPad} shadow-lg ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
       >
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className={`rounded-2xl backdrop-blur-sm p-2.5 ${isDark ? "bg-white/15" : "bg-white/30"} ${textColor}`}
-          >
-            <Search className="h-5 w-5" strokeWidth={2} />
+        {!compact && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`rounded-2xl backdrop-blur-sm p-2.5 ${isDark ? "bg-white/15" : "bg-white/30"} ${textColor}`}>
+              <Search className="h-5 w-5" strokeWidth={2} />
+            </div>
+            <h2 className={`text-xl font-semibold ${textColor}`}>
+              Search by Postal Code or Place
+            </h2>
           </div>
-          <h2 className={`text-xl font-semibold ${textColor}`}>
-            Search by Postal Code or Place
-          </h2>
-        </div>
+        )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`flex-1 rounded-2xl ${inputBg} backdrop-blur-sm border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
-            placeholder="e.g. 018956, Orchard Road, Kuala Lumpur"
+            className={`flex-1 rounded-xl ${inputBg} backdrop-blur-sm border ${inputPad} focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
+            placeholder={compact ? "Postal code or place…" : "e.g. 018956, Orchard Road"}
           />
           <button
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
-            className={`rounded-2xl backdrop-blur-sm px-5 py-3 text-base font-semibold ${textColor} hover:brightness-110 hover:scale-105 active:scale-[0.99] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 shadow-xl focus:outline-none focus:ring-2 focus:ring-white/60 ${isDark ? "bg-white/20 border border-white/35 hover:bg-white/30" : "bg-white/35 border border-white/50 hover:bg-white/45"}`}
+            className={`rounded-xl backdrop-blur-sm ${btnPad} font-semibold ${textColor} hover:brightness-110 active:scale-[0.99] disabled:opacity-50 transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-white/60 ${isDark ? "bg-white/20 border border-white/35 hover:bg-white/30" : "bg-white/35 border border-white/50 hover:bg-white/45"}`}
           >
-            {isSearching ? "Searching..." : "Search"}
+            {isSearching ? "…" : "Search"}
           </button>
         </div>
 
         {/* Search Results */}
         {searchResults.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-2 space-y-1">
             {searchResults.map((result, index) => (
               <button
                 key={index}
                 onClick={() => handleSelectResult(result)}
                 disabled={isPending}
-                className={`w-full text-left rounded-xl backdrop-blur-sm px-4 py-3 text-sm ${textColor} hover:brightness-110 transition-all ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/30 border border-white/40 hover:bg-white/40"}`}
+                className={`w-full text-left rounded-xl backdrop-blur-sm px-3 py-2 text-sm ${textColor} hover:brightness-110 transition-all ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/30 border border-white/40 hover:bg-white/40"}`}
               >
-                <div className="font-medium">{result.display_name}</div>
-                <div className={`text-xs ${secondaryTextColor} mt-1`}>
+                <div className="font-medium truncate">{result.display_name}</div>
+                <div className={`text-xs ${secondaryTextColor} mt-0.5`}>
                   {result.lat.toFixed(4)}, {result.lon.toFixed(4)}
                 </div>
               </button>
