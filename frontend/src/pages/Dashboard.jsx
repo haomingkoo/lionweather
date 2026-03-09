@@ -104,7 +104,7 @@ export function Dashboard() {
 
       {/* Hero Section */}
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <h1 className="text-5xl font-bold mb-4">
+        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-blue-100 to-indigo-300 bg-clip-text text-transparent">
           LionWeather Lab
         </h1>
         <p className="text-slate-400 text-lg mb-8">

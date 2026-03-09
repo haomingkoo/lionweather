@@ -597,7 +597,7 @@ function ClimateTrendsSection({ ct }) {
         </p>
         <MiniBarChart
           data={displayRainfallTotals}
-          height={84}
+          height={120}
           color="#60a5fa"
           xTicks={displayYears.map((y, i) => ({ label: String(y), index: i }))}
         />
@@ -623,7 +623,7 @@ function ClimateTrendsSection({ ct }) {
       {/* Rain category breakdown */}
       <div>
         <p className="text-white/50 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
-        <StackedBarChart years={displayYears} stacks={rainCatStacks} height={70} />
+        <StackedBarChart years={displayYears} stacks={rainCatStacks} height={110} />
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
             <div key={s.key} className="flex items-center gap-1">
@@ -645,7 +645,7 @@ function ClimateTrendsSection({ ct }) {
             min: displayYears.map((y) => annual[y]?.temperature?.min_c ?? tempMeans[displayYears.indexOf(y)]),
             max: displayYears.map((y) => annual[y]?.temperature?.max_c ?? tempMeans[displayYears.indexOf(y)]),
           }}
-          height={80}
+          height={110}
           xTicks={displayYears}
           yLabel="°C"
           showYAxis={true}
@@ -699,7 +699,7 @@ function ClimateTrendsSection({ ct }) {
               { name: "Observed", data: stl.observed, color: "#60a5fa" },
               { name: "Trend",    data: stl.trend,    color: "#f472b6" },
             ]}
-            height={80}
+            height={110}
             xTicks={stlTicks}
             xTickIndices={stlTickIndices}
             xLabel="Year"
@@ -707,7 +707,7 @@ function ClimateTrendsSection({ ct }) {
           />
           <LineChart
             series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
-            height={50}
+            height={65}
             xTicks={stlTicks}
             xTickIndices={stlTickIndices}
             xLabel=""
@@ -890,7 +890,7 @@ export function MLAnalysisDashboard() {
                   <p className="text-white/50 text-xs mb-2">Distribution (value → frequency)</p>
                   <MiniBarChart
                     data={e.histogram.counts}
-                    height={80}
+                    height={110}
                     color="#60a5fa"
                     showYAxis={true}
                     xTicks={(() => {
@@ -924,7 +924,7 @@ export function MLAnalysisDashboard() {
                   data: Object.values(e.hourly_pattern),
                   color: "#60a5fa",
                 }]}
-                height={70}
+                height={110}
                 xTicks={["0h", "6h", "12h", "18h", "23h"]}
                 xTickIndices={[0, 6, 12, 18, 23]}
                 xLabel="Hour of day"
@@ -938,7 +938,7 @@ export function MLAnalysisDashboard() {
                   data: Object.values(e.monthly_pattern),
                   color: "#34d399",
                 }]}
-                height={70}
+                height={110}
                 xTicks={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]}
                 xLabel="Month"
                 yLabel="Mean"
@@ -951,7 +951,7 @@ export function MLAnalysisDashboard() {
                   data: Object.values(e.annual_trend),
                   color: "#fbbf24",
                 }]}
-                height={70}
+                height={110}
                 xTicks={Object.keys(e.annual_trend)}
                 xLabel="Year"
                 yLabel="Mean"
@@ -1413,7 +1413,13 @@ export function MLAnalysisDashboard() {
         const has2hIW = iwNea2.accuracy != null;
 
         // Best-in-column helpers
+        // 6h: per-region sub-group best, and overall best
+        const bestF2_PR_6h  = Math.max(prNea.rain_f2 ?? 0, prMl.rain_f2 ?? 0);
+        const bestAcc_PR_6h = Math.max(prNea.accuracy ?? 0, prMl.accuracy ?? 0);
         const bestF2_6h  = Math.max(prNea.rain_f2 ?? 0, prMl.rain_f2 ?? 0, iwNea.rain_f2 ?? 0, iwMl.rain_f2 ?? 0);
+        // 2h: per-area sub-group best, and overall best
+        const bestF2_PA_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0);
+        const bestAcc_PA_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
         const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0, iwNea2.rain_f2 ?? 0, iwMl2.rain_f2 ?? 0);
         const bestAcc_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
 
@@ -1463,13 +1469,13 @@ export function MLAnalysisDashboard() {
                             <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">Per-region · NEA 6h forecast</td>
                             <td className="text-right px-2 font-mono text-white/60">{(prNea.accuracy * 100).toFixed(1)}%</td>
                             <td className="text-right px-2 font-mono text-violet-300">{prNea.rain_f2 != null ? (prNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2">{prNea.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
+                            <td className="text-right pl-2 text-[10px] text-white/25 leading-tight">{prNea.accuracy === bestAcc_PR_6h && prNea.rain_f2 !== bestF2_PR_6h ? <span className="text-emerald-400 font-semibold">Best Acc</span> : null}</td>
                           </tr>
                           <tr className="border-t border-white/5">
                             <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">Per-region · ML (island-wide applied)</td>
                             <td className="text-right px-2 font-mono text-blue-300/70">{prMl.accuracy != null ? (prMl.accuracy * 100).toFixed(1) + "%" : "—"}</td>
                             <td className="text-right px-2 font-mono text-blue-300">{prMl.rain_f2 != null ? (prMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2">{prMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
+                            <td className="text-right pl-2 leading-tight">{prMl.rain_f2 === bestF2_PR_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-region</span></span> : null}</td>
                           </tr>
                         </>}
                         {hasIW && <>
@@ -1483,7 +1489,7 @@ export function MLAnalysisDashboard() {
                             <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/70 italic">Island-wide · ML model</td>
                             <td className="text-right px-2 font-mono text-blue-200/60">{(iwMl.accuracy * 100).toFixed(1)}%</td>
                             <td className="text-right px-2 font-mono text-blue-200/80">{iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2">{iwMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
+                            <td className="text-right pl-2 leading-tight">{iwMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">overall</span></span> : null}</td>
                           </tr>
                         </>}
                       </tbody>
@@ -1519,14 +1525,14 @@ export function MLAnalysisDashboard() {
                             <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h per-area (native)</td>
                             <td className="text-right px-2 font-mono text-white/60">{(paNea.accuracy * 100).toFixed(1)}%</td>
                             <td className="text-right px-2 font-mono text-violet-300">{paNea.rain_f2 != null ? (paNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2">{paNea.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : (paNea.accuracy === bestAcc_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best Acc</span> : null)}</td>
+                            <td className="text-right pl-2 leading-tight">{paNea.rain_f2 === bestF2_PA_2h && paNea.accuracy === bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/>+F2</span> : paNea.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-area</span></span> : paNea.accuracy === bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/><span className="text-white/30">per-area</span></span> : null}</td>
                           </tr>
                           {paMl.accuracy != null && (
                             <tr className="border-t border-white/5">
                               <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">ML island-wide → per-area</td>
                               <td className="text-right px-2 font-mono text-blue-300/70">{(paMl.accuracy * 100).toFixed(1)}%</td>
                               <td className="text-right px-2 font-mono text-blue-300">{paMl.rain_f2 != null ? (paMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2">{paMl.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : null}</td>
+                              <td className="text-right pl-2">{paMl.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null}</td>
                             </tr>
                           )}
                           {paEns.accuracy != null && (
@@ -1534,7 +1540,7 @@ export function MLAnalysisDashboard() {
                               <td className="py-1.5 pr-3 font-medium text-[11px] text-emerald-300">Ensemble (60% ML + 40% NEA)</td>
                               <td className="text-right px-2 font-mono text-emerald-300/70">{(paEns.accuracy * 100).toFixed(1)}%</td>
                               <td className="text-right px-2 font-mono text-emerald-300">{paEns.rain_f2 != null ? (paEns.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2">{paEns.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : null}</td>
+                              <td className="text-right pl-2">{paEns.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null}</td>
                             </tr>
                           )}
                           {has2hIW && (
@@ -1713,15 +1719,17 @@ export function MLAnalysisDashboard() {
                       variant="indigo"
                       points={[
                         "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction — unlike feature importance which only measures average effect, SHAP explains individual predictions.",
-                        "dry_spell_hours (top feature): How many consecutive dry hours before this reading. The longer the dry spell, the more the atmosphere can build up heat and instability — making the next rain more intense when it comes.",
-                        "hum_lag_6h: Humidity 6 hours ago. If humidity was high 6 hours ago and has been rising, conditions are becoming favorable for precipitation.",
-                        "rain_streak_hours: Consecutive hours of ongoing rain. Rain systems in Singapore typically last 1–3 hours, so knowing the streak helps predict whether rain will continue or stop.",
-                        "cos_hour: The cosine-transformed hour of day. This captures the time-of-day cycle in a mathematically clean way — afternoon hours have higher convective rainfall risk.",
-                        "wind_accel_3h: Rate of wind speed change over 3 hours. Rapidly increasing winds can signal an approaching storm system.",
-                        "hum_deficit: Gap between actual humidity and saturation point. When this approaches zero, the air is close to condensation — rain becomes likely.",
-                        "The longer the bar, the more that feature influences the model's rain forecasts. Features not listed have negligible impact and were excluded to prevent overfitting.",
+                        "dry_spell_hours (top feature): Consecutive dry hours before this reading. A long dry spell lets heat and instability build up — the longer the drought, the more energetic the next rain event tends to be.",
+                        "wind_accel_3h: Rate of wind speed change over 3 hours. Rapidly accelerating winds signal an approaching front or convective system — one of the strongest short-range storm precursors.",
+                        "rain_lag_1h: Rainfall 1 hour ago. Active rain systems persist for 1–3 hours in Singapore, so recent rain is a strong predictor that rain is still occurring.",
+                        "hum_deficit: Gap between actual humidity and saturation point (100% RH). When this approaches zero the air is near condensation — rain becomes very likely.",
+                        "temp_lag_1h: Temperature 1 hour ago. A sudden temperature drop indicates a cold pool from a nearby storm cell — a sign rain is approaching or already active.",
+                        "hum_temp_product: Interaction of humidity × temperature. High heat + high humidity creates the thermodynamic instability that drives Singapore's convective thunderstorms.",
+                        "hum_lag_1h: Humidity 1 hour ago. Rising humidity trend confirms moisture is converging — a necessary precondition for convective rainfall.",
+                        "rain_streak_hours: Consecutive hours of ongoing rain. Rain systems here typically last 1–3 hours, so a long streak means the system may be weakening.",
+                        "The longer the bar, the more that feature moves individual predictions. Features not listed have negligible impact and were excluded to prevent overfitting.",
                       ]}
-                      tip="SHAP values tell a story: 'Given this exact combination of dry spell + humidity + time of day + wind, the model predicts rain with X% probability.'"
+                      tip="SHAP tells a story per prediction: 'This dry spell of 8 hours + humidity near saturation + accelerating wind → model assigns 73% probability of rain in 1h.'"
                     />
                   )}
                 </div>

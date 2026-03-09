@@ -217,8 +217,15 @@ export function WeatherMap({ isDark = false }) {
         className={`h-[500px] w-full overflow-hidden rounded-3xl shadow-2xl md:h-[600px] relative ${isDark ? "border border-white/20" : "border border-white/30"}`}
       >
         {/* Bottom radar timeline bar — always visible */}
-        <div className="absolute bottom-0 left-0 right-0 z-[1000] bg-gradient-to-t from-black/70 to-transparent px-4 pt-8 pb-4 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-3">
+        <div
+          className="absolute bottom-0 left-0 right-0 z-[1000] bg-gradient-to-t from-black/70 to-transparent px-4 pt-8 pb-4 pointer-events-none"
+        >
+          <div
+            className="pointer-events-auto flex items-center gap-3"
+            onTouchStart={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Play/Pause */}
             {showRainfall && (
               <button

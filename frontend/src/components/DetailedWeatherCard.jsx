@@ -499,8 +499,8 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             return slots.map((slot, i) => {
               if (slot.type === "sunrise") {
                 return (
-                  <div key="sunrise" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
-                    <span className="text-xs font-medium text-amber-300">{sunTimes.sunrise}</span>
+                  <div key="sunrise" className={`flex flex-col items-center gap-1 min-w-[60px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
+                    <span className="text-xs font-medium text-amber-300 whitespace-nowrap">{sunTimes.sunrise}</span>
                     <Sunrise className="h-5 w-5 text-amber-400" strokeWidth={1.5} />
                     <span className="text-xs font-semibold text-amber-300">Sunrise</span>
                     <span className="text-[9px] text-transparent select-none">0%</span>
@@ -509,8 +509,8 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               }
               if (slot.type === "sunset") {
                 return (
-                  <div key="sunset" className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
-                    <span className="text-xs font-medium text-orange-300">{sunTimes.sunset}</span>
+                  <div key="sunset" className={`flex flex-col items-center gap-1 min-w-[60px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
+                    <span className="text-xs font-medium text-orange-300 whitespace-nowrap">{sunTimes.sunset}</span>
                     <Sunset className="h-5 w-5 text-orange-400" strokeWidth={1.5} />
                     <span className="text-xs font-semibold text-orange-300">Sunset</span>
                     <span className="text-[9px] text-transparent select-none">0%</span>
@@ -720,7 +720,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           <div className="flex items-center gap-3">
             {/* Compass SVG — only when direction is known */}
             {windDir !== null && (
-              <svg viewBox="0 0 100 100" width="72" height="72" className="shrink-0">
+              <svg viewBox="0 0 100 100" width="56" height="56" className="shrink-0">
                 <circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none" />
                 <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
                 {[0,45,90,135,180,225,270,315].map(deg => {
