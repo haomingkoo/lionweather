@@ -373,14 +373,136 @@ class DataCollector:
             # Gracefully continue - return empty list
             return []
     
+    async def fetch_openmeteo_data(self, cities: list, country: str) -> List[WeatherRecord]:
+        """Fetch current weather for a list of {name, lat, lon} dicts via Open-Meteo."""
+        records = []
+        params = "temperature_2m,precipitation,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure"
+        now = datetime.utcnow()
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
+            tasks = [
+                self._fetch_json(session, (
+                    f"https://api.open-meteo.com/v1/forecast"
+                    f"?latitude={c['lat']}&longitude={c['lon']}"
+                    f"&current={params}&timezone=auto"
+                ))
+                for c in cities
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        for city, result in zip(cities, results):
+            if isinstance(result, Exception):
+                logger.warning(f"Open-Meteo failed for {city['name']}: {result}")
+                continue
+            try:
+                cur = result.get("current", {})
+                rec = WeatherRecord(
+                    timestamp=now,
+                    country=country,
+                    location=city["name"],
+                    latitude=city["lat"],
+                    longitude=city["lon"],
+                    temperature=float(cur.get("temperature_2m") or 0),
+                    rainfall=float(cur.get("precipitation") or 0),
+                    humidity=float(cur.get("relative_humidity_2m") or 0),
+                    wind_speed=float(cur.get("wind_speed_10m") or 0),
+                    wind_direction=float(cur.get("wind_direction_10m") or 0),
+                    pressure=float(cur.get("surface_pressure") or 0),
+                    source_api="open-meteo",
+                )
+                records.append(rec)
+            except Exception as e:
+                logger.warning(f"Failed to parse Open-Meteo data for {city['name']}: {e}")
+        logger.info(f"✓ {country.capitalize()} data collection complete: {len(records)} valid records")
+        return records
+
+    async def fetch_malaysia_data(self) -> List[WeatherRecord]:
+        """Fetch weather for 30 Malaysian cities via Open-Meteo."""
+        cities = [
+            {"name": "Kuala Lumpur",    "lat": 3.1390,  "lon": 101.6869},
+            {"name": "George Town",     "lat": 5.4141,  "lon": 100.3288},
+            {"name": "Johor Bahru",     "lat": 1.4927,  "lon": 103.7414},
+            {"name": "Ipoh",            "lat": 4.5975,  "lon": 101.0901},
+            {"name": "Kuching",         "lat": 1.5497,  "lon": 110.3592},
+            {"name": "Kota Kinabalu",   "lat": 5.9804,  "lon": 116.0735},
+            {"name": "Shah Alam",       "lat": 3.0733,  "lon": 101.5185},
+            {"name": "Petaling Jaya",   "lat": 3.1073,  "lon": 101.6067},
+            {"name": "Subang Jaya",     "lat": 3.0474,  "lon": 101.5797},
+            {"name": "Klang",           "lat": 3.0449,  "lon": 101.4454},
+            {"name": "Miri",            "lat": 4.3995,  "lon": 113.9914},
+            {"name": "Sibu",            "lat": 2.3000,  "lon": 111.8167},
+            {"name": "Sandakan",        "lat": 5.8394,  "lon": 118.1178},
+            {"name": "Tawau",           "lat": 4.2449,  "lon": 117.8912},
+            {"name": "Kota Bharu",      "lat": 6.1248,  "lon": 102.2381},
+            {"name": "Kuala Terengganu","lat": 5.3117,  "lon": 103.1324},
+            {"name": "Kuantan",         "lat": 3.8126,  "lon": 103.3256},
+            {"name": "Alor Setar",      "lat": 6.1248,  "lon": 100.3678},
+            {"name": "Seremban",        "lat": 2.7297,  "lon": 101.9381},
+            {"name": "Malacca City",    "lat": 2.1896,  "lon": 102.2501},
+            {"name": "Batu Pahat",      "lat": 1.8526,  "lon": 102.9330},
+            {"name": "Muar",            "lat": 2.0441,  "lon": 102.5689},
+            {"name": "Segamat",         "lat": 2.5121,  "lon": 102.8149},
+            {"name": "Bintulu",         "lat": 3.1727,  "lon": 113.0353},
+            {"name": "Lahad Datu",      "lat": 5.0282,  "lon": 118.3271},
+            {"name": "Beaufort",        "lat": 5.3569,  "lon": 115.7469},
+            {"name": "Keningau",        "lat": 5.3386,  "lon": 116.1630},
+            {"name": "Taiping",         "lat": 4.8500,  "lon": 100.7333},
+            {"name": "Teluk Intan",     "lat": 4.0227,  "lon": 101.0228},
+            {"name": "Temerloh",        "lat": 3.4500,  "lon": 102.4167},
+        ]
+        return await self.fetch_openmeteo_data(cities, "malaysia")
+
+    async def fetch_indonesia_data(self) -> List[WeatherRecord]:
+        """Fetch weather for 30 Indonesian cities via Open-Meteo."""
+        cities = [
+            {"name": "Jakarta",         "lat": -6.2088,  "lon": 106.8456},
+            {"name": "Bandung",         "lat": -6.9175,  "lon": 107.6191},
+            {"name": "Surabaya",        "lat": -7.2575,  "lon": 112.7521},
+            {"name": "Medan",           "lat": 3.5952,   "lon": 98.6722},
+            {"name": "Semarang",        "lat": -6.9932,  "lon": 110.4203},
+            {"name": "Makassar",        "lat": -5.1477,  "lon": 119.4327},
+            {"name": "Palembang",       "lat": -2.9761,  "lon": 104.7754},
+            {"name": "Tangerang",       "lat": -6.1783,  "lon": 106.6319},
+            {"name": "Depok",           "lat": -6.4025,  "lon": 106.7942},
+            {"name": "Bekasi",          "lat": -6.2383,  "lon": 106.9756},
+            {"name": "Bogor",           "lat": -6.5971,  "lon": 106.8060},
+            {"name": "Batam",           "lat": 1.0456,   "lon": 104.0305},
+            {"name": "Pekanbaru",       "lat": 0.5071,   "lon": 101.4478},
+            {"name": "Bandar Lampung",  "lat": -5.4292,  "lon": 105.2613},
+            {"name": "Padang",          "lat": -0.9471,  "lon": 100.4172},
+            {"name": "Malang",          "lat": -7.9797,  "lon": 112.6304},
+            {"name": "Denpasar",        "lat": -8.6500,  "lon": 115.2167},
+            {"name": "Samarinda",       "lat": -0.4948,  "lon": 117.1436},
+            {"name": "Banjarmasin",     "lat": -3.3186,  "lon": 114.5944},
+            {"name": "Manado",          "lat": 1.4748,   "lon": 124.8421},
+            {"name": "Balikpapan",      "lat": -1.2379,  "lon": 116.8529},
+            {"name": "Pontianak",       "lat": -0.0263,  "lon": 109.3425},
+            {"name": "Jambi",           "lat": -1.6101,  "lon": 103.6131},
+            {"name": "Cirebon",         "lat": -6.7320,  "lon": 108.5523},
+            {"name": "Yogyakarta",      "lat": -7.7971,  "lon": 110.3688},
+            {"name": "Surakarta",       "lat": -7.5755,  "lon": 110.8243},
+            {"name": "Mataram",         "lat": -8.5833,  "lon": 116.1167},
+            {"name": "Kupang",          "lat": -10.1771, "lon": 123.6070},
+            {"name": "Ambon",           "lat": -3.6954,  "lon": 128.1814},
+            {"name": "Jayapura",        "lat": -2.5337,  "lon": 140.7181},
+        ]
+        return await self.fetch_openmeteo_data(cities, "indonesia")
+
     async def collect_all_sources(self) -> List[WeatherRecord]:
         """
-        Collect weather data from Singapore NEA API.
+        Collect weather data from Singapore (NEA), Malaysia and Indonesia (Open-Meteo).
+        All three run concurrently. Malaysia/Indonesia data enriches the regional
+        context useful for future Singapore model improvements.
 
         Returns:
-            List of WeatherRecord objects for Singapore
+            Combined list of WeatherRecord objects from all sources
         """
-        return await self.fetch_singapore_data()
+        sg, my, id_ = await asyncio.gather(
+            self.fetch_singapore_data(),
+            self.fetch_malaysia_data(),
+            self.fetch_indonesia_data(),
+        )
+        all_records = sg + my + id_
+        logger.info(f"Collected {len(all_records)} total records (SG={len(sg)}, MY={len(my)}, ID={len(id_)})")
+        return all_records
     
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> dict | list:
         """

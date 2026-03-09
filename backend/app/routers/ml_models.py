@@ -435,6 +435,33 @@ async def get_full_analysis() -> Dict:
         raise HTTPException(status_code=500, detail=f"Failed to read full analysis: {e}")
 
 
+@router.get("/historical-benchmark")
+async def get_historical_benchmark() -> Dict:
+    """
+    Return the historical benchmark JSON produced by benchmark_historical.py.
+
+    Compares NEA official forecasts vs ML models vs persistence baseline over
+    2016-2024 NEA historical data. Run locally: cd backend && python benchmark_historical.py
+    """
+    from pathlib import Path
+
+    bench_path = Path(__file__).parent.parent.parent / "models" / "historical_benchmark.json"
+
+    if not bench_path.exists():
+        return {
+            "status": "not_available",
+            "message": "Historical benchmark not available. Run: cd backend && python benchmark_historical.py",
+            "data": None,
+        }
+
+    try:
+        with open(bench_path) as f:
+            data = json.load(f)
+        return {"status": "ok", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read historical benchmark: {e}")
+
+
 @router.get("/data-sanity")
 async def get_data_sanity_check() -> Dict:
     """

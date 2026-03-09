@@ -35,7 +35,7 @@ Live: [weather.kooexperience.com](https://weather.kooexperience.com)
 | Layer | Tech |
 |-------|------|
 | Frontend | React 18 + Vite + Tailwind CSS |
-| Backend | FastAPI + SQLite |
+| Backend | FastAPI + PostgreSQL (Railway) / SQLite (local) |
 | ML | LightGBM + SHAP + statsmodels |
 | Rate limiting | slowapi |
 | Deployment | Railway (separate frontend + backend services) |
@@ -139,6 +139,33 @@ Temporal split: train 2016–2022 / val 2023 / test 2024. No data leakage — al
 **Top SHAP features:** `dry_spell_hours` (#1, 4.41), `humidity` (#2), `wind_accel_3h` (#3, 2.47 — captures squall line approach).
 
 **Model accuracy (test 2024):** 1h = 69.9%, 3h = 62.2%, 6h = 59.2%, 12h = 57.5%
+
+---
+
+## Historical benchmark (`benchmark_historical.py`)
+
+Evaluates ML model performance against NEA official forecasts over historical data (2016–2024).
+
+```bash
+cd backend
+source venv/bin/activate
+python benchmark_historical.py
+# writes models/historical_benchmark.json
+```
+
+**Methodology** — for each 2-hour NEA forecast window `[T, T+2h]`:
+
+| System | How it predicts |
+|--------|-----------------|
+| **NEA** | Binary: majority vote across 47 NEA areas (≥ 50% areas forecast rain → 1) |
+| **ML Nh** | LightGBM classifier run at `T − N hours`, using only weather_records before that time |
+| **Hybrid** | 60% ML probability + 40% NEA binary, ≥ 0.5 → 1 |
+| **Persistence** | Was it actually raining in the previous 2h window? (naive baseline) |
+| **Ground truth** | Mean total mm across all 64 rainfall stations in `[T, T+2h]` ≥ 1.0 mm → actual rain |
+
+Outputs per-year and aggregated accuracy, F1, precision, recall, and specificity for each system.
+Results are written to `backend/models/historical_benchmark.json` (committed to git, ~10KB).
+Served via Railway at `GET /api/ml/historical-benchmark`.
 
 ---
 
