@@ -971,6 +971,45 @@ export function MLAnalysisDashboard() {
                 yLabel="Mean"
               />
 
+              {/* STL Decomposition */}
+              {e.stl_decomposition?.observed?.length > 0 && (() => {
+                const stl = e.stl_decomposition;
+                const nMonths = stl.observed.length;
+                const years = stl.dates?.map(d => d.slice(0, 4));
+                const stlTickIndices = [];
+                const stlTicks = [];
+                for (let i = 0; i < nMonths; i++) {
+                  if (i === 0 || years[i] !== years[i - 1]) {
+                    stlTickIndices.push(i);
+                    stlTicks.push(years[i] ?? "");
+                  }
+                }
+                const varLabels = { rainfall: "Monthly Rainfall", temperature: "Monthly Avg Temperature", humidity: "Monthly Avg Humidity", wind_speed: "Monthly Avg Wind Speed" };
+                return (
+                  <div className="space-y-2">
+                    <p className="text-white/40 text-[10px] font-medium uppercase tracking-wide">STL Decomposition — {varLabels[selectedVar] || selectedVar}</p>
+                    <LineChart
+                      series={[
+                        { name: "Observed", data: stl.observed, color: "#60a5fa" },
+                        { name: "Trend",    data: stl.trend,    color: "#f472b6" },
+                      ]}
+                      height={110}
+                      xTicks={stlTicks}
+                      xTickIndices={stlTickIndices}
+                      yLabel="mm" xLabel="Year"
+                    />
+                    <LineChart
+                      series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
+                      height={70}
+                      xTicks={stlTicks}
+                      xTickIndices={stlTickIndices}
+                      yLabel="Residual" xLabel="Year"
+                    />
+                    <p className="text-white/30 text-[10px]">{stl.note}</p>
+                  </div>
+                );
+              })()}
+
               {/* Stationarity */}
               {data.stationarity?.[selectedVar] && (() => {
                 const s = data.stationarity[selectedVar];

@@ -220,9 +220,37 @@ def load_hourly_series(name: str, pattern: str, years: list, bounds: tuple,
 
 def compute_eda(series_dict: dict) -> dict:
     """Return descriptive statistics + seasonal patterns for each variable."""
+    from statsmodels.tsa.seasonal import STL
+
+    # For rainfall use monthly sum; for others use monthly mean
+    _agg = {"rainfall": "sum"}
+
     eda = {}
     for name, s in series_dict.items():
         clean = s.dropna()
+
+        # STL decomposition on monthly aggregates
+        stl_result = {}
+        try:
+            agg_fn = _agg.get(name, "mean")
+            monthly = clean.resample("ME").agg(agg_fn)
+            if len(monthly) >= 24:
+                stl_fit = STL(monthly, period=12, robust=True).fit()
+                step = max(1, len(monthly) // 120)
+                idx = list(range(0, len(monthly), step))
+                unit_map = {"rainfall": "mm (monthly total)", "temperature": "°C (monthly mean)",
+                            "humidity": "% (monthly mean)", "wind_speed": "km/h (monthly mean)"}
+                stl_result = {
+                    "dates":    [str(monthly.index[i].date()) for i in idx],
+                    "observed": [round(float(monthly.iloc[i]), 3) for i in idx],
+                    "trend":    [round(float(stl_fit.trend.iloc[i]), 3) for i in idx],
+                    "seasonal": [round(float(stl_fit.seasonal.iloc[i]), 3) for i in idx],
+                    "residual": [round(float(stl_fit.resid.iloc[i]), 3) for i in idx],
+                    "note": f"Monthly {agg_fn} ({unit_map.get(name, name)}). STL period=12 months.",
+                }
+        except Exception as e:
+            logger.warning(f"  STL [{name}] failed: {e}")
+
         eda[name] = {
             "n_obs": int(len(clean)),
             "mean": round(float(clean.mean()), 4),
@@ -253,6 +281,8 @@ def compute_eda(series_dict: dict) -> dict:
             },
             # Histogram bins (20 bins)
             "histogram": _histogram(clean, bins=40),
+            # STL decomposition
+            "stl_decomposition": stl_result,
         }
         logger.info(f"  EDA [{name}]: mean={eda[name]['mean']}, std={eda[name]['std']}, "
                     f"skew={eda[name]['skewness']}")
