@@ -654,7 +654,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* Weather Details Grid */}
       <div className="grid grid-cols-2 gap-2">
-        {/* Single sun card — full elliptical cycle like Apple Weather */}
+        {/* Sun card — smooth sine wave like Apple Weather */}
         <div className={`rounded-3xl backdrop-blur-2xl p-3 transition-all duration-200 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}>
           {isAfterSunset ? (
             <>
@@ -663,14 +663,23 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{tomorrowSunrise}</div>
-              <svg viewBox="0 0 100 44" width="100%" className="mt-1">
-                {/* Horizon line */}
-                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
-                {/* Day arc above horizon — faded (sun has set) */}
-                <path d="M 4,22 A 46,16 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.2" />
-                {/* Night arc below horizon — active */}
-                <path d="M 96,22 A 46,12 0 0 1 4,22" fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="1.2" />
+              <svg viewBox="0 0 100 48" width="100%" className="mt-1" overflow="visible">
                 {(() => {
+                  const hY = 24, amp = 13, pad = 0.4, N = 60;
+                  const total = Math.PI + 2 * pad;
+                  // Night wave: sunset (left) → dip below → sunrise (right)
+                  const pts = [];
+                  for (let i = 0; i <= N; i++) {
+                    const t = i / N;
+                    const a = Math.PI - pad + t * total;
+                    pts.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                  }
+                  // Horizon crossing points
+                  const riseT = (Math.PI + pad) / total;
+                  const setT = pad / total;
+                  const setX = 4 + setT * 92;
+                  const riseX = 4 + riseT * 92;
+                  // Night progress → dot position
                   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
                   const sunsetM = sunsetMin ?? nowMin;
                   const tmrM = (() => {
@@ -682,21 +691,28 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                     return h2 * 60 + m2 + 1440;
                   })();
                   const nightNow = nowMin < sunsetM ? nowMin + 1440 : nowMin;
-                  const nightProgress = Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
-                  // Night arc: sunset (right, 96) → below → sunrise (left, 4)
-                  const angle = nightProgress * Math.PI;
-                  const ax = 50 + 46 * Math.cos(angle);
-                  const ay = 22 + 12 * Math.sin(angle);
-                  // Traced portion of night arc
-                  const traceEnd = `${ax},${ay}`;
+                  const np = Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
+                  const dotA = Math.PI + np * Math.PI;
+                  const dotT = (dotA - Math.PI + pad) / total;
+                  const dx = 4 + dotT * 92;
+                  const dy = hY - amp * Math.sin(dotA);
+                  // Traced path from sunset to current
+                  const traced = [];
+                  for (let i = 0; i <= 30; i++) {
+                    const a = Math.PI + (i / 30) * np * Math.PI;
+                    const t = (a - Math.PI + pad) / total;
+                    traced.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                  }
                   return (<>
-                    <path d={`M 96,22 A 46,12 0 0 1 ${traceEnd}`} fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
-                    <circle cx={ax} cy={ay} r="3" fill="rgba(148,163,184,0.9)" />
-                    <circle cx={ax} cy={ay} r="5.5" fill="rgba(148,163,184,0.15)" />
+                    <line x1={setX} y1={hY} x2={riseX} y2={hY} stroke="rgba(255,255,255,0.12)" strokeWidth="0.6" />
+                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
+                    <polyline points={traced.join(" ")} fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1.5" />
+                    <circle cx={dx} cy={dy} r="3" fill="rgba(148,163,184,0.9)" />
+                    <circle cx={dx} cy={dy} r="5.5" fill="rgba(148,163,184,0.15)" />
+                    <text x={setX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.2)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                    <text x={riseX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
                   </>);
                 })()}
-                <text x="2" y="20" fontSize="5" fill="rgba(255,255,255,0.25)" textAnchor="start" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
-                <text x="98" y="20" fontSize="5" fill="rgba(255,255,255,0.2)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
               </svg>
               <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Tomorrow · Sunset was {sunTimes.sunset}</p>
             </>
@@ -707,28 +723,45 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
-              <svg viewBox="0 0 100 44" width="100%" className="mt-1">
-                {/* Horizon line */}
-                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
-                {/* Day arc above horizon */}
-                <path d="M 4,22 A 46,16 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.2" />
-                {/* Night arc below horizon — faint dashed to show cyclical nature */}
-                <path d="M 96,22 A 46,12 0 0 1 4,22" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 2" />
+              <svg viewBox="0 0 100 48" width="100%" className="mt-1" overflow="visible">
                 {(() => {
+                  const hY = 24, amp = 13, pad = 0.4, N = 60;
+                  const total = Math.PI + 2 * pad;
+                  // Day wave: starts below horizon, rises through sunrise, peaks at noon, dips through sunset
+                  const pts = [];
+                  for (let i = 0; i <= N; i++) {
+                    const t = i / N;
+                    const a = -pad + t * total;
+                    pts.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                  }
+                  // Horizon crossing points (sunrise and sunset x)
+                  const riseT = pad / total;
+                  const setT = (Math.PI + pad) / total;
+                  const riseX = 4 + riseT * 92;
+                  const setX = 4 + setT * 92;
+                  // Sun dot position
                   const prog = Math.min(sunProgress, 0.999);
-                  // Day arc: sunrise (left, 4) → above → sunset (right, 96)
-                  const angle = prog * Math.PI;
-                  const ax = 4 + 92 * (prog); // simplified x
-                  const axEllipse = 50 - 46 * Math.cos(angle);
-                  const ay = 22 - 16 * Math.sin(angle);
+                  const dotA = prog * Math.PI;
+                  const dotT = (dotA + pad) / total;
+                  const sx = 4 + dotT * 92;
+                  const sy = hY - amp * Math.sin(dotA);
+                  // Traced path from sunrise to sun position
+                  const traced = [];
+                  for (let i = 0; i <= 30; i++) {
+                    const a = (i / 30) * prog * Math.PI;
+                    const t = (a + pad) / total;
+                    traced.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                  }
                   return (<>
-                    <path d={`M 4,22 A 46,16 0 0 1 ${axEllipse},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.2" />
-                    <circle cx={axEllipse} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
-                    <circle cx={axEllipse} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
+                    <line x1={riseX} y1={hY} x2={setX} y2={hY} stroke="rgba(255,255,255,0.12)" strokeWidth="0.6" />
+                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.2" />
+                    <polyline points={traced.join(" ")} fill="none" stroke="rgba(251,146,60,0.5)" strokeWidth="1.5" />
+                    <circle cx={sx} cy={sy} r="3.5" fill="#fb923c" opacity="0.95" />
+                    <circle cx={sx} cy={sy} r="6" fill="rgba(251,146,60,0.15)" />
+                    <text x={riseX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+                    <text x={setX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
                   </>);
                 })()}
-                <text x="2" y="20" fontSize="5" fill="rgba(255,255,255,0.3)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
-                <text x="98" y="20" fontSize="5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
               </svg>
               <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Sunset: {sunTimes.sunset}</p>
             </>
