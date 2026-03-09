@@ -766,9 +766,9 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-base ${secondaryTextColor}`}>mm</span>
           </div>
           {rainfallDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{rainfallDesc}</p>}
-          {rainfall === 0 && nextRainDay && (
+          {rainfall === 0 && (
             <p className={`text-xs ${tertiaryTextColor} mt-0.5 leading-snug`}>
-              Next expected on {nextRainDay}.
+              {nextRainDay ? `Next expected on ${nextRainDay}.` : "None forecast this week."}
             </p>
           )}
         </div>
