@@ -56,10 +56,12 @@ async def get_weather(
         """
 
         result = fetch_one(sql, {"lat": lat, "lng": lng, "cutoff": cutoff})
-        
+
         if result:
-            temperature = result["temperature"]
-            rainfall = result["rainfall"] or 0
+            # Access via _mapping for SQLAlchemy 2.x Row compatibility
+            row = result._mapping
+            temperature = row["temperature"]
+            rainfall = row["rainfall"] or 0
 
             if rainfall > 5:
                 condition = "Rainy"
@@ -72,17 +74,17 @@ async def get_weather(
             else:
                 condition = "Cloudy"
 
-            ts = result["timestamp"]
+            ts = row["timestamp"]
             return {
                 "condition": condition,
                 "temperature": temperature,
-                "humidity": result["humidity"],
-                "wind_speed": result["wind_speed"],
-                "pressure": result["pressure"],
-                "area": result["location"],
-                "source": f"Cached ({result['source_api']})",
+                "humidity": row["humidity"],
+                "wind_speed": row["wind_speed"],
+                "pressure": row["pressure"],
+                "area": row["location"],
+                "source": f"Cached ({row['source_api']})",
                 "timestamp": ts if isinstance(ts, str) else str(ts) if ts else None,
-                "distance_km": round(result["approx_dist"], 4) if result["approx_dist"] else None,
+                "distance_km": round(row["approx_dist"], 4) if row["approx_dist"] else None,
             }
         
         # Fallback: No cached data available, fetch from Open-Meteo

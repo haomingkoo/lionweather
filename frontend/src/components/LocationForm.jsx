@@ -47,7 +47,7 @@ const geocodeLocation = async (query) => {
   }
 };
 
-export function LocationForm({ isDark = false }) {
+export function LocationForm({ isDark = false, compact = false }) {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,8 +159,8 @@ export function LocationForm({ isDark = false }) {
         )}
       </form>
 
-      {/* Manual Coordinates Entry */}
-      <form
+      {/* Manual Coordinates Entry — hidden in compact mode */}
+      {!compact && <form
         onSubmit={onSubmit}
         className={`rounded-[2rem] backdrop-blur-xl p-6 shadow-2xl ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
       >
@@ -223,7 +223,7 @@ export function LocationForm({ isDark = false }) {
             {error.message}
           </p>
         )}
-      </form>
+      </form>}
     </div>
   );
 }
