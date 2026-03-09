@@ -30,14 +30,12 @@ backend/*.db-wal
 *.sqlite
 *.sqlite3
 
-# ML Models (binary — too large for git)
+# ML Models — *.joblib committed directly (each ~12MB, well within GitHub 50MB limit)
+# If models grow >50MB each, migrate to Hugging Face Hub
 backend/models/*.pkl
 backend/models/*.h5
-backend/models/*.joblib
 backend/models/cache/
 !backend/models/.gitkeep
-# JSON analysis artifacts are small enough to commit
-!backend/models/*.json
 
 # Node / Vite
 node_modules/

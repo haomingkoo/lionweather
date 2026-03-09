@@ -2,44 +2,64 @@ import { useState } from "react";
 import { useCreateLocation } from "../hooks/useLocations.jsx";
 import { MapPin, Plus, Search } from "lucide-react";
 
+// Build a human-readable location name from Nominatim address components.
+// Priority: specific area name > postal code suffix > fallback to display_name parts.
+function buildLocationName(result, originalQuery) {
+  const addr = result.address || {};
+  const isSingaporePostal = /^\d{6}$/.test(originalQuery.trim());
+
+  // Most specific first: neighbourhood → suburb → quarter → village → city_district → city
+  const areaName =
+    addr.neighbourhood ||
+    addr.suburb ||
+    addr.quarter ||
+    addr.village ||
+    addr.town ||
+    addr.city_district ||
+    addr.borough ||
+    null;
+
+  // For place-name searches, also try the result's own name attribute
+  const resultName = result.name && result.name !== "Singapore" ? result.name : null;
+
+  const base = areaName || resultName;
+
+  if (base) {
+    // Append postal code in parentheses if search was by postal code
+    return isSingaporePostal ? `${base} (${originalQuery.trim()})` : base;
+  }
+
+  // Fallback: pick a meaningful part from display_name (skip bare "Singapore")
+  const parts = result.display_name.split(",").map((p) => p.trim()).filter(Boolean);
+  const meaningful = parts.find((p) => p !== "Singapore" && !/^\d{6}$/.test(p));
+  if (meaningful) return meaningful;
+
+  // Last resort: show postal code itself
+  return isSingaporePostal ? `Postal ${originalQuery.trim()}` : parts[0] || "Unknown";
+}
+
 // Geocode postal code or place name to coordinates
 const geocodeLocation = async (query) => {
   try {
-    // Try Singapore postal code format first (6 digits)
     const isSingaporePostal = /^\d{6}$/.test(query.trim());
+    const searchQuery = isSingaporePostal ? `${query.trim()}, Singapore` : query;
 
-    let searchQuery = query;
-    if (isSingaporePostal) {
-      // Add "Singapore" to postal code for better results
-      searchQuery = `${query}, Singapore`;
-    }
-
-    // Use Nominatim for geocoding (supports postal codes and place names)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=sg,my,id&limit=5`,
-      {
-        headers: {
-          "User-Agent": "LionWeather/1.0",
-        },
-      },
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(searchQuery)}&countrycodes=sg,my,id&limit=5`,
+      { headers: { "User-Agent": "LionWeather/1.0" } },
     );
-    if (!response.ok) {
-      throw new Error("Failed to geocode location");
-    }
-    const data = await response.json();
+    if (!response.ok) throw new Error("Failed to geocode location");
 
+    const data = await response.json();
     if (data.length === 0) {
-      throw new Error(
-        "Location not found. Try a different postal code or place name.",
-      );
+      throw new Error("Location not found. Try a different postal code or place name.");
     }
 
     return data.map((result) => ({
       lat: parseFloat(result.lat),
       lon: parseFloat(result.lon),
       display_name: result.display_name,
-      // Extract clean name (first part before comma)
-      name: result.display_name.split(",")[0].trim(),
+      name: buildLocationName(result, query),
     }));
   } catch (err) {
     console.error("Geocoding error:", err);
