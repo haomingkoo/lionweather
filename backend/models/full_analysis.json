@@ -8197,9 +8197,10 @@
     "overall": {
       "class3": {
         "n_samples": 7095,
-        "note": "Per-region comparison: NEA regional forecasts vs regional actuals. ML uses same island-wide prediction across all regions \u2014 not directly comparable to NEA here.",
+        "note": "Per-region stacked: NEA regional forecasts vs regional actuals (NEA advantage \u2014 region-specific). ML applies same island-wide prediction to each of 5 regions.",
         "nea": {
           "accuracy": 0.746,
+          "rain_f2": 0.3798,
           "confusion_matrix": [
             [
               4643,
@@ -8253,6 +8254,7 @@
         },
         "ml_island_wide": {
           "accuracy": 0.7486,
+          "rain_f2": 0.4589,
           "confusion_matrix": [
             [
               4417,
@@ -8306,6 +8308,7 @@
         },
         "ensemble_60ml_40nea": {
           "accuracy": 0.7608,
+          "rain_f2": 0.4586,
           "confusion_matrix": [
             [
               4589,
@@ -8360,6 +8363,7 @@
         "island_wide": {
           "nea": {
             "accuracy": 0.7541,
+            "rain_f2": 0.3514,
             "confusion_matrix": [
               [
                 954,
@@ -8413,6 +8417,7 @@
           },
           "ml_island_wide": {
             "accuracy": 0.7611,
+            "rain_f2": 0.4666,
             "confusion_matrix": [
               [
                 907,
@@ -8522,9 +8527,10 @@
       },
       "class4": {
         "n_samples": 7095,
-        "note": "Per-region comparison: NEA regional forecasts vs regional actuals. ML uses same island-wide prediction across all regions \u2014 not directly comparable to NEA here.",
+        "note": "Per-region stacked: NEA regional forecasts vs regional actuals (NEA advantage \u2014 region-specific). ML applies same island-wide prediction to each of 5 regions.",
         "nea": {
           "accuracy": 0.7143,
+          "rain_f2": 0.1715,
           "confusion_matrix": [
             [
               4643,
@@ -8593,6 +8599,7 @@
         },
         "ml_island_wide": {
           "accuracy": 0.7237,
+          "rain_f2": 0.2512,
           "confusion_matrix": [
             [
               4381,
@@ -8661,6 +8668,7 @@
         },
         "ensemble_60ml_40nea": {
           "accuracy": 0.7285,
+          "rain_f2": 0.2239,
           "confusion_matrix": [
             [
               4616,
@@ -8730,6 +8738,7 @@
         "island_wide": {
           "nea": {
             "accuracy": 0.7259,
+            "rain_f2": 0.1283,
             "confusion_matrix": [
               [
                 954,
@@ -8798,6 +8807,7 @@
           },
           "ml_island_wide": {
             "accuracy": 0.7414,
+            "rain_f2": 0.2419,
             "confusion_matrix": [
               [
                 899,
@@ -9217,6 +9227,8 @@
         "n_areas": 37,
         "per_area_nea": {
           "accuracy": 0.8505,
+          "rain_recall": 0.5582,
+          "rain_f2": 0.4731,
           "confusion_matrix": [
             [
               94591,
@@ -9267,7 +9279,7 @@
               "support": 119645.0
             }
           },
-          "note": "NEA 2h per-area accuracy vs nearest station actual. ML not compared here (ML is island-wide, not per-area).",
+          "note": "NEA 2h per-area forecast accuracy vs nearest station actual (47 areas).",
           "per_area": {
             "Ang Mo Kio": {
               "n_samples": 3755,
@@ -9418,6 +9430,84 @@
               "nea_accuracy": 0.8526
             }
           }
+        },
+        "per_area_ml": {
+          "accuracy": 0.7779,
+          "rain_recall": 0.6184,
+          "rain_f2": 0.425,
+          "n_samples": 119645,
+          "report": {
+            "No Rain": {
+              "precision": 0.97933011294209,
+              "recall": 0.8101671217088171,
+              "f1-score": 0.8867530426330538,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.2678349181062379,
+              "recall": 0.4788180847276611,
+              "f1-score": 0.34351754301950643,
+              "support": 11236.0
+            },
+            "Heavy + Thundery": {
+              "precision": 0.16170461179217746,
+              "recall": 0.7580140734949179,
+              "f1-score": 0.26654752903979656,
+              "support": 2558.0
+            },
+            "accuracy": 0.7779347235571901,
+            "macro avg": {
+              "precision": 0.46962321428016846,
+              "recall": 0.6823330933104653,
+              "f1-score": 0.4989393715641189,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.8950320140569121,
+              "recall": 0.7779347235571901,
+              "f1-score": 0.822477228537777,
+              "support": 119645.0
+            }
+          },
+          "note": "island-wide ML prediction applied to each of 47 areas"
+        },
+        "per_area_ensemble": {
+          "accuracy": 0.8042,
+          "rain_f2": 0.4366,
+          "report": {
+            "No Rain": {
+              "precision": 0.9813719237282544,
+              "recall": 0.8431096541364749,
+              "f1-score": 0.9070019157574865,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.29660330320972267,
+              "recall": 0.4235493058027768,
+              "f1-score": 0.34888750412374914,
+              "support": 11236.0
+            },
+            "Heavy + Thundery": {
+              "precision": 0.1746959406096983,
+              "recall": 0.8647380766223612,
+              "f1-score": 0.29067017082785807,
+              "support": 2558.0
+            },
+            "accuracy": 0.8041706715700614,
+            "macro avg": {
+              "precision": 0.48422372251589185,
+              "recall": 0.710465678853871,
+              "f1-score": 0.5155198635696979,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.899817848046333,
+              "recall": 0.8041706715700614,
+              "f1-score": 0.8414116267136763,
+              "support": 119645.0
+            }
+          },
+          "note": "ensemble 60% ML + 40% NEA applied per area"
         },
         "island_wide": {
           "nea": {
@@ -9588,6 +9678,8 @@
         "n_areas": 37,
         "per_area_nea": {
           "accuracy": 0.8405,
+          "rain_recall": 0.4175,
+          "rain_f2": 0.2458,
           "confusion_matrix": [
             [
               94591,
@@ -9653,7 +9745,7 @@
               "support": 119645.0
             }
           },
-          "note": "NEA 2h per-area accuracy vs nearest station actual. ML not compared here (ML is island-wide, not per-area).",
+          "note": "NEA 2h per-area forecast accuracy vs nearest station actual (47 areas).",
           "per_area": {
             "Ang Mo Kio": {
               "n_samples": 3755,
@@ -9804,6 +9896,96 @@
               "nea_accuracy": 0.8426
             }
           }
+        },
+        "per_area_ml": {
+          "accuracy": 0.7624,
+          "rain_recall": 0.4454,
+          "rain_f2": 0.2112,
+          "n_samples": 119645,
+          "report": {
+            "No Rain": {
+              "precision": 0.9796175691464134,
+              "recall": 0.8000396784158865,
+              "f1-score": 0.8807683907268926,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.26252942435266424,
+              "recall": 0.5459238163047347,
+              "f1-score": 0.35455622669865033,
+              "support": 11236.0
+            },
+            "Heavy Rain": {
+              "precision": 0.11337868480725624,
+              "recall": 0.023809523809523808,
+              "f1-score": 0.03935458480913026,
+              "support": 2100.0
+            },
+            "Thundery Showers": {
+              "precision": 0.03737223168654174,
+              "recall": 0.7663755458515283,
+              "f1-score": 0.07126903553299492,
+              "support": 458.0
+            },
+            "accuracy": 0.7624221655731539,
+            "macro avg": {
+              "precision": 0.3482244774982189,
+              "recall": 0.5340371410954183,
+              "f1-score": 0.3364870594419171,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.8934639278193925,
+              "recall": 0.7624221655731539,
+              "f1-score": 0.8134840113368018,
+              "support": 119645.0
+            }
+          },
+          "note": "island-wide ML prediction applied to each of 47 areas"
+        },
+        "per_area_ensemble": {
+          "accuracy": 0.807,
+          "rain_f2": 0.2081,
+          "report": {
+            "No Rain": {
+              "precision": 0.9785982559143499,
+              "recall": 0.8566097627797564,
+              "f1-score": 0.91354964812324,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.31910913661074414,
+              "recall": 0.4858490566037736,
+              "f1-score": 0.385209751966976,
+              "support": 11236.0
+            },
+            "Heavy Rain": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
+              "support": 2100.0
+            },
+            "Thundery Showers": {
+              "precision": 0.04397905759162304,
+              "recall": 0.9170305676855895,
+              "f1-score": 0.08393285371702638,
+              "support": 458.0
+            },
+            "accuracy": 0.8069873375402231,
+            "macro avg": {
+              "precision": 0.3354216125291793,
+              "recall": 0.5648723467672799,
+              "f1-score": 0.3456730634518106,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.8959108751232826,
+              "recall": 0.8069873375402231,
+              "f1-score": 0.8447223187228585,
+              "support": 119645.0
+            }
+          },
+          "note": "ensemble 60% ML + 40% NEA applied per area"
         },
         "island_wide": {
           "nea": {

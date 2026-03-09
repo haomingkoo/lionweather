@@ -1331,87 +1331,109 @@ export function MLAnalysisDashboard() {
       {data.nea_benchmark && (() => {
         const nb = data.nea_benchmark;
         const c3 = nb.overall?.class3 || {};
+
+        // 6h — per-region (native NEA granularity)
+        const prNea = c3.nea || {};
+        const prMl  = c3.ml_island_wide || {};
+        const hasPR = prNea.accuracy != null;
+
+        // 6h — island-wide (fair ML comparison)
         const iw = c3.island_wide || {};
-        const nea = iw.nea || {};
-        const ml  = iw.ml_island_wide || {};
-        const ens = iw.ensemble_60ml_40nea || {};
-        const neaF1 = nea.report?.["macro avg"]?.["f1-score"];
-        const mlF1  = ml.report?.["macro avg"]?.["f1-score"];
-        const ensF1 = ens.report?.["macro avg"]?.["f1-score"];
-        const nSamples = iw.n_samples;
-        const hasIW = nea.accuracy != null;
+        const iwNea = iw.nea || {};
+        const iwMl  = iw.ml_island_wide || {};
+        const nSamples6h = iw.n_samples;
+        const hasIW = iwNea.accuracy != null;
 
         // 2h area benchmark
         const nb2 = data.nea_2h_benchmark;
         const c3_2h = nb2?.overall?.class3 || {};
+        const paKeys = ["per_area_nea", "per_area_ml", "per_area_ensemble"];
+        const paNea = c3_2h.per_area_nea || {};
+        const paMl  = c3_2h.per_area_ml  || {};
+        const paEns = c3_2h.per_area_ensemble || {};
+        const hasPerArea = paNea.accuracy != null;
         const iw2 = c3_2h.island_wide || {};
-        const nea2 = iw2.nea || {};
-        const ml2  = iw2.ml_island_wide || {};
-        const ens2 = iw2.ensemble_60ml_40nea || {};
-        const perAreaNea = c3_2h.per_area_nea || {};
-        const neaF1_2h = nea2.report?.["macro avg"]?.["f1-score"];
-        const mlF1_2h  = ml2.report?.["macro avg"]?.["f1-score"];
-        const ensF1_2h = ens2.report?.["macro avg"]?.["f1-score"];
-        const has2h = nea2.accuracy != null;
-        const hasPerArea = perAreaNea.accuracy != null;
+        const iwNea2 = iw2.nea || {};
+        const iwMl2  = iw2.ml_island_wide || {};
+        const has2hIW = iwNea2.accuracy != null;
+
+        // Best-in-column helpers
+        const bestF2_6h  = Math.max(prNea.rain_f2 ?? 0, prMl.rain_f2 ?? 0, iwNea.rain_f2 ?? 0, iwMl.rain_f2 ?? 0);
+        const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0);
+        const bestAcc_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
 
         return (
           <Section icon={Trophy} title="NEA Benchmark Comparison" defaultOpen={true}>
             <div className="space-y-4">
-              {/* Methodology explanation */}
+
+              {/* Why F2 */}
+              <div className="bg-violet-500/8 border border-violet-400/20 rounded-xl p-3 space-y-1.5">
+                <p className="text-violet-300/80 text-[10px] font-semibold uppercase tracking-wide">Primary metric: Rain F2 score (β = 2)</p>
+                <p className="text-[11px] text-white/55 leading-relaxed">
+                  F2 weighs <strong className="text-white/70">recall twice as much as precision</strong> — because missing a rain event (user gets soaked) is worse than a false alarm (user carries umbrella). Accuracy is shown for context, but F2 is the decision metric. F2 is computed only on rain classes (Light Rain + Heavy/Thundery), macro-averaged.
+                </p>
+              </div>
+
+              {/* Methodology */}
               <div className="bg-amber-500/8 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
-                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Comparison methodology — granularity must match</p>
+                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Granularity-matched comparison</p>
                 <div className="space-y-1 text-[11px] text-white/55 leading-relaxed">
-                  <p>NEA publishes forecasts at two granularities:</p>
+                  <p>NEA publishes at two levels. We compare at each level separately:</p>
                   <ul className="space-y-0.5 ml-2">
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour forecast by area</strong> (47 named areas, e.g. "Clementi: Light Rain") — most granular, validated against nearest NEA rain gauge</li>
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour forecast by region</strong> (North / South / East / West / Central) — coarser regional forecast</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour by region</strong> (5 regions) — compared at per-region level, then also aggregated to island-wide via majority vote</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour by area</strong> (47 areas) — compared at native per-area level; ML island-wide prediction applied uniformly to all areas</li>
                   </ul>
-                  <p>Our ML model predicts <strong className="text-white/70">island-wide</strong>. To compare like-for-like, we aggregate both NEA forecasts and actual observations to island-wide via <strong className="text-white/70">majority vote</strong> before comparing.</p>
                 </div>
               </div>
 
-              {/* 6h regional benchmark */}
+              {/* 6h benchmark */}
               <div>
                 <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
-                  6-hour regional forecast — island-wide aggregation
+                  6-hour forecast benchmark · {nSamples6h?.toLocaleString()} periods · 2024 holdout
                 </p>
-                {hasIW ? (
-                  <>
-                    <p className="text-white/35 text-[10px] mb-1.5">
-                      Majority vote across 5 regions per 6h window · {nSamples?.toLocaleString()} periods · 2024 holdout
-                    </p>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs border-collapse">
-                        <thead>
-                          <tr className="text-white/40 text-[10px]">
-                            <th className="text-left py-1.5 pr-3">Model</th>
-                            <th className="text-right px-2">Accuracy</th>
-                            <th className="text-right px-2">Macro F1</th>
-                            <th className="text-right pl-2"></th>
+                {(hasPR || hasIW) ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="text-white/40 text-[10px]">
+                          <th className="text-left py-1.5 pr-3">Granularity · Model</th>
+                          <th className="text-right px-2">Accuracy</th>
+                          <th className="text-right px-2 text-violet-300/70">Rain F2 ↑</th>
+                          <th className="text-right pl-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hasPR && <>
+                          <tr className="border-t border-white/5">
+                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">Per-region · NEA 6h forecast</td>
+                            <td className="text-right px-2 font-mono text-white/60">{(prNea.accuracy * 100).toFixed(1)}%</td>
+                            <td className="text-right px-2 font-mono text-violet-300">{prNea.rain_f2 != null ? (prNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2">{prNea.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {[
-                            { name: "NEA 6h Regional → island-wide", acc: nea.accuracy, f1: neaF1, color: "text-white/70" },
-                            { name: "ML Model (island-wide, 1h ahead)", acc: ml.accuracy, f1: mlF1, color: "text-blue-300" },
-                            { name: "Ensemble (60% ML + 40% NEA)", acc: ens.accuracy, f1: ensF1, color: "text-emerald-300" },
-                          ].map(({ name, acc, f1, color }) => (
-                            <tr key={name} className="border-t border-white/5">
-                              <td className={`py-1.5 pr-3 font-medium text-[11px] ${color}`}>{name}</td>
-                              <td className={`text-right px-2 font-mono ${color}`}>{acc != null ? (acc * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className={`text-right px-2 font-mono ${color}`}>{f1 != null ? (f1 * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2">
-                                {f1 != null && f1 === Math.max(neaF1 ?? 0, mlF1 ?? 0, ensF1 ?? 0)
-                                  ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
-                                  : null}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
+                          <tr className="border-t border-white/5">
+                            <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">Per-region · ML (island-wide applied)</td>
+                            <td className="text-right px-2 font-mono text-blue-300/70">{prMl.accuracy != null ? (prMl.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right px-2 font-mono text-blue-300">{prMl.rain_f2 != null ? (prMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2">{prMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
+                          </tr>
+                        </>}
+                        {hasIW && <>
+                          <tr className="border-t border-white/10">
+                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/50 italic">Island-wide · NEA → majority vote</td>
+                            <td className="text-right px-2 font-mono text-white/45">{(iwNea.accuracy * 100).toFixed(1)}%</td>
+                            <td className="text-right px-2 font-mono text-violet-300/60">{iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2 text-[10px] text-white/25 italic">fair vs ML</td>
+                          </tr>
+                          <tr className="border-t border-white/5">
+                            <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/70 italic">Island-wide · ML model</td>
+                            <td className="text-right px-2 font-mono text-blue-200/60">{(iwMl.accuracy * 100).toFixed(1)}%</td>
+                            <td className="text-right px-2 font-mono text-blue-200/80">{iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2">{iwMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span> : null}</td>
+                          </tr>
+                        </>}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <p className="text-white/40 text-sm text-center py-4">Retraining in progress...</p>
                 )}
@@ -1420,59 +1442,59 @@ export function MLAnalysisDashboard() {
               {/* 2h area benchmark */}
               <div>
                 <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
-                  2-hour per-area forecast — NEA's finest granularity
+                  2-hour per-area forecast · {c3_2h.n_area_period_samples?.toLocaleString()} area-period samples · 2024 holdout
                 </p>
-                {(has2h || hasPerArea) ? (
+                {hasPerArea ? (
                   <>
                     <p className="text-white/35 text-[10px] mb-1.5">
-                      47 areas matched to nearest rain gauge (≤10 km) · {c3_2h.n_area_period_samples?.toLocaleString()} area-period samples · 2024 holdout
+                      47 areas matched to nearest rain gauge (≤10 km) · ML prediction applied uniformly island-wide
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="text-white/40 text-[10px]">
-                            <th className="text-left py-1.5 pr-3">Comparison</th>
+                            <th className="text-left py-1.5 pr-3">Model</th>
                             <th className="text-right px-2">Accuracy</th>
-                            <th className="text-right px-2">Macro F1</th>
+                            <th className="text-right px-2 text-violet-300/70">Rain F2 ↑</th>
                             <th className="text-right pl-2"></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {hasPerArea && (
+                          <tr className="border-t border-white/5">
+                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h per-area (native)</td>
+                            <td className="text-right px-2 font-mono text-white/60">{(paNea.accuracy * 100).toFixed(1)}%</td>
+                            <td className="text-right px-2 font-mono text-violet-300">{paNea.rain_f2 != null ? (paNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2">{paNea.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : (paNea.accuracy === bestAcc_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best Acc</span> : null)}</td>
+                          </tr>
+                          {paMl.accuracy != null && (
                             <tr className="border-t border-white/5">
-                              <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h per-area (native granularity)</td>
-                              <td className="text-right px-2 font-mono text-white/70">{perAreaNea.accuracy != null ? (perAreaNea.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right px-2 font-mono text-white/70">{perAreaNea.report?.["macro avg"]?.["f1-score"] != null ? (perAreaNea.report["macro avg"]["f1-score"] * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2 text-[10px] text-white/30 italic">NEA-only</td>
+                              <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">ML island-wide → per-area</td>
+                              <td className="text-right px-2 font-mono text-blue-300/70">{(paMl.accuracy * 100).toFixed(1)}%</td>
+                              <td className="text-right px-2 font-mono text-blue-300">{paMl.rain_f2 != null ? (paMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right pl-2">{paMl.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : null}</td>
                             </tr>
                           )}
-                          {has2h && (
+                          {paEns.accuracy != null && (
+                            <tr className="border-t border-white/5">
+                              <td className="py-1.5 pr-3 font-medium text-[11px] text-emerald-300">Ensemble (60% ML + 40% NEA)</td>
+                              <td className="text-right px-2 font-mono text-emerald-300/70">{(paEns.accuracy * 100).toFixed(1)}%</td>
+                              <td className="text-right px-2 font-mono text-emerald-300">{paEns.rain_f2 != null ? (paEns.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right pl-2">{paEns.rain_f2 === bestF2_2h ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best F2</span> : null}</td>
+                            </tr>
+                          )}
+                          {has2hIW && (
                             <>
-                              <tr className="border-t border-white/5">
-                                <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h → island-wide</td>
-                                <td className="text-right px-2 font-mono text-white/70">{nea2.accuracy != null ? (nea2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right px-2 font-mono text-white/70">{neaF1_2h != null ? (neaF1_2h * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right pl-2 text-[10px] text-white/30 italic">fair</td>
+                              <tr className="border-t border-white/10">
+                                <td className="py-1.5 pr-3 font-medium text-[11px] text-white/40 italic">Island-wide · NEA → majority vote</td>
+                                <td className="text-right px-2 font-mono text-white/35">{(iwNea2.accuracy * 100).toFixed(1)}%</td>
+                                <td className="text-right px-2 font-mono text-white/35">—</td>
+                                <td className="text-right pl-2 text-[10px] text-white/20 italic">fair vs ML</td>
                               </tr>
                               <tr className="border-t border-white/5">
-                                <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">ML Model → island-wide</td>
-                                <td className="text-right px-2 font-mono text-blue-300">{ml2.accuracy != null ? (ml2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right px-2 font-mono text-blue-300">{mlF1_2h != null ? (mlF1_2h * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right pl-2">
-                                  {mlF1_2h != null && neaF1_2h != null && mlF1_2h > neaF1_2h
-                                    ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
-                                    : null}
-                                </td>
-                              </tr>
-                              <tr className="border-t border-white/5">
-                                <td className="py-1.5 pr-3 font-medium text-[11px] text-emerald-300">Ensemble (60% ML + 40% NEA)</td>
-                                <td className="text-right px-2 font-mono text-emerald-300">{ens2.accuracy != null ? (ens2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right px-2 font-mono text-emerald-300">{ensF1_2h != null ? (ensF1_2h * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className="text-right pl-2">
-                                  {ensF1_2h != null && ensF1_2h === Math.max(neaF1_2h ?? 0, mlF1_2h ?? 0, ensF1_2h)
-                                    ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
-                                    : null}
-                                </td>
+                                <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/50 italic">Island-wide · ML model</td>
+                                <td className="text-right px-2 font-mono text-blue-200/45">{(iwMl2.accuracy * 100).toFixed(1)}%</td>
+                                <td className="text-right px-2 font-mono text-blue-200/45">—</td>
+                                <td className="text-right pl-2"></td>
                               </tr>
                             </>
                           )}
@@ -1480,7 +1502,7 @@ export function MLAnalysisDashboard() {
                       </table>
                     </div>
                     <p className="text-white/25 text-[10px] mt-1.5 italic">
-                      "NEA-only" row shows NEA's natural per-area accuracy — ML is not compared here since ML is island-wide, not per-area.
+                      ML island-wide label applied to all 47 areas — this reveals the "local knowledge gap" vs NEA's area-specific forecasts.
                     </p>
                   </>
                 ) : (
@@ -1489,16 +1511,16 @@ export function MLAnalysisDashboard() {
               </div>
 
               {/* Commentary */}
-              {hasIW && (
+              {(hasIW || hasPerArea) && (
                 <CommentaryBox
                   variant="indigo"
                   points={[
-                    "Both benchmarks use majority vote aggregation to island-wide before comparing with ML. This is the only fair comparison — our model predicts one label for the whole island.",
-                    `Macro F1 weights all 3 classes equally. A model always predicting 'No Rain' would score 60%+ accuracy but near-zero macro F1.`,
-                    `${mlF1 && neaF1 ? `6h comparison: ML macro F1 ${(mlF1 * 100).toFixed(1)}% vs NEA ${(neaF1 * 100).toFixed(1)}% — ${mlF1 > neaF1 ? "ML outperforms NEA on this island-wide metric." : "NEA still ahead — expected, as NEA uses meteorological expertise."}` : ""}`,
-                    "The ensemble blends ML probability scores with a softened NEA forecast. When both agree, confidence is high; when they disagree the 60/40 weighting leans ML.",
-                  ].filter(Boolean)}
-                  tip="NEA 2h per-area accuracy is their strongest metric — they're forecasting 47 specific locations, not a single island-wide label. Our ML model is not designed for per-area prediction."
+                    `6h island-wide: ML Rain F2 ${iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"} vs NEA ${iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"} — ML catches significantly more rain events despite similar accuracy. NEA is conservative; ML has higher recall.`,
+                    `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "—"}) because it has local area knowledge — our ML applies one island-wide label to all 47 areas. Ensemble blends both, trading some accuracy for better rain recall.`,
+                    "Accuracy is misleading here — Singapore is dry ~70% of the time, so predicting 'No Rain' always gives high accuracy. F2 penalises models that miss rain events.",
+                    "Next step: per-area ML using each station's local sensor readings + spatial neighbour features — this should close the accuracy gap with NEA.",
+                  ]}
+                  tip="F2 = 5×precision×recall / (4×precision + recall). β=2 means recall counts twice as much — reflecting that missing rain is more costly than a false alarm."
                 />
               )}
             </div>
