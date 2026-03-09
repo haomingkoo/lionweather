@@ -701,8 +701,8 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                     </>
                   );
                 })()}
-                <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.25)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
-                <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
+                <text x="2" y="29" fontSize="5.5" fill="rgba(255,255,255,0.25)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                <text x="98" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
               </svg>
               <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Tomorrow</p>
             </>
@@ -729,8 +729,8 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                     </>
                   );
                 })()}
-                <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
-                <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                <text x="2" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+                <text x="98" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
               </svg>
             </>
           )}
@@ -820,13 +820,13 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               </svg>
             )}
             {/* Speed + direction label */}
-            <div>
+            <div className="min-w-0 flex-1 overflow-hidden">
               <div className="flex items-baseline gap-1">
                 <span className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed ?? 12}</span>
                 <span className={`text-sm ${secondaryTextColor}`}>km/h</span>
               </div>
-              {windDirLabel && <p className={`text-xs ${tertiaryTextColor}`}>{windDirLabel} · {windDir}°</p>}
-              {windDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{windDesc}</p>}
+              {windDirLabel && <p className={`text-xs ${tertiaryTextColor} truncate`}>{windDirLabel} · {windDir}°</p>}
+              {windDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug line-clamp-2`}>{windDesc}</p>}
             </div>
           </div>
         </div>
