@@ -191,11 +191,10 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           location.longitude,
         );
 
-        // Hybrid approach: Use NEA for days 1-4, Open-Meteo for days 5-7
+        // Use NEA 4-day forecast only — no Open-Meteo extension (avoids duplicate days)
         const daily = [];
 
         if (forecast4day?.forecasts) {
-          // Add NEA forecasts (days 1-4) with source indicator
           const neaForecasts = forecast4day.forecasts
             .slice(0, 4)
             .map((day, i) => ({
@@ -212,34 +211,10 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               source: "NEA",
             }));
           daily.push(...neaForecasts);
-        }
-
-        // Try ML predictions for days 5-7, fall back to Open-Meteo
-        // ML endpoint returns null when model hasn't been trained yet
-        let mlExtended = [];
-        try {
-          const mlRes = await fetch(`/api/ml/predictions/7d?country=singapore&parameter=rainfall`);
-          if (mlRes.ok) {
-            const mlData = await mlRes.json();
-            if (Array.isArray(mlData?.predictions) && mlData.predictions.length > 4) {
-              mlExtended = mlData.predictions.slice(4, 7).map((p) => ({
-                date: p.date,
-                dayName: new Date(p.date).toLocaleDateString("en-US", { weekday: "short" }),
-                high: p.temperature_high || null,
-                low: p.temperature_low || null,
-                condition: p.condition || "Partly Cloudy",
-                rainCategory: p.rain_category || null,
-                source: "ML",
-              }));
-            }
-          }
-        } catch (_) {}
-
-        if (mlExtended.length > 0) {
-          daily.push(...mlExtended);
-        } else if (openMeteoForecast.length > 4) {
+        } else if (openMeteoForecast.length > 0) {
+          // Fallback to Open-Meteo if NEA is unavailable
           const openMeteoExtended = openMeteoForecast
-            .slice(4, 7)
+            .slice(0, 7)
             .map((day) => ({
               date: day.date,
               dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),

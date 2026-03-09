@@ -174,16 +174,16 @@ export function WeatherMap({ isDark = false }) {
       {/* Radar toggle button (top-right) */}
       <button
         onClick={() => setShowRainfall(!showRainfall)}
-        className={`absolute right-4 top-4 z-[1000] flex items-center gap-2 rounded-2xl backdrop-blur-md px-4 py-2.5 shadow-xl hover:brightness-110 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-white/60 ${
+        className={`absolute right-4 top-4 z-[1000] flex items-center gap-2 rounded-2xl backdrop-blur-md px-4 py-2.5 shadow-xl hover:brightness-110 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400/60 ${
           showRainfall
-            ? "bg-blue-500/70 border border-blue-400/80 text-white"
-            : "bg-white/15 border border-white/25 text-white"
+            ? "bg-blue-500 border-2 border-blue-300 text-white font-bold"
+            : "bg-blue-600/90 border-2 border-blue-400/80 text-white font-semibold"
         }`}
         aria-label={`${showRainfall ? "Hide" : "Show"} radar overlay`}
       >
         <Droplets className="h-4 w-4" strokeWidth={2} />
-        <span className="text-xs font-semibold">
-          {showRainfall ? "Hide Radar" : "Radar"}
+        <span className="text-sm">
+          {showRainfall ? "Hide Radar" : "Show Radar"}
         </span>
       </button>
 

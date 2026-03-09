@@ -75,12 +75,26 @@ async def get_weather(
                 condition = "Cloudy"
 
             ts = row["timestamp"]
+            # NEA station data lacks visibility/pressure — fetch from Open-Meteo
+            pressure_val = row["pressure"]
+            visibility_val = None
+            uv_val = None
+            if pressure_val is None:
+                try:
+                    om = await fetch_from_open_meteo(lat, lng)
+                    pressure_val = om.get("pressure")
+                    visibility_val = om.get("visibility")
+                    uv_val = om.get("uv_index")
+                except Exception:
+                    pass
             return {
                 "condition": condition,
                 "temperature": temperature,
                 "humidity": row["humidity"],
                 "wind_speed": row["wind_speed"],
-                "pressure": row["pressure"],
+                "pressure": pressure_val,
+                "visibility": visibility_val,
+                "uv_index": uv_val,
                 "area": row["location"],
                 "source": f"Cached ({row['source_api']})",
                 "timestamp": ts if isinstance(ts, str) else str(ts) if ts else None,

@@ -41,27 +41,42 @@ const PALETTE = [
 // ---------------------------------------------------------------------------
 // Tiny inline SVG chart primitives (no chart library dep)
 // ---------------------------------------------------------------------------
-function MiniBarChart({ data, height = 60, color = "#60a5fa", label }) {
+function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = null }) {
   if (!data || data.length === 0) return null;
   const vals = data.map((d) => (typeof d === "object" ? d.value ?? d : d));
   const max = Math.max(...vals, 0.001);
   const barW = Math.max(1, Math.floor(240 / vals.length));
+  const W = vals.length * (barW + 1);
+  const PAD_B = xTicks && xTicks.length > 0 ? 14 : 0;
+  const plotH = height - PAD_B;
 
   return (
     <div>
       {label && <p className="text-white/50 text-xs mb-1">{label}</p>}
-      <svg width="100%" viewBox={`0 0 ${vals.length * (barW + 1)} ${height}`}
-           className="overflow-visible">
+      <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
         {vals.map((v, i) => (
           <rect
             key={i}
             x={i * (barW + 1)}
-            y={height - (v / max) * height}
+            y={plotH - (v / max) * plotH}
             width={barW}
-            height={(v / max) * height}
+            height={(v / max) * plotH}
             fill={color}
             opacity={0.8}
           />
+        ))}
+        {xTicks && xTicks.map(({ label: tickLabel, index }, i) => (
+          <text
+            key={i}
+            x={index * (barW + 1) + barW / 2}
+            y={height - 2}
+            fontSize="7"
+            fill="#ffffff40"
+            textAnchor="middle"
+            fontFamily="monospace"
+          >
+            {tickLabel}
+          </text>
         ))}
       </svg>
     </div>
@@ -128,7 +143,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
                   stroke="#ffffff12" strokeWidth="1" />
             {showYAxis && (
               <text x={PAD_L - 4} y={y + 3.5}
-                    fontSize="7.5" fill="#ffffff50" textAnchor="end" fontFamily="monospace">
+                    fontSize="6.5" fill="#ffffff50" textAnchor="end" fontFamily="monospace">
                 {(() => {
                   const abs = Math.abs(val);
                   const sign = val < 0 ? "−" : "";
@@ -152,7 +167,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
             : PAD_L + (i / Math.max(xTicks.length - 1, 1)) * PLOT_W;
           return (
             <text key={i} x={x} y={H - 3}
-                  fontSize="7.5" fill="#ffffff35" textAnchor="middle" fontFamily="monospace">
+                  fontSize="6.5" fill="#ffffff35" textAnchor="middle" fontFamily="monospace">
               {tick}
             </text>
           );
@@ -779,11 +794,31 @@ export function MLAnalysisDashboard() {
               {/* Distribution histogram */}
               {e.histogram && (
                 <div>
-                  <p className="text-white/50 text-xs mb-2">Distribution</p>
+                  <p className="text-white/50 text-xs mb-2">Distribution (value → frequency)</p>
                   <MiniBarChart
                     data={e.histogram.counts}
-                    height={60}
+                    height={74}
                     color="#60a5fa"
+                    xTicks={(() => {
+                      const edges = e.histogram.bin_edges;
+                      if (!edges || edges.length < 2) return null;
+                      const n = e.histogram.counts.length;
+                      // Show ~5 evenly-spaced tick labels
+                      const step = Math.max(1, Math.floor(n / 4));
+                      return [0, step, step * 2, step * 3, n - 1]
+                        .filter((idx) => idx < n)
+                        .map((idx) => ({
+                          index: idx,
+                          label: (() => {
+                            const v = edges[idx];
+                            return Math.abs(v) >= 100
+                              ? v.toFixed(0)
+                              : Math.abs(v) >= 10
+                              ? v.toFixed(1)
+                              : v.toFixed(2);
+                          })(),
+                        }));
+                    })()}
                   />
                 </div>
               )}

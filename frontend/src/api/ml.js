@@ -5,16 +5,21 @@ async function requestML(url, options = {}) {
   try {
     return await request(url, options);
   } catch (error) {
-    // 404 is expected when no ML data exists yet - don't spam console
+    // Silently swallow any expected "not ready" responses — 404, "No historical data",
+    // "Not Found", missing model files, etc.
+    const msg = error.message || "";
     if (
-      error.message?.includes("404") ||
-      error.message?.includes("Not Found")
+      msg.includes("404") ||
+      msg.includes("Not Found") ||
+      msg.includes("No historical data") ||
+      msg.includes("No data") ||
+      msg.includes("not available") ||
+      msg.includes("status 404")
     ) {
       console.info(`ML data not available yet: ${url}`);
       return null;
     }
-    // Log other errors normally
-    console.error(`ML API error for ${url}:`, error.message);
+    console.error(`ML API error for ${url}:`, msg);
     throw error;
   }
 }

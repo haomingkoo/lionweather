@@ -171,11 +171,43 @@ def load_historical_weather() -> pd.DataFrame:
         df = pd.DataFrame(series)
         df = df.resample("1h").mean().ffill().bfill()
         log.info(f"Cache: {len(df)} hourly rows  {df.index.min()} → {df.index.max()}")
+
+        # Merge external features (CAPE, MJO) if available
+        df = _merge_external_features(df)
         return df
 
     # Fallback: DB (only covers 2024-03-18 onwards)
     log.warning("Parquet cache not found — falling back to DB weather_records")
     return _load_db_weather_records()
+
+
+def _merge_external_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Join CAPE/MJO external features into the weather DataFrame if cached."""
+    ext_path = CACHE_DIR / "openmeteo_convective.parquet"
+    mjo_path  = CACHE_DIR / "mjo_hourly.parquet"
+    cols_added = []
+    for path, wanted_cols in [
+        (ext_path, ["cape", "lifted_index", "convective_inhibition",
+                    "wind_speed_850hPa", "wind_speed_200hPa", "wind_shear_850_200",
+                    "temperature_850hPa", "relative_humidity_850hPa"]),
+        (mjo_path,  ["mjo_amplitude", "mjo_sin_phase", "mjo_cos_phase"]),
+    ]:
+        if not path.exists():
+            log.warning(f"External feature cache missing: {path} — run fetch_external_features.py")
+            continue
+        ext = pd.read_parquet(path)
+        ext.index = pd.DatetimeIndex(ext.index)
+        if ext.index.tz is None:
+            ext.index = ext.index.tz_localize("Asia/Singapore")
+        else:
+            ext.index = ext.index.tz_convert("Asia/Singapore")
+        for col in wanted_cols:
+            if col in ext.columns:
+                df[col] = ext[col].reindex(df.index).ffill().bfill()
+                cols_added.append(col)
+    if cols_added:
+        log.info(f"External features merged: {cols_added}")
+    return df
 
 
 def _load_db_weather_records() -> pd.DataFrame:
@@ -263,6 +295,26 @@ def build_features(hist: pd.DataFrame) -> dict:
     wind_now = lag("wind_speed", 0)
     wind_3ago = lag("wind_speed", 3)
 
+    def ext(col):
+        """Get latest value of an external feature column, or 0.0 if absent."""
+        if col not in hist.columns:
+            return 0.0
+        v = hist[col].iloc[-1]
+        return float(v) if not (v != v) else 0.0  # NaN-safe
+
+    def ext_lag(col, h):
+        if col not in hist.columns:
+            return 0.0
+        idx = -(1 + h)
+        return float(hist[col].iloc[idx]) if abs(idx) <= n else ext(col)
+
+    def ext_roll(col, h):
+        if col not in hist.columns:
+            return 0.0
+        s = hist[col].iloc[max(0, n - h):]
+        v = s.mean()
+        return float(v) if not (v != v) else 0.0
+
     return {
         # Lag features (PAST data only — correct for forecasting)
         **{f"rain_lag_{h}h": lag("rainfall", h) for h in [1, 2, 3, 4, 5, 6, 12, 18, 24]},
@@ -300,6 +352,27 @@ def build_features(hist: pd.DataFrame) -> dict:
         "is_inter_monsoon":  int(month in [4, 5, 10, 11]),
         "is_afternoon_peak": int(13 <= hour <= 17),
         "is_morning_peak":   int(7 <= hour <= 9),
+        # External features — CAPE, MJO, wind shear (0.0 if not available)
+        "cape":                    ext("cape"),
+        "lifted_index":            ext("lifted_index"),
+        "convective_inhibition":   ext("convective_inhibition"),
+        "wind_speed_850hPa":       ext("wind_speed_850hPa"),
+        "wind_speed_200hPa":       ext("wind_speed_200hPa"),
+        "wind_shear_850_200":      ext("wind_shear_850_200"),
+        "temperature_850hPa":      ext("temperature_850hPa"),
+        "relative_humidity_850hPa": ext("relative_humidity_850hPa"),
+        "cape_lag_1h":             ext_lag("cape", 1),
+        "cape_lag_3h":             ext_lag("cape", 3),
+        "cape_roll_6h":            ext_roll("cape", 6),
+        "lifted_index_lag_1h":     ext_lag("lifted_index", 1),
+        "lifted_index_lag_3h":     ext_lag("lifted_index", 3),
+        "lifted_index_roll_6h":    ext_roll("lifted_index", 6),
+        "wind_shear_850_200_lag_1h":  ext_lag("wind_shear_850_200", 1),
+        "wind_shear_850_200_lag_3h":  ext_lag("wind_shear_850_200", 3),
+        "wind_shear_850_200_roll_6h": ext_roll("wind_shear_850_200", 6),
+        "mjo_amplitude":           ext("mjo_amplitude"),
+        "mjo_sin_phase":           ext("mjo_sin_phase"),
+        "mjo_cos_phase":           ext("mjo_cos_phase"),
     }
 
 

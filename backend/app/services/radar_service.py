@@ -91,7 +91,7 @@ class RadarService:
         age = datetime.now() - self.cache_timestamp
         return age < self.cache_ttl
     
-    async def get_radar_frames(self, count: int = 6) -> list[RadarFrame]:
+    async def get_radar_frames(self, count: int = 20) -> list[RadarFrame]:
         """
         Get radar frames from cache or fetch if cache is invalid.
         
@@ -123,7 +123,7 @@ class RadarService:
         logger.info(f"Returning {len(self.frame_cache[:count])} radar frames from cache")
         return self.frame_cache[:count]
     
-    async def _fetch_and_cache_frames(self, count: int = 6) -> None:
+    async def _fetch_and_cache_frames(self, count: int = 20) -> None:
         """
         Fetch radar frames from weather.gov.sg and update cache.
         
@@ -147,7 +147,7 @@ class RadarService:
             if not self.frame_cache:
                 raise
     
-    async def _fetch_frames_from_nea(self, count: int = 6) -> list[RadarFrame]:
+    async def _fetch_frames_from_nea(self, count: int = 20) -> list[RadarFrame]:
         """
         Fetch radar frames by scraping weather.gov.sg images.
         

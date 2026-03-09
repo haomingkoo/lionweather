@@ -625,7 +625,8 @@ def granger_causality(series_dict: dict, target: str = "rainfall",
 
 def make_features(rain: pd.Series, temp: pd.Series,
                   humidity: pd.Series, wind: pd.Series,
-                  horizons: list) -> pd.DataFrame:
+                  horizons: list,
+                  ext_df: "pd.DataFrame | None" = None) -> pd.DataFrame:
     df = rain.to_frame(name="rainfall")
     df["temperature"] = temp
     df["humidity"]    = humidity
@@ -697,6 +698,24 @@ def make_features(rain: pd.Series, temp: pd.Series,
     df["day_of_year"]    = df.index.dayofyear
     df["sin_day_of_year"] = np.sin(2 * np.pi * df.index.dayofyear / 365)
     df["cos_day_of_year"] = np.cos(2 * np.pi * df.index.dayofyear / 365)
+
+    # ---- External features (CAPE, MJO, wind shear) ----
+    if ext_df is not None and not ext_df.empty:
+        ext_aligned = ext_df.reindex(df.index).ffill().bfill()
+        ext_cols = [
+            "cape", "lifted_index", "convective_inhibition", "precipitable_water",
+            "wind_speed_850hPa", "wind_speed_200hPa", "wind_shear_850_200",
+            "temperature_850hPa", "relative_humidity_850hPa",
+            "mjo_amplitude", "mjo_sin_phase", "mjo_cos_phase",
+        ]
+        for col in ext_cols:
+            if col in ext_aligned.columns:
+                df[col] = ext_aligned[col].values
+                # Lag versions for key convective vars (no future leakage)
+                if col in ("cape", "precipitable_water", "lifted_index", "wind_shear_850_200"):
+                    df[f"{col}_lag_1h"] = df[col].shift(1)
+                    df[f"{col}_lag_3h"] = df[col].shift(3)
+                    df[f"{col}_roll_6h"] = df[col].shift(1).rolling(6).mean()
 
     # Targets
     for h in horizons:
@@ -1147,7 +1166,15 @@ def main():
     hum_h  = load_hourly_series("humidity",    "HistoricalRelativeHumidityacrossSingapore{year}.csv",all_years, BOUNDS["humidity"],    agg="mean")
     wind_h = load_hourly_series("wind_speed",  "HistoricalWindSpeedacrossSingapore{year}.csv",       all_years, BOUNDS["wind_speed"],  agg="mean")
 
-    logger.info("\n[2/8] Hourly series ready.")
+    logger.info("\n[2/8] Loading external features (CAPE, MJO)…")
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from fetch_external_features import load_all_external_features
+        ext_df = load_all_external_features()
+        logger.info(f"  External features: {len(ext_df)} rows, {len(ext_df.columns)} cols")
+    except Exception as e:
+        logger.warning(f"  External features unavailable ({e}) — training without them")
+        ext_df = None
 
     series_dict = {
         "rainfall":    rain_h,
@@ -1188,7 +1215,7 @@ def main():
 
     # --- Feature engineering ---
     logger.info("\n[8/9] Feature engineering & model training...")
-    feat_df = make_features(rain_h, temp_h, hum_h, wind_h, HORIZONS)
+    feat_df = make_features(rain_h, temp_h, hum_h, wind_h, HORIZONS, ext_df=ext_df)
     feature_cols = [c for c in feat_df.columns
                     if not c.startswith("target_")
                     and c not in ("rainfall", "temperature", "humidity", "wind_speed")]
