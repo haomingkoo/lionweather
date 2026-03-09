@@ -260,24 +260,209 @@ async def get_training_status():
 async def list_models():
     """
     List all trained models.
-    
+
     Requirements: 11.1
     """
     try:
         from pathlib import Path
         import json
-        
+
         model_dir = Path("models")
         metadata_files = list(model_dir.glob("*_metadata.json"))
-        
+
         models = []
         for metadata_file in metadata_files:
             with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
                 models.append(metadata)
-        
+
         return {"models": models}
-        
+
     except Exception as e:
         logger.error(f"Error listing models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/rain-forecast")
+async def get_rain_forecast():
+    """
+    Live rain category forecast for Singapore using pre-trained LightGBM classifiers.
+
+    Aggregates recent weather_records to hourly resolution, computes lag features,
+    and runs the 1h / 3h / 6h / 12h classifiers.
+    Returns predictions even with as little as 1-2 hours of live data
+    (missing lags are filled with the earliest available value).
+    """
+    import pandas as pd
+    import numpy as np
+    import joblib
+    from pathlib import Path
+    from app.db.database import get_connection
+
+    HORIZONS = [1, 3, 6, 12]
+    MODEL_DIR = Path("models")
+    CATEGORIES = {0: "No Rain", 1: "Light Rain", 2: "Heavy Rain", 3: "Thundery Showers"}
+
+    # ── 1. Load records ────────────────────────────────────────────────────────
+    con = get_connection()
+    try:
+        cursor = con.cursor()
+        cursor.execute("""
+            SELECT timestamp, temperature, rainfall, humidity, wind_speed
+            FROM weather_records
+            WHERE country = 'singapore'
+              AND timestamp >= datetime('now', '-48 hours')
+            ORDER BY timestamp ASC
+        """)
+        rows = cursor.fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        raise HTTPException(status_code=503, detail="No Singapore weather data collected yet. Check back in a few hours.")
+
+    # ── 2. Build hourly series (mean across stations) ──────────────────────────
+    df = pd.DataFrame([{
+        "timestamp": pd.to_datetime(row["timestamp"]),
+        "rainfall": row["rainfall"] or 0.0,
+        "temperature": row["temperature"] or 0.0,
+        "humidity": row["humidity"] or 0.0,
+        "wind_speed": row["wind_speed"] or 0.0,
+    } for row in rows])
+
+    df = df.set_index("timestamp").resample("1h").mean().dropna(how="all")
+    df = df.ffill().bfill()   # fill any gap hours
+
+    n_hours = len(df)
+    if n_hours < 1:
+        raise HTTPException(status_code=503, detail="Not enough data yet. Check back soon.")
+
+    # ── 3. Compute features for the LATEST row ─────────────────────────────────
+    def lag(col, h):
+        idx = -(1 + h)
+        if abs(idx) <= n_hours:
+            return float(df[col].iloc[idx])
+        return float(df[col].iloc[0])   # repeat earliest if not enough history
+
+    def roll_mean(col, h):
+        return float(df[col].iloc[max(0, n_hours - h):].mean())
+
+    def roll_std(col, h):
+        s = df[col].iloc[max(0, n_hours - h):]
+        return float(s.std()) if len(s) > 1 else 0.0
+
+    def roll_max(col, h):
+        return float(df[col].iloc[max(0, n_hours - h):].max())
+
+    def roll_sum(col, h):
+        return float(df[col].iloc[max(0, n_hours - h):].sum())
+
+    now = df.index[-1]
+    hour = now.hour
+    dow = now.dayofweek
+    month = now.month
+    doy = now.dayofyear
+
+    # Singapore monsoon seasons
+    is_inter_monsoon = int(month in [4, 5, 10, 11])
+    is_afternoon_peak = int(13 <= hour <= 17)
+    is_morning_peak = int(7 <= hour <= 9)
+
+    # Dry spell / rain streak
+    recent_rain = [float(df["rainfall"].iloc[-(i+1)]) for i in range(min(n_hours, 24))]
+    dry_spell = 0
+    for r in recent_rain:
+        if r < 0.1:
+            dry_spell += 1
+        else:
+            break
+    rain_streak = 0
+    for r in recent_rain:
+        if r >= 0.1:
+            rain_streak += 1
+        else:
+            break
+
+    current_hum = float(df["humidity"].iloc[-1])
+    current_temp = float(df["temperature"].iloc[-1])
+    wind_1h = lag("wind_speed", 0)
+    wind_3h_ago = lag("wind_speed", 3)
+    wind_accel = wind_1h - wind_3h_ago
+
+    feat = {
+        # lag features
+        **{f"rain_lag_{h}h": lag("rainfall", h) for h in [1,2,3,4,5,6,12,18,24]},
+        **{f"temp_lag_{h}h": lag("temperature", h) for h in [1,2,3,4,5,6,12,18,24]},
+        **{f"hum_lag_{h}h": lag("humidity", h) for h in [1,2,3,4,5,6,12,18,24]},
+        **{f"wind_lag_{h}h": lag("wind_speed", h) for h in [1,2,3,4,5,6,12,18,24]},
+        # rolling
+        "rain_roll_3h": roll_mean("rainfall", 3),
+        "rain_roll_6h": roll_mean("rainfall", 6),
+        "rain_roll_std_6h": roll_std("rainfall", 6),
+        "rain_roll_max_3h": roll_max("rainfall", 3),
+        "rain_sum_6h": roll_sum("rainfall", 6),
+        "temp_roll_3h": roll_mean("temperature", 3),
+        "temp_roll_6h": roll_mean("temperature", 6),
+        # time
+        "hour_of_day": hour,
+        "day_of_week": dow,
+        "month": month,
+        "is_weekend": int(dow >= 5),
+        "sin_hour": np.sin(2 * np.pi * hour / 24),
+        "cos_hour": np.cos(2 * np.pi * hour / 24),
+        "sin_month": np.sin(2 * np.pi * month / 12),
+        "cos_month": np.cos(2 * np.pi * month / 12),
+        "day_of_year": doy,
+        "sin_day_of_year": np.sin(2 * np.pi * doy / 365),
+        "cos_day_of_year": np.cos(2 * np.pi * doy / 365),
+        # derived
+        "rained_last1h": int(lag("rainfall", 1) >= 0.1),
+        "rained_last3h": int(any(lag("rainfall", i) >= 0.1 for i in range(1, 4))),
+        "dry_spell_hours": dry_spell,
+        "rain_streak_hours": rain_streak,
+        "hum_deficit": max(0.0, 80.0 - current_hum),
+        "hum_temp_product": current_hum * current_temp,
+        "wind_accel_3h": wind_accel,
+        "is_inter_monsoon": is_inter_monsoon,
+        "is_afternoon_peak": is_afternoon_peak,
+        "is_morning_peak": is_morning_peak,
+    }
+
+    # ── 4. Run classifiers ─────────────────────────────────────────────────────
+    predictions = []
+    for h in HORIZONS:
+        model_path = MODEL_DIR / f"rainfall_cls_{h}h.joblib"
+        if not model_path.exists():
+            continue
+        bundle = joblib.load(model_path)
+        clf = bundle["model"]
+        feature_cols = bundle["feature_cols"]
+        X = pd.DataFrame([[feat.get(f, 0.0) for f in feature_cols]], columns=feature_cols)
+        proba = clf.predict_proba(X)[0]
+        pred_class = int(np.argmax(proba))
+        target_time = (now + pd.Timedelta(hours=h)).isoformat()
+        predictions.append({
+            "horizon_h": h,
+            "target_time": target_time,
+            "predicted_class": pred_class,
+            "predicted_label": CATEGORIES[pred_class],
+            "probabilities": {CATEGORIES[i]: round(float(p), 3) for i, p in enumerate(proba)},
+            "confidence": round(float(proba[pred_class]), 3),
+        })
+
+    # ── 5. Current conditions summary ──────────────────────────────────────────
+    current = {
+        "temperature": round(float(df["temperature"].iloc[-1]), 1),
+        "rainfall": round(float(df["rainfall"].iloc[-1]), 2),
+        "humidity": round(float(df["humidity"].iloc[-1]), 1),
+        "wind_speed": round(float(df["wind_speed"].iloc[-1]), 1),
+        "timestamp": now.isoformat(),
+        "hours_of_data": n_hours,
+    }
+
+    return {
+        "current": current,
+        "predictions": predictions,
+        "data_note": "Live predictions from LightGBM classifiers trained on NEA 2016-2024 data." if n_hours >= 24
+                     else f"Predictions based on {n_hours}h of live data (lags padded). Accuracy improves after 24h.",
+    }

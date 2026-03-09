@@ -3,6 +3,7 @@ import { LocationForm } from "../components/LocationForm";
 import { EnhancedLocationList } from "../components/EnhancedLocationList";
 import { WeatherMap } from "../components/WeatherMap";
 import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
+import { MLLiveForecast } from "../components/MLLiveForecast";
 import { GeolocationPrompt } from "../components/GeolocationPrompt";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
@@ -166,7 +167,12 @@ export function Dashboard() {
         )}
         <div className="max-w-6xl mx-auto">
           {view === "map" && <WeatherMap />}
-          {view === "ml" && <MLAnalysisDashboard isDark={true} />}
+          {view === "ml" && (
+            <div className="space-y-8">
+              <MLLiveForecast />
+              <MLAnalysisDashboard isDark={true} />
+            </div>
+          )}
         </div>
       </div>
     </div>
