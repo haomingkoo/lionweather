@@ -228,10 +228,15 @@ export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
 
   if (locations.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="rounded-3xl backdrop-blur-xl px-12 py-8 shadow-2xl text-center bg-white/15 border border-white/25">
-          <p className="text-white text-lg mb-2">No locations yet</p>
-          <p className="text-white/80">Add your first location above to get started</p>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+          <div className="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
+            {sidebarHeader && <div>{sidebarHeader}</div>}
+            <div className="rounded-2xl bg-white/8 border border-white/10 px-6 py-8 text-center">
+              <p className="text-white/60 text-sm">No locations yet</p>
+              <p className="text-white/35 text-xs mt-1">Add one above to get started</p>
+            </div>
+          </div>
         </div>
       </div>
     );
