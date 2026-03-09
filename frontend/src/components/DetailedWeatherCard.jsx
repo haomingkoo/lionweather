@@ -654,7 +654,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* Weather Details Grid */}
       <div className="grid grid-cols-2 gap-2">
-        {/* Single sun card — shows sunrise (daytime) or sunrise tomorrow (night) with arc */}
+        {/* Single sun card — full elliptical cycle like Apple Weather */}
         <div className={`rounded-3xl backdrop-blur-2xl p-3 transition-all duration-200 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}>
           {isAfterSunset ? (
             <>
@@ -663,9 +663,13 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{tomorrowSunrise}</div>
-              <svg viewBox="0 0 100 30" width="100%" className="mt-1">
-                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-                <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" strokeDasharray="3 2" />
+              <svg viewBox="0 0 100 44" width="100%" className="mt-1">
+                {/* Horizon line */}
+                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+                {/* Day arc above horizon — faded (sun has set) */}
+                <path d="M 4,22 A 46,16 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.2" />
+                {/* Night arc below horizon — active */}
+                <path d="M 96,22 A 46,12 0 0 1 4,22" fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="1.2" />
                 {(() => {
                   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
                   const sunsetM = sunsetMin ?? nowMin;
@@ -677,14 +681,22 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                     if (n[3].toUpperCase() === "AM" && h2 === 12) h2 = 0;
                     return h2 * 60 + m2 + 1440;
                   })();
-                  const nightNow = nowMin < sunsetM ? sunsetM + 1 : nowMin + 1440;
-                  const prog = 1 - Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
-                  const ax = 50 - 46 * Math.cos(prog * Math.PI);
-                  const ay = 22 - 18 * Math.sin(prog * Math.PI);
-                  return (<><circle cx={ax} cy={ay} r="3" fill="rgba(148,163,184,0.9)" /><circle cx={ax} cy={ay} r="5.5" fill="rgba(148,163,184,0.15)" /></>);
+                  const nightNow = nowMin < sunsetM ? nowMin + 1440 : nowMin;
+                  const nightProgress = Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
+                  // Night arc: sunset (right, 96) → below → sunrise (left, 4)
+                  const angle = nightProgress * Math.PI;
+                  const ax = 50 + 46 * Math.cos(angle);
+                  const ay = 22 + 12 * Math.sin(angle);
+                  // Traced portion of night arc
+                  const traceEnd = `${ax},${ay}`;
+                  return (<>
+                    <path d={`M 96,22 A 46,12 0 0 1 ${traceEnd}`} fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
+                    <circle cx={ax} cy={ay} r="3" fill="rgba(148,163,184,0.9)" />
+                    <circle cx={ax} cy={ay} r="5.5" fill="rgba(148,163,184,0.15)" />
+                  </>);
                 })()}
-                <text x="2" y="29" fontSize="5.5" fill="rgba(255,255,255,0.25)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
-                <text x="98" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
+                <text x="2" y="20" fontSize="5" fill="rgba(255,255,255,0.25)" textAnchor="start" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
+                <text x="98" y="20" fontSize="5" fill="rgba(255,255,255,0.2)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
               </svg>
               <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Tomorrow · Sunset was {sunTimes.sunset}</p>
             </>
@@ -695,21 +707,28 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
-              <svg viewBox="0 0 100 30" width="100%" className="mt-1">
-                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-                <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+              <svg viewBox="0 0 100 44" width="100%" className="mt-1">
+                {/* Horizon line */}
+                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+                {/* Day arc above horizon */}
+                <path d="M 4,22 A 46,16 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.2" />
+                {/* Night arc below horizon — faint dashed to show cyclical nature */}
+                <path d="M 96,22 A 46,12 0 0 1 4,22" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 2" />
                 {(() => {
                   const prog = Math.min(sunProgress, 0.999);
-                  const ax = 50 - 46 * Math.cos(prog * Math.PI);
-                  const ay = 22 - 18 * Math.sin(prog * Math.PI);
+                  // Day arc: sunrise (left, 4) → above → sunset (right, 96)
+                  const angle = prog * Math.PI;
+                  const ax = 4 + 92 * (prog); // simplified x
+                  const axEllipse = 50 - 46 * Math.cos(angle);
+                  const ay = 22 - 16 * Math.sin(angle);
                   return (<>
-                    <path d={`M 4,22 A 46,18 0 0 1 ${ax},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.5" />
-                    <circle cx={ax} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
-                    <circle cx={ax} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
+                    <path d={`M 4,22 A 46,16 0 0 1 ${axEllipse},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.2" />
+                    <circle cx={axEllipse} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
+                    <circle cx={axEllipse} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
                   </>);
                 })()}
-                <text x="2" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
-                <text x="98" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                <text x="2" y="20" fontSize="5" fill="rgba(255,255,255,0.3)" textAnchor="start" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+                <text x="98" y="20" fontSize="5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
               </svg>
               <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Sunset: {sunTimes.sunset}</p>
             </>
