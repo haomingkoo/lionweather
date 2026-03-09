@@ -675,7 +675,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <Sunrise className={`h-4 w-4 text-amber-400`} />
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
-              <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
+              <div className={`text-lg font-medium ${textColor}`}>{sunTimes.sunrise}</div>
             </div>
           );
         })()}
@@ -690,7 +690,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <Sunrise className="h-4 w-4 text-amber-400" />
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
-              <div className={`text-2xl font-light ${textColor}`}>{tomorrowSunrise}</div>
+              <div className={`text-lg font-medium ${textColor}`}>{tomorrowSunrise}</div>
               {/* Night arc — moon dot tracking from sunset (right) toward sunrise (left, ~8h away) */}
               <svg viewBox="0 0 100 30" width="100%" className="mt-1">
                 <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
@@ -732,7 +732,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <Sunset className="h-4 w-4 text-orange-400" />
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
               </div>
-              <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+              <div className={`text-lg font-medium ${textColor}`}>{sunTimes.sunset}</div>
               {/* Compact arc */}
               <svg viewBox="0 0 100 30" width="100%" className="mt-1">
                 <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
@@ -869,6 +869,20 @@ export function DetailedWeatherCard({ location, isDark = false }) {
               {nextRainDay ? `Next expected on ${nextRainDay}.` : "None forecast this week."}
             </p>
           )}
+          {/* NEA intensity legend */}
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            {[
+              { color: "#4ade80", label: "Light", sub: ">0.5" },
+              { color: "#facc15", label: "Moderate", sub: ">2.5" },
+              { color: "#fb923c", label: "Heavy", sub: ">10" },
+              { color: "#ef4444", label: "Intense", sub: ">50mm/h" },
+            ].map(({ color, label, sub }) => (
+              <div key={label} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                <span className={`text-[9px] ${tertiaryTextColor}`}>{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Visibility */}

@@ -264,9 +264,17 @@ export function WeatherMap({ isDark = false }) {
                       })}
                 </span>
                 {showRainfall && (
-                  <span className="text-white/50 text-xs">
-                    NEA Radar · Singapore
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {[["#4ade80","Light"],["#facc15","Mod"],["#fb923c","Heavy"],["#ef4444","Intense"]].map(([c,l]) => (
+                        <div key={l} className="flex items-center gap-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c }} />
+                          <span className="text-white/45 text-[9px]">{l}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-white/30 text-[9px]">NEA Radar</span>
+                  </div>
                 )}
               </div>
 
