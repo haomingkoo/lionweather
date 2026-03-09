@@ -744,8 +744,14 @@ function ClimateTrendsSection({ ct }) {
 // ---------------------------------------------------------------------------
 // Section wrapper
 // ---------------------------------------------------------------------------
-function Section({ icon: Icon, title, children, defaultOpen = true }) {
+function Section({ icon: Icon, title, children, defaultOpen = false, forceOpen }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  // Sync with external forceOpen when it changes
+  useEffect(() => {
+    if (forceOpen !== undefined) setOpen(forceOpen);
+  }, [forceOpen]);
+
   return (
     <div className="rounded-2xl bg-white/8 border border-white/10 overflow-hidden">
       <button
@@ -772,6 +778,7 @@ export function MLAnalysisDashboard() {
   const [error, setError] = useState(null);
   const [selectedVar, setSelectedVar] = useState("rainfall");
   const [selectedHorizon, setSelectedHorizon] = useState(0);
+  const [allOpen, setAllOpen] = useState(undefined);
 
   useEffect(() => {
     getFullAnalysis()
@@ -860,15 +867,25 @@ export function MLAnalysisDashboard() {
         </p>
       </div>
 
+      {/* Expand / Collapse all */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setAllOpen((prev) => (prev === true ? false : true))}
+          className="text-xs text-white/40 hover:text-white/70 transition-colors px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20"
+        >
+          {allOpen === true ? "Collapse all" : "Expand all"}
+        </button>
+      </div>
+
       {/* 0. Climate Trends */}
       {data.climate_trends && (
-        <Section icon={TrendingUp} title="Singapore Climate Trends">
+        <Section icon={TrendingUp} title="Singapore Climate Trends" forceOpen={allOpen}>
           <ClimateTrendsSection ct={data.climate_trends} />
         </Section>
       )}
 
       {/* 1. EDA */}
-      <Section key={`eda-${selectedVar}`} icon={BarChart3} title="Exploratory Data Analysis">
+      <Section key={`eda-${selectedVar}`} icon={BarChart3} title="Exploratory Data Analysis" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
@@ -1017,7 +1034,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 2. ACF / PACF */}
-      <Section key={`acf-${selectedVar}`} icon={Activity} title="ACF / PACF (Autocorrelation)">
+      <Section key={`acf-${selectedVar}`} icon={Activity} title="ACF / PACF (Autocorrelation)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
@@ -1091,7 +1108,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 3. Spectral / FFT */}
-      <Section key={`fft-${selectedVar}`} icon={Waves} title="Frequency Analysis (FFT Periodogram)">
+      <Section key={`fft-${selectedVar}`} icon={Waves} title="Frequency Analysis (FFT Periodogram)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
@@ -1159,7 +1176,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 4. Spurious Correlations */}
-      <Section icon={GitCompare} title="Spurious Correlation Analysis" defaultOpen={false}>
+      <Section icon={GitCompare} title="Spurious Correlation Analysis" forceOpen={allOpen}>
         <div className="space-y-4">
           {/* Cross-correlations */}
           {Object.entries(data.spurious_correlations?.cross_correlation || {}).map(([key, cc]) => (
@@ -1217,7 +1234,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 5. Model Results */}
-      <Section icon={TrendingUp} title="Model Performance by Horizon">
+      <Section icon={TrendingUp} title="Model Performance by Horizon" forceOpen={allOpen}>
         {/* Horizon tabs */}
         <div className="flex gap-2 mb-4 flex-wrap">
           {horizons.map((h, i) => (
@@ -1463,7 +1480,7 @@ export function MLAnalysisDashboard() {
         const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0, iwNea2.rain_f2 ?? 0, iwMl2.rain_f2 ?? 0);
 
         return (
-          <Section icon={Trophy} title="NEA Benchmark Comparison" defaultOpen={true}>
+          <Section icon={Trophy} title="NEA Benchmark Comparison" forceOpen={allOpen}>
             <div className="space-y-4">
 
               {/* Why F2 */}
@@ -1603,7 +1620,7 @@ export function MLAnalysisDashboard() {
       })()}
 
       {/* 5c. How we improved */}
-      <Section icon={TrendingUp} title="How Accuracy Was Improved" defaultOpen={false}>
+      <Section icon={TrendingUp} title="How Accuracy Was Improved" forceOpen={allOpen}>
         <div className="space-y-3">
           <p className="text-white/60 text-xs leading-relaxed">
             The model went through several iterations of feature engineering and training improvements:
@@ -1671,7 +1688,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 6. Loss Curves */}
-      <Section icon={Activity} title="Training Loss Curves">
+      <Section icon={Activity} title="Training Loss Curves" forceOpen={allOpen}>
         {data.loss_curves?.length > 0 ? (
           <div className="space-y-4">
             {data.loss_curves.slice(0, 4).map((lc, i) => {
@@ -1736,7 +1753,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 7. SHAP */}
-      <Section icon={Brain} title="SHAP Feature Importance">
+      <Section icon={Brain} title="SHAP Feature Importance" forceOpen={allOpen}>
         {Object.keys(data.shap || {}).length > 0 ? (
           <div className="space-y-5">
             {Object.entries(data.shap).map(([key, sv]) => (
