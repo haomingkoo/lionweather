@@ -68,7 +68,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label }) {
   );
 }
 
-function LineChart({ series, height = 80, xTicks, xLabel, yLabel, showYAxis = true, bandSeries = null }) {
+function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, showYAxis = true, bandSeries = null }) {
   // series = [{ name, data: [number], color }]
   // bandSeries = { min: [number], max: [number], color } — optional shaded band
   if (!series || series.length === 0) return null;
@@ -145,9 +145,11 @@ function LineChart({ series, height = 80, xTicks, xLabel, yLabel, showYAxis = tr
           <polygon points={bandPoints}
             fill={bandSeries.color || "#60a5fa"} opacity={0.12} />
         )}
-        {/* X tick labels */}
+        {/* X tick labels — positions either at specific data indices or evenly spaced */}
         {xTicks && xTicks.map((tick, i) => {
-          const x = PAD_L + (i / Math.max(xTicks.length - 1, 1)) * PLOT_W;
+          const x = xTickIndices
+            ? toX(xTickIndices[i])
+            : PAD_L + (i / Math.max(xTicks.length - 1, 1)) * PLOT_W;
           return (
             <text key={i} x={x} y={H - 3}
                   fontSize="7.5" fill="#ffffff35" textAnchor="middle" fontFamily="monospace">
@@ -786,38 +788,42 @@ export function MLAnalysisDashboard() {
                 </div>
               )}
 
-              {/* Hourly pattern */}
+              {/* Hourly pattern — 24 points, label every 6 hours */}
               <LineChart
                 series={[{
                   name: `Hourly mean (${selectedVar})`,
                   data: Object.values(e.hourly_pattern),
                   color: "#60a5fa",
                 }]}
-                height={60}
+                height={70}
+                xTicks={["0h", "6h", "12h", "18h", "23h"]}
+                xTickIndices={[0, 6, 12, 18, 23]}
                 xLabel="Hour of day"
                 yLabel="Mean"
               />
 
-              {/* Monthly pattern */}
+              {/* Monthly pattern — 12 points */}
               <LineChart
                 series={[{
                   name: `Monthly mean (${selectedVar})`,
                   data: Object.values(e.monthly_pattern),
                   color: "#34d399",
                 }]}
-                height={60}
+                height={70}
+                xTicks={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]}
                 xLabel="Month"
                 yLabel="Mean"
               />
 
-              {/* Annual trend */}
+              {/* Annual trend — dynamic year keys */}
               <LineChart
                 series={[{
                   name: `Annual mean (${selectedVar})`,
                   data: Object.values(e.annual_trend),
                   color: "#fbbf24",
                 }]}
-                height={60}
+                height={70}
+                xTicks={Object.keys(e.annual_trend)}
                 xLabel="Year"
                 yLabel="Mean"
               />
