@@ -1327,59 +1327,84 @@ export function MLAnalysisDashboard() {
       {data.nea_benchmark && (() => {
         const nb = data.nea_benchmark;
         const c3 = nb.overall?.class3 || {};
-        const nea = c3.nea || {};
-        const ml = c3.ml_island_wide || {};
-        const ens = c3.ensemble_60ml_40nea || {};
+        // Use island_wide — the only fair comparison (both aggregated to same granularity)
+        const iw = c3.island_wide || {};
+        const nea = iw.nea || {};
+        const ml  = iw.ml_island_wide || {};
+        const ens = iw.ensemble_60ml_40nea || {};
         const neaF1 = nea.report?.["macro avg"]?.["f1-score"];
         const mlF1  = ml.report?.["macro avg"]?.["f1-score"];
         const ensF1 = ens.report?.["macro avg"]?.["f1-score"];
+        const nSamples = iw.n_samples;
+        const hasIW = nea.accuracy != null;
         return (
           <Section icon={Trophy} title="NEA Benchmark Comparison" defaultOpen={true}>
             <div className="space-y-4">
-              <p className="text-white/50 text-xs">
-                Apples-to-apples: NEA 6-hour regional text forecast vs our ML model on 2024 holdout data ({nb.overall?.class3?.n_samples?.toLocaleString()} samples).
-              </p>
-              {/* Score table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="text-white/40 text-[10px]">
-                      <th className="text-left py-1.5 pr-3">Model</th>
-                      <th className="text-right px-2">Accuracy</th>
-                      <th className="text-right px-2">Macro F1</th>
-                      <th className="text-right pl-2">Winner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { name: "NEA Official Forecast", acc: nea.accuracy, f1: neaF1, color: "text-white/70" },
-                      { name: "ML Model (island-wide)", acc: ml.accuracy, f1: mlF1, color: "text-blue-300" },
-                      { name: "Ensemble (60% ML + 40% NEA)", acc: ens.accuracy, f1: ensF1, color: "text-emerald-300" },
-                    ].map(({ name, acc, f1, color }) => (
-                      <tr key={name} className="border-t border-white/5">
-                        <td className={`py-1.5 pr-3 font-medium ${color}`}>{name}</td>
-                        <td className={`text-right px-2 font-mono ${color}`}>{acc != null ? (acc * 100).toFixed(1) + "%" : "—"}</td>
-                        <td className={`text-right px-2 font-mono ${color}`}>{f1 != null ? (f1 * 100).toFixed(1) + "%" : "—"}</td>
-                        <td className="text-right pl-2">
-                          {f1 != null && f1 === Math.max(neaF1 ?? 0, mlF1 ?? 0, ensF1 ?? 0)
-                            ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
-                            : null}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Methodology explanation */}
+              <div className="bg-amber-500/8 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
+                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Comparison methodology — granularity matters</p>
+                <div className="space-y-1 text-[11px] text-white/55 leading-relaxed">
+                  <p>NEA publishes forecasts at two granularities:</p>
+                  <ul className="space-y-0.5 ml-2">
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour forecast by area</strong> (~60 named areas, e.g. "Clementi: Light Rain") — most granular, closest to per-station</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour forecast by region</strong> (North / South / East / West / Central) — regional, coarser</li>
+                  </ul>
+                  <p>Our ML model predicts <strong className="text-white/70">island-wide</strong>. To compare fairly, we aggregate both the 6-hour NEA regional forecasts AND actual station observations to island-wide using <strong className="text-white/70">majority vote</strong> across regions per 6-hour window. This gives {nSamples?.toLocaleString() ?? "~1,400"} true period comparisons.</p>
+                  <p className="text-amber-300/50 italic text-[10px]">Future: comparing against NEA 2-hour per-area forecasts (matched to nearest stations) would be the gold-standard benchmark.</p>
+                </div>
               </div>
-              <CommentaryBox
-                variant="indigo"
-                points={[
-                  "NEA publishes 6-hour regional forecasts ('Thundery Showers in Western Singapore'). We map these to the same 3-class bins and compare against actual station observations for 2024.",
-                  `Our ML model (${mlF1 != null ? (mlF1 * 100).toFixed(1) : "?"}% macro F1) beats NEA (${neaF1 != null ? (neaF1 * 100).toFixed(1) : "?"}%) on the same test set — primarily because it catches more Light Rain events that NEA tends to underforecast.`,
-                  "The ensemble (60% ML weight, 40% NEA weight) is the strongest overall — combining the model's statistical pattern recognition with NEA's physical meteorological knowledge.",
-                  "Macro F1 is the right metric here: it penalises models that ignore minority classes (Light Rain, Heavy Rain) and rewards balanced performance across all categories.",
-                ]}
-                tip="Note: NEA forecasts are for 6h regions, our model predicts 1h island-wide — the comparison is directional, not perfectly apples-to-apples on granularity."
-              />
+
+              {hasIW ? (
+                <>
+                  <p className="text-white/40 text-[10px]">
+                    Island-wide majority vote — {nSamples?.toLocaleString()} periods · 2024 holdout
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="text-white/40 text-[10px]">
+                          <th className="text-left py-1.5 pr-3">Model</th>
+                          <th className="text-right px-2">Accuracy</th>
+                          <th className="text-right px-2">Macro F1</th>
+                          <th className="text-right pl-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { name: "NEA 6h Regional (aggregated to island-wide)", acc: nea.accuracy, f1: neaF1, color: "text-white/70" },
+                          { name: "ML Model (island-wide)", acc: ml.accuracy, f1: mlF1, color: "text-blue-300" },
+                          { name: "Ensemble (60% ML + 40% NEA)", acc: ens.accuracy, f1: ensF1, color: "text-emerald-300" },
+                        ].map(({ name, acc, f1, color }) => (
+                          <tr key={name} className="border-t border-white/5">
+                            <td className={`py-1.5 pr-3 font-medium text-[11px] ${color}`}>{name}</td>
+                            <td className={`text-right px-2 font-mono ${color}`}>{acc != null ? (acc * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className={`text-right px-2 font-mono ${color}`}>{f1 != null ? (f1 * 100).toFixed(1) + "%" : "—"}</td>
+                            <td className="text-right pl-2">
+                              {f1 != null && f1 === Math.max(neaF1 ?? 0, mlF1 ?? 0, ensF1 ?? 0)
+                                ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
+                                : null}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <CommentaryBox
+                    variant="indigo"
+                    points={[
+                      "Both actual observations and NEA forecasts are aggregated to island-wide via majority vote (most common class across 5 regions per 6h window). This ensures the same granularity as our ML model.",
+                      `Macro F1 is the right metric: it weights all 3 classes equally. A model that always predicts 'No Rain' would score well on accuracy but terribly on macro F1.`,
+                      `${mlF1 && neaF1 ? `ML macro F1 ${(mlF1 * 100).toFixed(1)}% vs NEA ${(neaF1 * 100).toFixed(1)}% — ${mlF1 > neaF1 ? "our model performs better on this fair island-wide comparison." : "NEA performs better — this is expected: NEA uses physical models and human expertise at regional granularity, we're an island-wide statistical model."}` : "Awaiting corrected benchmark results."}`,
+                      "The ensemble combines ML probability scores with a softened NEA prediction. If both agree on an outcome, confidence is high. Where they disagree, the 60/40 weighting leans toward ML.",
+                    ]}
+                    tip="Caveat: NEA loses its regional specificity advantage when aggregated island-wide. In a per-area comparison (2-hour forecast matched to stations), NEA would likely score higher."
+                  />
+                </>
+              ) : (
+                <p className="text-white/40 text-sm text-center py-4">
+                  Island-wide benchmark not yet computed. Retraining with corrected methodology in progress...
+                </p>
+              )}
             </div>
           </Section>
         );

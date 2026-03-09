@@ -1057,7 +1057,72 @@ def compute_nea_regional_benchmark(
             logger.warning(f"  NEA benchmark: no matched rows for {n_class}-class")
             continue
 
-        # ---- Overall metrics ----
+        # ---- Island-wide aggregate (FAIR apples-to-apples comparison) ----
+        # Problem with per-region: ML is island-wide (same prediction for all 5 regions)
+        # while NEA is region-specific. This inflates ML sample count 5x with identical
+        # predictions but different actuals. Fix: aggregate both to island-wide first.
+        #
+        # Aggregation rule: majority vote (mode) across all regions per period.
+        # This answers: "What was the dominant rain condition island-wide this 6h window?"
+        iw_actual = (actual_cls.groupby("period_start")["actual_class"]
+                     .agg(lambda x: x.mode().iloc[0]).reset_index())
+        iw_nea_df = (nea[["period_start", "region", target_col]]
+                     .dropna(subset=[target_col])
+                     .groupby("period_start")[target_col]
+                     .agg(lambda x: x.mode().iloc[0]).reset_index())
+        iw_merged = iw_actual.merge(iw_nea_df, on="period_start", how="inner")
+        if ml_df is not None:
+            iw_merged = iw_merged.merge(
+                ml_df[["period_start", "ml_class"] + [f"ml_p{c}" for c in range(n_class)]],
+                on="period_start", how="left"
+            )
+
+        iw_results = {}
+        if not iw_merged.empty:
+            iw_y_true = iw_merged["actual_class"].values.astype(int)
+            iw_y_nea  = iw_merged[target_col].values.astype(int)
+            iw_nea_acc = float(accuracy_score(iw_y_true, iw_y_nea))
+            iw_nea_cm  = confusion_matrix(iw_y_true, iw_y_nea, labels=list(range(n_class))).tolist()
+            iw_nea_cr  = classification_report(iw_y_true, iw_y_nea, labels=list(range(n_class)),
+                                               target_names=list(cats.values()),
+                                               output_dict=True, zero_division=0)
+            iw_results["nea"] = {"accuracy": round(iw_nea_acc, 4), "confusion_matrix": iw_nea_cm, "report": iw_nea_cr}
+
+            if ml_df is not None and "ml_class" in iw_merged.columns:
+                iw_y_ml = iw_merged["ml_class"].values
+                iw_valid = ~pd.isna(iw_y_ml)
+                iw_y_ml_v = iw_y_ml[iw_valid].astype(int)
+                iw_y_true_v = iw_y_true[iw_valid]
+                if len(iw_y_ml_v):
+                    iw_ml_acc = float(accuracy_score(iw_y_true_v, iw_y_ml_v))
+                    iw_ml_cm  = confusion_matrix(iw_y_true_v, iw_y_ml_v, labels=list(range(n_class))).tolist()
+                    iw_ml_cr  = classification_report(iw_y_true_v, iw_y_ml_v, labels=list(range(n_class)),
+                                                      target_names=list(cats.values()),
+                                                      output_dict=True, zero_division=0)
+                    iw_results["ml_island_wide"] = {"accuracy": round(iw_ml_acc, 4), "confusion_matrix": iw_ml_cm, "report": iw_ml_cr}
+                    iw_results["n_samples"] = int(iw_valid.sum())
+
+                    # Ensemble
+                    iw_ens_rows = iw_merged[iw_valid].copy()
+                    iw_ml_proba = iw_ens_rows[[f"ml_p{c}" for c in range(n_class)]].values
+                    iw_nea_soft = np.zeros((len(iw_ens_rows), n_class))
+                    for ii, cls in enumerate(iw_ens_rows[target_col].values):
+                        if not pd.isna(cls):
+                            iw_nea_soft[ii, int(cls)] = 0.7
+                            for jj in range(n_class):
+                                if jj != int(cls):
+                                    iw_nea_soft[ii, jj] = 0.3 / (n_class - 1)
+                    iw_ens_proba = 0.6 * iw_ml_proba + 0.4 * iw_nea_soft
+                    iw_y_ens = np.argmax(iw_ens_proba, axis=1)
+                    iw_ens_acc = float(accuracy_score(iw_y_true_v, iw_y_ens))
+                    iw_ens_cm  = confusion_matrix(iw_y_true_v, iw_y_ens, labels=list(range(n_class))).tolist()
+                    iw_ens_cr  = classification_report(iw_y_true_v, iw_y_ens, labels=list(range(n_class)),
+                                                       target_names=list(cats.values()),
+                                                       output_dict=True, zero_division=0)
+                    iw_results["ensemble_60ml_40nea"] = {"accuracy": round(iw_ens_acc, 4), "confusion_matrix": iw_ens_cm, "report": iw_ens_cr}
+                    logger.info(f"  [IW {n_class}-class] NEA acc={iw_nea_acc:.3f} | ML acc={iw_ml_acc:.3f} | Ens acc={iw_ens_acc:.3f}")
+
+        # ---- Per-region metrics (legacy — NEA has advantage here since it's regional) ----
         y_true = merged["actual_class"].values
         y_nea  = merged[target_col].values
         valid_mask = ~(pd.isna(y_nea))
@@ -1087,7 +1152,6 @@ def compute_nea_regional_benchmark(
                 # Ensemble: 60% ML + 40% NEA (one-hot softened)
                 ens_rows = merged[valid_mask][~pd.isna(merged["ml_class"].values[valid_mask])].copy()
                 ml_proba = ens_rows[[f"ml_p{c}" for c in range(n_class)]].values
-                # NEA soft: 0.7 for predicted class, rest shared
                 nea_soft = np.zeros((len(ens_rows), n_class))
                 for i, cls in enumerate(ens_rows[target_col].values):
                     if not pd.isna(cls):
@@ -1104,13 +1168,15 @@ def compute_nea_regional_benchmark(
                                                 target_names=list(cats.values()),
                                                 output_dict=True, zero_division=0)
 
-                logger.info(f"  [{n_class}-class] NEA acc={nea_acc:.3f} | ML acc={ml_acc:.3f} | Ensemble acc={ens_acc:.3f}")
+                logger.info(f"  [regional {n_class}-class] NEA acc={nea_acc:.3f} | ML acc={ml_acc:.3f} | Ensemble acc={ens_acc:.3f}")
 
         overall_results[f"class{n_class}"] = {
             "n_samples": int(len(y_true)),
+            "note": "Per-region comparison: NEA regional forecasts vs regional actuals. ML uses same island-wide prediction across all regions — not directly comparable to NEA here.",
             "nea": {"accuracy": round(nea_acc, 4), "confusion_matrix": nea_cm, "report": nea_cr},
             "ml_island_wide": {"accuracy": round(ml_acc, 4), "confusion_matrix": ml_cm, "report": ml_cr} if ml_acc else None,
             "ensemble_60ml_40nea": {"accuracy": round(ens_acc, 4), "confusion_matrix": ens_cm, "report": ens_cr} if ens_acc else None,
+            "island_wide": iw_results,  # Fair comparison: both aggregated to island-wide majority vote
         }
 
         # ---- Per-region metrics ----
@@ -1139,7 +1205,11 @@ def compute_nea_regional_benchmark(
                     )
 
     return {
-        "description": "Apples-to-apples: NEA 6h regional forecast vs actual 6h regional mean station rainfall. ML uses island-wide 1h model predictions aggregated to 6h majority vote.",
+        "description": (
+            "NEA 6h regional forecast vs actual 6h station observations (2024 holdout). "
+            "overall.classN = per-region stacked (NEA has advantage: region-specific predictions). "
+            "overall.classN.island_wide = FAIR comparison: both aggregated to island-wide majority vote per period."
+        ),
         "test_year": test_year,
         "overall": overall_results,
         "per_region": per_region_results,
