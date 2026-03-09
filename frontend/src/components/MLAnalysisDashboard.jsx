@@ -60,7 +60,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
 
   return (
     <div style={{ width: "100%" }}>
-      {label && <p className="text-white/50 text-xs mb-1">{label}</p>}
+      {label && <p className="text-white/65 text-xs mb-1">{label}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
         {yLabels.map(({ val, y }, i) => (
           <g key={i}>
@@ -258,7 +258,7 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
 
   return (
     <div style={{ maxWidth: "100%" }}>
-      {title && <p className="text-white/50 text-xs mb-1">{title}</p>}
+      {title && <p className="text-white/65 text-xs mb-1">{title}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
         {/* Y-axis labels + gridlines */}
         {yLabels.map(({ val, y }) => (
@@ -591,7 +591,7 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Annual rainfall totals */}
       <div>
-        <p className="text-white/50 text-xs mb-2">Annual Rainfall Total (mm) — each bar = one year</p>
+        <p className="text-white/65 text-xs mb-2">Annual Rainfall Total (mm) — each bar = one year</p>
         <p className="text-white/25 text-[10px] mb-1.5 italic">
           ⚠ Island-wide station aggregate — sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
         </p>
@@ -622,21 +622,31 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Rain category breakdown */}
       <div>
-        <p className="text-white/50 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
+        <p className="text-white/65 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
         <StackedBarChart years={displayYears} stacks={rainCatStacks} height={110} />
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
             <div key={s.key} className="flex items-center gap-1">
               <span className="w-3 h-3 rounded-sm inline-block" style={{ background: s.color }} />
-              <span className="text-white/50 text-[10px]">{s.label}</span>
+              <span className="text-white/60 text-[10px]">{s.label}</span>
             </div>
           ))}
         </div>
+        <CommentaryBox
+          variant="blue"
+          points={[
+            "Each bar represents one year, split into the percentage of hours that fell into each rain category. Most hours (70–80%) in Singapore are dry — rain is intense but short-lived.",
+            "Light Rain (green) makes up the bulk of rainy hours. Heavy Rain (yellow) and Thundery (pink) are small slices — but contribute disproportionately to total rainfall volume.",
+            "Thundery showers have been increasing visibly from 2020 onwards, consistent with Singapore's wetter inter-monsoon seasons. Heavy Rain also shows a slight upward trend.",
+            "No Rain dominating the chart is normal — Singapore averages ~160 rainy days per year, but rain typically lasts only 1–2 hours per event.",
+          ]}
+          tip="Tip: A growing pink (Thundery) slice year-over-year suggests more convective activity — important for flood risk planning."
+        />
       </div>
 
       {/* Temperature trend */}
       <div>
-        <p className="text-white/50 text-xs mb-2">Mean Temperature by Year (°C)</p>
+        <p className="text-white/65 text-xs mb-2">Mean Temperature by Year (°C)</p>
         <LineChart
           series={[{ name: "Mean temp", data: tempMeans, color: "#fb923c" }]}
           bandSeries={{
@@ -691,7 +701,7 @@ function ClimateTrendsSection({ ct }) {
         }
         return (
         <div>
-          <p className="text-white/50 text-xs mb-2">
+          <p className="text-white/65 text-xs mb-2">
             STL Decomposition — Monthly Rainfall
           </p>
           <LineChart
@@ -713,7 +723,17 @@ function ClimateTrendsSection({ ct }) {
             xLabel=""
             yLabel="Residual"
           />
-          <p className="text-white/30 text-[10px] mt-1">{stl.note}</p>
+          <p className="text-white/45 text-[10px] mt-1">{stl.note}</p>
+          <CommentaryBox
+            variant="indigo"
+            points={[
+              "STL (Seasonal and Trend decomposition using Loess) splits the raw monthly rainfall signal into three layers: Observed (actual data), Trend (long-run direction), and Residual (random noise).",
+              "The pink Trend line smooths out month-to-month swings to reveal the underlying direction. A rising trend line means Singapore is getting wetter on average; flat means no change.",
+              "The yellow Residual chart shows what's left after removing the trend and seasonal patterns — large spikes indicate unusually wet or dry months driven by events like La Niña or strong monsoons.",
+              "Residual values near zero = that month was 'normal'. Large positive residuals (e.g. 2020–2021) coincide with La Niña years when Singapore received above-average rainfall.",
+            ]}
+            tip="Tip: Watch the Trend line direction. A consistently rising trend over years is stronger evidence of changing climate than any single wet year."
+          />
         </div>
         );
       })()}
@@ -887,7 +907,7 @@ export function MLAnalysisDashboard() {
               {/* Distribution histogram */}
               {e.histogram && (
                 <div>
-                  <p className="text-white/50 text-xs mb-2">Distribution (value → frequency)</p>
+                  <p className="text-white/65 text-xs mb-2">Distribution (value → frequency)</p>
                   <MiniBarChart
                     data={e.histogram.counts}
                     height={110}
@@ -1035,15 +1055,35 @@ export function MLAnalysisDashboard() {
               </p>
               <CommentaryBox
                 variant="blue"
-                points={[
-                  "ACF (AutoCorrelation Function): Each vertical bar shows how much the current value correlates with a value from X hours ago. A tall bar at lag 1 means 'if it rained an hour ago, it's likely still raining.'",
-                  "PACF (Partial ACF): Like ACF but removes the indirect effect of intermediate lags. A tall bar at lag 2 in PACF means there's a DIRECT 2-hour memory, not just because lag 1 is correlated.",
-                  `The dashed yellow lines are the 95% confidence interval. Any bar extending BEYOND the dashes is statistically significant — the value at that lag genuinely predicts the current value.`,
-                  `Significant ACF lags for ${selectedVar}: ${data.acf_pacf?.[selectedVar]?.significant_acf_lags?.slice(0, 8).join(", ") || "loading..."}. This tells us the model should use these past hours as input features.`,
-                  "A slowly decaying ACF (each bar only slightly smaller than the last) suggests strong persistence — conditions tend to last a long time. A sharp drop after lag 1 means quick changes.",
-                  "These charts directly inform which 'lag features' are built into the ML model — e.g., rain_lag_1h, hum_lag_6h.",
-                ]}
-                tip="Expert tip: If both ACF and PACF cut off sharply after lag p, an AR(p) model is appropriate. Slowly decaying ACF with sharp PACF cutoff → MA model."
+                points={(() => {
+                  const sigLags = ap.significant_acf_lags?.slice(0, 8).join(", ") || "—";
+                  const base = [
+                    "ACF (AutoCorrelation Function): each bar shows correlation with a value X hours ago. PACF removes the 'chain effect' of intermediate lags — a tall PACF bar at lag 2 means direct 2-hour memory.",
+                    `Dashed yellow lines = 95% CI. Bars beyond the dashes are statistically significant — these lags genuinely predict the current value. Sig lags here: ${sigLags}.`,
+                  ];
+                  if (selectedVar === "rainfall") return [...base,
+                    `Rainfall sparsity is ${ap.sparsity_pct}% — most hours have zero rain. The ACF drops off quickly after lag 1–2, meaning rain events are short-lived (typically <2 hours). Once it stops, the auto-correlation fades fast.`,
+                    "PACF cuts to near zero after lag 2 — this is an AR(2) pattern. Only the last 1–2 hours matter directly. This is why rain_lag_1h and rain_lag_3h are among the ML model's top features.",
+                    "The absence of a 24-hour cycle in rainfall ACF is expected — Singapore rain is convective (afternoon thunderstorms), not diurnal in the way temperature is.",
+                  ];
+                  if (selectedVar === "temperature") return [...base,
+                    `Sparsity is 0% — temperature is always measured. The ACF shows strong slow decay WITH clear spikes at lags 24 and 48 — that's Singapore's diurnal (day/night) temperature cycle, visible in the chart as recurring peaks.`,
+                    "PACF cuts off after lag 2, meaning temperature has a short direct memory (just ~2 hours), but the slow ACF decay comes from the daily cycle cascading through each lag.",
+                    "This 24-hour periodicity is why hour_sin and hour_cos cyclical features matter to the ML model — the model learns that time-of-day predicts temperature patterns.",
+                  ];
+                  if (selectedVar === "humidity") return [...base,
+                    `Humidity also shows a 24-hour diurnal cycle in the ACF (peaks at lags 24, 48), similar to temperature — humidity is inversely correlated with temperature (hotter → drier air, cooler mornings → higher humidity).`,
+                    "PACF drops sharply after lag 2 (with a notable negative spike at lag 2), indicating an AR(2) structure. The negative PACF at lag 2 suggests humidity 'corrects' — if it was unusually high 2 hours ago, it tends to fall back.",
+                    "The ML model uses hum_deficit and hum_lag_1h as features. High humidity combined with rising temperature is a key thunderstorm precursor — exactly what these lags capture.",
+                  ];
+                  if (selectedVar === "wind_speed") return [...base,
+                    `Wind speed ACF decays faster than temperature or humidity — wind changes more erratically. The 24-hour cycle is weaker (wind is less diurnal than temperature), making it harder to forecast.`,
+                    "PACF cuts off after lag 2 with a clear negative spike at lag 2, similar to humidity. Wind speed has short direct memory: what happened 1–2 hours ago is most relevant.",
+                    "Despite lower persistence, wind direction and speed changes are still important ML features — wind_accel_3h (acceleration) and wind_from_west are among the top SHAP contributors for thunderstorm prediction.",
+                  ];
+                  return base;
+                })()}
+                tip="Expert tip: If both ACF and PACF cut off sharply after lag p, an AR(p) model is appropriate. Slowly decaying ACF with sharp PACF cutoff → MA model. Temperature/humidity here are AR(2) with a 24h seasonal overlay."
               />
             </div>
           );
@@ -1421,7 +1461,6 @@ export function MLAnalysisDashboard() {
         const bestF2_PA_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0);
         const bestAcc_PA_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
         const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0, iwNea2.rain_f2 ?? 0, iwMl2.rain_f2 ?? 0);
-        const bestAcc_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
 
         return (
           <Section icon={Trophy} title="NEA Benchmark Comparison" defaultOpen={true}>
@@ -1464,34 +1503,23 @@ export function MLAnalysisDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {hasPR && <>
-                          <tr className="border-t border-white/5">
-                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">Per-region · NEA 6h forecast</td>
-                            <td className="text-right px-2 font-mono text-white/60">{(prNea.accuracy * 100).toFixed(1)}%</td>
-                            <td className="text-right px-2 font-mono text-violet-300">{prNea.rain_f2 != null ? (prNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2 text-[10px] text-white/25 leading-tight">{prNea.accuracy === bestAcc_PR_6h && prNea.rain_f2 !== bestF2_PR_6h ? <span className="text-emerald-400 font-semibold">Best Acc</span> : null}</td>
-                          </tr>
-                          <tr className="border-t border-white/5">
-                            <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">Per-region · ML (island-wide applied)</td>
-                            <td className="text-right px-2 font-mono text-blue-300/70">{prMl.accuracy != null ? (prMl.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right px-2 font-mono text-blue-300">{prMl.rain_f2 != null ? (prMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2 leading-tight">{prMl.rain_f2 === bestF2_PR_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-region</span></span> : null}</td>
-                          </tr>
-                        </>}
-                        {hasIW && <>
-                          <tr className="border-t border-white/10">
-                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/50 italic">Island-wide · NEA → majority vote</td>
-                            <td className="text-right px-2 font-mono text-white/45">{(iwNea.accuracy * 100).toFixed(1)}%</td>
-                            <td className="text-right px-2 font-mono text-violet-300/60">{iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2 text-[10px] text-white/25 italic">fair vs ML</td>
-                          </tr>
-                          <tr className="border-t border-white/5">
-                            <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/70 italic">Island-wide · ML model</td>
-                            <td className="text-right px-2 font-mono text-blue-200/60">{(iwMl.accuracy * 100).toFixed(1)}%</td>
-                            <td className="text-right px-2 font-mono text-blue-200/80">{iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2 leading-tight">{iwMl.rain_f2 === bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">overall</span></span> : null}</td>
-                          </tr>
-                        </>}
+                        {[
+                          hasPR && { key:"prNea", data:prNea, label:"Per-region · NEA 6h forecast",      lc:"text-white/70",      ac:"text-white/60",    fc:"text-violet-300",    badge: prNea.accuracy===bestAcc_PR_6h && prNea.rain_f2!==bestF2_PR_6h ? <span className="text-emerald-400 font-semibold">Best Acc</span> : null },
+                          hasPR && { key:"prMl",  data:prMl,  label:"Per-region · ML (island-wide applied)", lc:"text-blue-300",    ac:"text-blue-300/70", fc:"text-blue-300",      badge: prMl.rain_f2===bestF2_PR_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-region</span></span> : null },
+                          hasIW && { key:"iwNea", data:iwNea, label:"Island-wide · NEA → majority vote",  lc:"text-white/50 italic", ac:"text-white/45", fc:"text-violet-300/60", badge: <span className="text-[10px] text-white/25 italic">fair vs ML</span> },
+                          hasIW && { key:"iwMl",  data:iwMl,  label:"Island-wide · ML model",             lc:"text-blue-200/70 italic", ac:"text-blue-200/60", fc:"text-blue-200/80", badge: iwMl.rain_f2===bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">overall</span></span> : null },
+                        ]
+                          .filter(Boolean)
+                          .sort((a, b) => (b.data.rain_f2 ?? -1) - (a.data.rain_f2 ?? -1))
+                          .map(r => (
+                            <tr key={r.key} className="border-t border-white/5">
+                              <td className={`py-1.5 pr-3 font-medium text-[11px] ${r.lc}`}>{r.label}</td>
+                              <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right pl-2 leading-tight">{r.badge}</td>
+                            </tr>
+                          ))
+                        }
                       </tbody>
                     </table>
                   </div>
@@ -1521,44 +1549,29 @@ export function MLAnalysisDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-t border-white/5">
-                            <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h per-area (native)</td>
-                            <td className="text-right px-2 font-mono text-white/60">{(paNea.accuracy * 100).toFixed(1)}%</td>
-                            <td className="text-right px-2 font-mono text-violet-300">{paNea.rain_f2 != null ? (paNea.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2 leading-tight">{paNea.rain_f2 === bestF2_PA_2h && paNea.accuracy === bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/>+F2</span> : paNea.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-area</span></span> : paNea.accuracy === bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/><span className="text-white/30">per-area</span></span> : null}</td>
-                          </tr>
-                          {paMl.accuracy != null && (
-                            <tr className="border-t border-white/5">
-                              <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">ML island-wide → per-area</td>
-                              <td className="text-right px-2 font-mono text-blue-300/70">{(paMl.accuracy * 100).toFixed(1)}%</td>
-                              <td className="text-right px-2 font-mono text-blue-300">{paMl.rain_f2 != null ? (paMl.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2">{paMl.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null}</td>
-                            </tr>
-                          )}
-                          {paEns.accuracy != null && (
-                            <tr className="border-t border-white/5">
-                              <td className="py-1.5 pr-3 font-medium text-[11px] text-emerald-300">Ensemble (60% ML + 40% NEA)</td>
-                              <td className="text-right px-2 font-mono text-emerald-300/70">{(paEns.accuracy * 100).toFixed(1)}%</td>
-                              <td className="text-right px-2 font-mono text-emerald-300">{paEns.rain_f2 != null ? (paEns.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className="text-right pl-2">{paEns.rain_f2 === bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null}</td>
-                            </tr>
-                          )}
-                          {has2hIW && (
-                            <>
-                              <tr className="border-t border-white/10">
-                                <td className="py-1.5 pr-3 font-medium text-[11px] text-white/40 italic">Island-wide · NEA → majority vote</td>
-                                <td className="text-right px-2 font-mono text-white/35">{(iwNea2.accuracy * 100).toFixed(1)}%</td>
-                                <td className={`text-right px-2 font-mono ${(iwNea2.rain_f2 ?? 0) === bestF2_2h && iwNea2.rain_f2 != null ? "text-yellow-300 font-semibold" : "text-white/35"}`}>{iwNea2.rain_f2 != null ? `${(iwNea2.rain_f2 * 100).toFixed(1)}%` : "—"}</td>
-                                <td className="text-right pl-2 text-[10px] text-white/20 italic">fair vs ML</td>
+                          {[
+                            { key:"paNea", data:paNea, show:true,                  label:"NEA 2h per-area (native)",          lc:"text-white/70",        ac:"text-white/60",      fc:"text-violet-300",
+                              badge: paNea.rain_f2===bestF2_PA_2h && paNea.accuracy===bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/>+F2</span> : paNea.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-area</span></span> : paNea.accuracy===bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/><span className="text-white/30">per-area</span></span> : null },
+                            { key:"paMl",  data:paMl,  show:paMl.accuracy!=null,   label:"ML island-wide → per-area",         lc:"text-blue-300",        ac:"text-blue-300/70",   fc:"text-blue-300",
+                              badge: paMl.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null },
+                            { key:"paEns", data:paEns, show:paEns.accuracy!=null,  label:"Ensemble (60% ML + 40% NEA)",       lc:"text-emerald-300",     ac:"text-emerald-300/70",fc:"text-emerald-300",
+                              badge: paEns.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null },
+                            has2hIW && { key:"iwNea2",data:iwNea2,show:true,        label:"Island-wide · NEA → majority vote", lc:"text-white/40 italic", ac:"text-white/35",      fc:(iwNea2.rain_f2??0)===bestF2_2h&&iwNea2.rain_f2!=null?"text-yellow-300 font-semibold":"text-white/35",
+                              badge: <span className="text-[10px] text-white/20 italic">fair vs ML</span> },
+                            has2hIW && { key:"iwMl2", data:iwMl2, show:true,        label:"Island-wide · ML model",            lc:"text-blue-200/50 italic",ac:"text-blue-200/45", fc:(iwMl2.rain_f2??0)===bestF2_2h&&iwMl2.rain_f2!=null?"text-yellow-300 font-semibold":"text-blue-200/45",
+                              badge: null },
+                          ]
+                            .filter(r => r && r.show)
+                            .sort((a, b) => (b.data.rain_f2 ?? -1) - (a.data.rain_f2 ?? -1))
+                            .map(r => (
+                              <tr key={r.key} className="border-t border-white/5">
+                                <td className={`py-1.5 pr-3 font-medium text-[11px] ${r.lc}`}>{r.label}</td>
+                                <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right pl-2 leading-tight">{r.badge}</td>
                               </tr>
-                              <tr className="border-t border-white/5">
-                                <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/50 italic">Island-wide · ML model</td>
-                                <td className="text-right px-2 font-mono text-blue-200/45">{(iwMl2.accuracy * 100).toFixed(1)}%</td>
-                                <td className={`text-right px-2 font-mono ${(iwMl2.rain_f2 ?? 0) === bestF2_2h && iwMl2.rain_f2 != null ? "text-yellow-300 font-semibold" : "text-blue-200/45"}`}>{iwMl2.rain_f2 != null ? `${(iwMl2.rain_f2 * 100).toFixed(1)}%` : "—"}</td>
-                                <td className="text-right pl-2"></td>
-                              </tr>
-                            </>
-                          )}
+                            ))
+                          }
                         </tbody>
                       </table>
                     </div>
@@ -1671,7 +1684,7 @@ export function MLAnalysisDashboard() {
                 : [];
               return (
               <div key={i}>
-                <p className="text-white/50 text-xs mb-1">
+                <p className="text-white/65 text-xs mb-1">
                   {lc.task} — {lc.horizon_h}h ahead · best iter={lc.best_iteration}
                 </p>
                 <LineChart

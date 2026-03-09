@@ -207,34 +207,54 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         // Hybrid: NEA 4-day (primary) + Open-Meteo extension for days 5-7
         const daily = [];
 
+        // Today's date in SGT (YYYY-MM-DD) — used to detect & label "Today"
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+        const toDay = (dateStr) =>
+          dateStr === todayStr
+            ? "Today"
+            : new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+
         if (forecast4day?.forecasts) {
           const neaForecasts = forecast4day.forecasts
             .slice(0, 4)
-            .map((day, i) => ({
+            .map((day) => ({
               date: day.date,
-              dayName:
-                i === 0
-                  ? "Today"
-                  : new Date(day.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                    }),
+              dayName: toDay(day.date),
               high: day.temperature?.high || null,
               low: day.temperature?.low || null,
               condition: day.forecast || location.weather.condition,
               source: "NEA",
             }));
+
+          // NEA 4-day starts from tomorrow — if today is missing, prepend from Open-Meteo
+          const neaHasToday = neaForecasts.some((d) => d.date === todayStr);
+          if (!neaHasToday && openMeteoForecast.length > 0) {
+            const todayOm = openMeteoForecast.find((d) => d.date === todayStr);
+            if (todayOm) {
+              daily.push({
+                date: todayOm.date,
+                dayName: "Today",
+                high: todayOm.temperature?.high || null,
+                low: todayOm.temperature?.low || null,
+                condition: todayOm.forecast,
+                source: "Open-Meteo",
+              });
+            }
+          }
+
           daily.push(...neaForecasts);
         }
 
-        // Extend with Open-Meteo days 5-7 (skip dates already covered by NEA)
+        // Extend with Open-Meteo to reach 7 days (skip dates already covered)
         if (openMeteoForecast.length > 0) {
-          const neaDates = new Set(daily.map((d) => d.date));
+          const coveredDates = new Set(daily.map((d) => d.date));
+          const needed = Math.max(0, 7 - daily.length);
           const extended = openMeteoForecast
-            .filter((d) => !neaDates.has(d.date))
-            .slice(0, 3)
+            .filter((d) => !coveredDates.has(d.date))
+            .slice(0, needed)
             .map((day) => ({
               date: day.date,
-              dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),
+              dayName: toDay(day.date),
               high: day.temperature?.high || null,
               low: day.temperature?.low || null,
               condition: day.forecast,
@@ -248,7 +268,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           openMeteoForecast.slice(0, 7).forEach((day) => {
             daily.push({
               date: day.date,
-              dayName: new Date(day.date).toLocaleDateString("en-US", { weekday: "short" }),
+              dayName: toDay(day.date),
               high: day.temperature?.high || null,
               low: day.temperature?.low || null,
               condition: day.forecast,
