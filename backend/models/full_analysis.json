@@ -9512,6 +9512,7 @@
         "island_wide": {
           "nea": {
             "accuracy": 0.8893,
+            "rain_f2": 0.5289,
             "confusion_matrix": [
               [
                 3191,
@@ -9565,6 +9566,7 @@
           },
           "ml_island_wide": {
             "accuracy": 0.7807,
+            "rain_f2": 0.3958,
             "confusion_matrix": [
               [
                 2788,
@@ -9990,6 +9992,7 @@
         "island_wide": {
           "nea": {
             "accuracy": 0.882,
+            "rain_f2": 0.2573,
             "confusion_matrix": [
               [
                 3191,
@@ -10058,6 +10061,7 @@
           },
           "ml_island_wide": {
             "accuracy": 0.7671,
+            "rain_f2": 0.1878,
             "confusion_matrix": [
               [
                 2752,

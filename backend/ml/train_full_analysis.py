@@ -1321,7 +1321,8 @@ def compute_nea_2h_area_benchmark(
             iw_nea_cr  = classification_report(iw_y_true, iw_y_nea, labels=list(range(n_class)),
                                                target_names=list(cats.values()),
                                                output_dict=True, zero_division=0)
-            iw_results["nea"] = {"accuracy": round(iw_nea_acc, 4),
+            iw_nea_f2 = _rain_f2(iw_y_true, iw_y_nea, n_class)
+            iw_results["nea"] = {"accuracy": round(iw_nea_acc, 4), "rain_f2": round(iw_nea_f2, 4),
                                   "confusion_matrix": iw_nea_cm, "report": iw_nea_cr}
 
             if ml_df is not None and "ml_class" in iw_merged.columns:
@@ -1337,8 +1338,9 @@ def compute_nea_2h_area_benchmark(
                                                        labels=list(range(n_class)),
                                                        target_names=list(cats.values()),
                                                        output_dict=True, zero_division=0)
+                    iw_ml_f2  = _rain_f2(iw_y_true_v, iw_y_ml_v, n_class)
                     iw_results["ml_island_wide"] = {
-                        "accuracy": round(iw_ml_acc, 4),
+                        "accuracy": round(iw_ml_acc, 4), "rain_f2": round(iw_ml_f2, 4),
                         "confusion_matrix": iw_ml_cm, "report": iw_ml_cr,
                     }
                     iw_results["n_samples"] = int(iw_valid.sum())

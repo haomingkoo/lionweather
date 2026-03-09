@@ -1414,7 +1414,7 @@ export function MLAnalysisDashboard() {
 
         // Best-in-column helpers
         const bestF2_6h  = Math.max(prNea.rain_f2 ?? 0, prMl.rain_f2 ?? 0, iwNea.rain_f2 ?? 0, iwMl.rain_f2 ?? 0);
-        const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0);
+        const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0, iwNea2.rain_f2 ?? 0, iwMl2.rain_f2 ?? 0);
         const bestAcc_2h = Math.max(paNea.accuracy ?? 0, paMl.accuracy ?? 0, paEns.accuracy ?? 0);
 
         return (
@@ -1542,13 +1542,13 @@ export function MLAnalysisDashboard() {
                               <tr className="border-t border-white/10">
                                 <td className="py-1.5 pr-3 font-medium text-[11px] text-white/40 italic">Island-wide · NEA → majority vote</td>
                                 <td className="text-right px-2 font-mono text-white/35">{(iwNea2.accuracy * 100).toFixed(1)}%</td>
-                                <td className="text-right px-2 font-mono text-white/35">—</td>
+                                <td className={`text-right px-2 font-mono ${(iwNea2.rain_f2 ?? 0) === bestF2_2h && iwNea2.rain_f2 != null ? "text-yellow-300 font-semibold" : "text-white/35"}`}>{iwNea2.rain_f2 != null ? `${(iwNea2.rain_f2 * 100).toFixed(1)}%` : "—"}</td>
                                 <td className="text-right pl-2 text-[10px] text-white/20 italic">fair vs ML</td>
                               </tr>
                               <tr className="border-t border-white/5">
                                 <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-200/50 italic">Island-wide · ML model</td>
                                 <td className="text-right px-2 font-mono text-blue-200/45">{(iwMl2.accuracy * 100).toFixed(1)}%</td>
-                                <td className="text-right px-2 font-mono text-blue-200/45">—</td>
+                                <td className={`text-right px-2 font-mono ${(iwMl2.rain_f2 ?? 0) === bestF2_2h && iwMl2.rain_f2 != null ? "text-yellow-300 font-semibold" : "text-blue-200/45"}`}>{iwMl2.rain_f2 != null ? `${(iwMl2.rain_f2 * 100).toFixed(1)}%` : "—"}</td>
                                 <td className="text-right pl-2"></td>
                               </tr>
                             </>
