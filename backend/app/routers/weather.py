@@ -112,33 +112,40 @@ async def fetch_from_open_meteo(lat: float, lng: float) -> dict:
             params={
                 "latitude": lat,
                 "longitude": lng,
-                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,surface_pressure",
+                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,surface_pressure,visibility,uv_index",
                 "timezone": "auto",
             },
             timeout=10.0,
         )
         response.raise_for_status()
         data = response.json()
-    
+
     current = data.get("current", {})
     temperature = current.get("temperature_2m")
     weather_code = current.get("weather_code", 0)
     humidity = current.get("relative_humidity_2m")
     wind_speed = current.get("wind_speed_10m")
     pressure = current.get("surface_pressure")
-    
+    visibility_m = current.get("visibility")  # in metres
+    uv_index = current.get("uv_index")
+
+    # Convert visibility from metres to km, rounded to 1 decimal
+    visibility_km = round(visibility_m / 1000, 1) if visibility_m is not None else None
+
     # Map WMO weather codes to conditions
     condition = map_weather_code(weather_code)
-    
+
     # Reverse geocode for area name
     area = await reverse_geocode(lat, lng)
-    
+
     return {
         "condition": condition,
         "temperature": temperature,
         "humidity": humidity,
         "wind_speed": wind_speed,
         "pressure": pressure,
+        "visibility": visibility_km,
+        "uv_index": uv_index,
         "area": area,
         "source": "Open-Meteo (Live)",
     }

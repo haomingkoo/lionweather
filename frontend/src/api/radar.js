@@ -4,7 +4,8 @@
  * Provides functions for fetching radar frame data from the backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const _rawBase = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE_URL = _rawBase.startsWith("http") ? _rawBase : "";
 
 /**
  * Fetch radar frames for animation

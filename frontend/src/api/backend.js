@@ -56,6 +56,8 @@ export async function getCurrentWeather(latitude, longitude) {
       humidity: data.humidity ?? null,
       wind_speed: data.wind_speed ?? null,
       pressure: data.pressure ?? null,
+      visibility: data.visibility ?? null,
+      uv_index: data.uv_index ?? null,
       area: data.area || "Unknown Area",
       source: data.source || "Backend",
     };
@@ -128,6 +130,58 @@ export async function get7DayForecast(latitude, longitude) {
 
     // Re-throw with more context
     throw new Error(`Failed to fetch forecast data: ${error.message}`);
+  }
+}
+
+/**
+ * Fetch hourly forecast from Open-Meteo (next 24 hours)
+ *
+ * @param {number} latitude - Location latitude
+ * @param {number} longitude - Location longitude
+ * @returns {Promise<Array>} Array of hourly forecast objects with real temperatures
+ */
+export async function getHourlyForecast(latitude, longitude) {
+  try {
+    const params = new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      hourly: "temperature_2m,weather_code,precipitation_probability",
+      forecast_days: "2",
+      timezone: "auto",
+    });
+
+    const response = await fetch(
+      `https://api.open-meteo.com/v1/forecast?${params}`,
+    );
+
+    if (!response.ok) {
+      throw new Error(`Open-Meteo error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const hourly = data.hourly;
+    if (!hourly?.time) return [];
+
+    const now = new Date();
+    const results = [];
+
+    for (let i = 0; i < hourly.time.length; i++) {
+      const slotTime = new Date(hourly.time[i]);
+      // Only include hours from now onwards, max 24 slots
+      if (slotTime >= now && results.length < 24) {
+        results.push({
+          time: slotTime,
+          temperature: hourly.temperature_2m[i],
+          weather_code: hourly.weather_code[i],
+          precip_prob: hourly.precipitation_probability?.[i] ?? null,
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Error fetching hourly forecast:", error);
+    return [];
   }
 }
 

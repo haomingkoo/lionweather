@@ -37,12 +37,6 @@ const PALETTE = [
   "#a78bfa", // violet-400
 ];
 
-const CATEGORY_COLORS = {
-  "No Rain": "#60a5fa",
-  "Light Rain": "#34d399",
-  "Heavy Rain": "#fbbf24",
-  "Thundery Showers": "#f472b6",
-};
 
 // ---------------------------------------------------------------------------
 // Tiny inline SVG chart primitives (no chart library dep)
@@ -74,31 +68,88 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label }) {
   );
 }
 
-function LineChart({ series, height = 80, xTicks, xLabel, yLabel }) {
+function LineChart({ series, height = 80, xTicks, xLabel, yLabel, showYAxis = true, bandSeries = null }) {
   // series = [{ name, data: [number], color }]
+  // bandSeries = { min: [number], max: [number], color } — optional shaded band
   if (!series || series.length === 0) return null;
-  const allVals = series.flatMap((s) => s.data.filter(Number.isFinite));
+  const allVals = [
+    ...series.flatMap((s) => s.data.filter(Number.isFinite)),
+    ...(bandSeries ? [...bandSeries.min, ...bandSeries.max].filter(Number.isFinite) : []),
+  ];
   if (allVals.length === 0) return null;
 
   const maxLen = Math.max(...series.map((s) => s.data.length));
-  const minY = Math.min(...allVals);
-  const maxY = Math.max(...allVals);
+  const rawMinY = Math.min(...allVals);
+  const rawMaxY = Math.max(...allVals);
+  const rangePad = Math.max((rawMaxY - rawMinY) * 0.12, 0.5);
+  const minY = rawMinY - rangePad;
+  const maxY = rawMaxY + rangePad;
   const rangeY = Math.max(maxY - minY, 0.001);
+
   const W = 360;
   const H = height;
-  const PAD = 4;
+  const PAD_L = showYAxis ? 38 : 6;
+  const PAD_R = 6;
+  const PAD_T = 6;
+  const PAD_B = xTicks && xTicks.length > 0 ? 20 : 6;
+  const PLOT_W = W - PAD_L - PAD_R;
+  const PLOT_H = H - PAD_T - PAD_B;
 
-  const toX = (i) => PAD + (i / (maxLen - 1)) * (W - PAD * 2);
-  const toY = (v) => H - PAD - ((v - minY) / rangeY) * (H - PAD * 2);
+  const toX = (i) => PAD_L + (i / Math.max(maxLen - 1, 1)) * PLOT_W;
+  const toY = (v) => PAD_T + PLOT_H - ((v - minY) / rangeY) * PLOT_H;
+
+  // Y gridlines — nicely rounded values
+  const nGridlines = 4;
+  const yGridlines = Array.from({ length: nGridlines }, (_, i) => {
+    const val = rawMinY + (i / (nGridlines - 1)) * (rawMaxY - rawMinY);
+    return { val, y: toY(val) };
+  });
+
+  // Optional band polygon points
+  const bandPoints = bandSeries
+    ? [
+        ...bandSeries.max.map((v, i) => `${toX(i)},${toY(v)}`),
+        ...[...bandSeries.min].reverse().map((v, i) => `${toX(bandSeries.min.length - 1 - i)},${toY(v)}`),
+      ].join(" ")
+    : null;
 
   return (
     <div>
       {(xLabel || yLabel) && (
-        <div className="flex justify-between text-white/40 text-[10px] mb-1">
+        <div className="flex justify-between text-white/40 text-[10px] mb-0.5">
           <span>{yLabel}</span><span>{xLabel}</span>
         </div>
       )}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+        {/* Gridlines + Y labels */}
+        {yGridlines.map(({ val, y }, i) => (
+          <g key={i}>
+            <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y}
+                  stroke="#ffffff12" strokeWidth="1" />
+            {showYAxis && (
+              <text x={PAD_L - 4} y={y + 3.5}
+                    fontSize="7.5" fill="#ffffff50" textAnchor="end" fontFamily="monospace">
+                {Math.abs(val) < 10 ? val.toFixed(1) : Math.round(val)}
+              </text>
+            )}
+          </g>
+        ))}
+        {/* Optional band */}
+        {bandPoints && (
+          <polygon points={bandPoints}
+            fill={bandSeries.color || "#60a5fa"} opacity={0.12} />
+        )}
+        {/* X tick labels */}
+        {xTicks && xTicks.map((tick, i) => {
+          const x = PAD_L + (i / Math.max(xTicks.length - 1, 1)) * PLOT_W;
+          return (
+            <text key={i} x={x} y={H - 3}
+                  fontSize="7.5" fill="#ffffff35" textAnchor="middle" fontFamily="monospace">
+              {tick}
+            </text>
+          );
+        })}
+        {/* Series lines */}
         {series.map((s, si) => {
           const pts = s.data
             .map((v, i) => `${toX(i)},${toY(v)}`)
@@ -125,6 +176,13 @@ function LineChart({ series, height = 80, xTicks, xLabel, yLabel }) {
             <span className="text-white/60 text-[10px]">{s.name}</span>
           </div>
         ))}
+        {bandSeries && (
+          <div className="flex items-center gap-1">
+            <span className="w-4 h-3 inline-block rounded opacity-40"
+              style={{ background: bandSeries.color || "#60a5fa" }} />
+            <span className="text-white/60 text-[10px]">{bandSeries.name || "Range"}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -215,7 +273,6 @@ function HorizontalBar({ items, nameKey = "feature", valueKey = "mean_abs_shap",
 
 function ConfusionMatrix({ matrix, labels }) {
   if (!matrix) return null;
-  const n = matrix.length;
   const maxVal = Math.max(...matrix.flat());
 
   return (
@@ -236,7 +293,6 @@ function ConfusionMatrix({ matrix, labels }) {
             <tr key={i}>
               <td className="text-white/60 p-1 pr-2 text-right">{labels[i]?.split(" ")[0]}</td>
               {row.map((val, j) => {
-                const intensity = Math.round((val / maxVal) * 255);
                 const bg = i === j
                   ? `rgba(52, 211, 153, ${val / maxVal})`
                   : `rgba(248, 113, 113, ${val / maxVal * 0.8})`;
@@ -255,6 +311,30 @@ function ConfusionMatrix({ matrix, labels }) {
   );
 }
 
+// Educational commentary panel shown below each section
+function CommentaryBox({ points, tip, variant = "indigo" }) {
+  const colors = {
+    indigo: { bg: "bg-indigo-500/8", border: "border-indigo-400/15", title: "text-indigo-300/80", bullet: "text-indigo-400/60", body: "text-white/60", foot: "text-indigo-300/35" },
+    blue:   { bg: "bg-blue-500/8",   border: "border-blue-400/15",   title: "text-blue-300/80",   bullet: "text-blue-400/60",   body: "text-white/60", foot: "text-blue-300/35" },
+    amber:  { bg: "bg-amber-500/8",  border: "border-amber-400/15",  title: "text-amber-300/80",  bullet: "text-amber-400/60",  body: "text-white/60", foot: "text-amber-300/35" },
+  };
+  const c = colors[variant] || colors.indigo;
+  return (
+    <div className={`mt-3 ${c.bg} border ${c.border} rounded-xl p-3 space-y-1.5`}>
+      <p className={`${c.title} text-[10px] font-semibold uppercase tracking-wide`}>How to read this</p>
+      <ul className="space-y-1.5">
+        {points.map((p, i) => (
+          <li key={i} className={`flex gap-2 ${c.body} text-[11px] leading-relaxed`}>
+            <span className={`${c.bullet} shrink-0 mt-0.5`}>›</span>
+            <span>{p}</span>
+          </li>
+        ))}
+      </ul>
+      {tip && <p className={`${c.foot} text-[10px] italic mt-1`}>{tip}</p>}
+    </div>
+  );
+}
+
 function StackedBarChart({ years, stacks, height = 70 }) {
   // stacks = [{ key, color, label }]
   if (!years || years.length === 0) return null;
@@ -262,7 +342,7 @@ function StackedBarChart({ years, stacks, height = 70 }) {
   const H = height;
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
-      {years.map((y, xi) => {
+      {years.map((_y, xi) => {
         let cumY = H;
         return stacks.map((s) => {
           const pct = s.data[xi] ?? 0;
@@ -420,7 +500,7 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Annual rainfall totals */}
       <div>
-        <p className="text-white/50 text-xs mb-2">Annual Rainfall Total (mm)</p>
+        <p className="text-white/50 text-xs mb-2">Annual Rainfall Total (mm) — each bar = one year</p>
         <MiniBarChart data={rainfallTotals} height={70} color="#60a5fa" />
         <div className="flex justify-between text-white/30 text-[10px] mt-1">
           {years.map((y) => <span key={y}>{y}</span>)}
@@ -431,6 +511,17 @@ function ClimateTrendsSection({ ct }) {
             · R²={rTrend.r_squared} · p={rTrend.p_value}
           </p>
         )}
+        <CommentaryBox
+          variant="blue"
+          points={[
+            `Each bar = total rainfall for that entire year (all rain stations aggregated). Singapore averages about 2,300 mm/year — more than London gets in 5 years.`,
+            "Taller bar = wetter year. Short bar = drier year. The differences are driven by large-scale weather patterns like El Niño (drier) and La Niña (wetter).",
+            rTrend?.significant
+              ? `The trend line shows rainfall is ${rTrend.trend} by ${Math.abs(rTrend.slope_per_year).toFixed(0)} mm per year — statistically significant (p=${rTrend.p_value}). This means Singapore is getting wetter over time.`
+              : "There is no strong long-term trend in annual totals — Singapore's rainfall varies year to year but isn't systematically getting wetter or drier yet.",
+          ]}
+          tip="Singapore's wettest months are Nov–Jan (NE Monsoon) and Mar–Apr (inter-monsoon). Driest are Jun–Aug (SW Monsoon)."
+        />
       </div>
 
       {/* Rain category breakdown */}
@@ -455,9 +546,16 @@ function ClimateTrendsSection({ ct }) {
         <p className="text-white/50 text-xs mb-2">Mean Temperature by Year (°C)</p>
         <LineChart
           series={[{ name: "Mean temp", data: tempMeans, color: "#fb923c" }]}
-          height={60}
-          xLabel="Year"
+          bandSeries={{
+            name: "Min–Max range",
+            color: "#fb923c",
+            min: years.map((y) => annual[y]?.temperature?.min_c ?? tempMeans[years.indexOf(y)]),
+            max: years.map((y) => annual[y]?.temperature?.max_c ?? tempMeans[years.indexOf(y)]),
+          }}
+          height={80}
+          xTicks={years}
           yLabel="°C"
+          showYAxis={true}
         />
         {tTrend?.significant && (
           <p className="text-orange-300 text-[10px] mt-1">
@@ -470,6 +568,18 @@ function ClimateTrendsSection({ ct }) {
             No statistically significant temperature trend (p={tTrend.p_value})
           </p>
         )}
+        <CommentaryBox
+          variant="amber"
+          points={[
+            `The orange line shows the mean (average) temperature for each year. ${years.length > 0 ? `Values range from ${Math.min(...tempMeans).toFixed(1)}°C to ${Math.max(...tempMeans).toFixed(1)}°C across the dataset.` : ""}`,
+            "The shaded band shows the full temperature range (coldest to hottest recorded hour) within each year — Singapore's daily swing is typically 5–8°C.",
+            tTrend?.significant
+              ? `There IS a statistically significant warming trend of +${tTrend.slope_per_year?.toFixed(3)}°C per year (p=${tTrend.p_value}). Over 9 years that adds up to roughly +${(tTrend.slope_per_year * 9).toFixed(1)}°C — consistent with Singapore's urban heat island and global warming.`
+              : "There is NO statistically significant warming trend in this dataset period. Weather is naturally variable year to year — a longer dataset (20+ years) would give more certainty.",
+            "Singapore's temperature doesn't vary much seasonally because it is near the equator — the sun is always roughly overhead. Year-to-year differences are driven by El Niño/La Niña cycles and urban development.",
+          ]}
+          tip="Tip: A statistically significant trend means the pattern is unlikely to be random chance (p < 0.05)."
+        />
       </div>
 
       {/* Analysis write-up */}
@@ -600,20 +710,26 @@ export function MLAnalysisDashboard() {
       </div>
 
       {/* Variable selector */}
-      <div className="flex flex-wrap gap-2">
-        {varNames.map((v) => (
-          <button
-            key={v}
-            onClick={() => setSelectedVar(v)}
-            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-              selectedVar === v
-                ? "bg-blue-500/30 border-blue-400/60 text-blue-200"
-                : "bg-white/8 border-white/15 text-white/60 hover:text-white"
-            }`}
-          >
-            {v}
-          </button>
-        ))}
+      <div className="space-y-1">
+        <div className="flex flex-wrap gap-2">
+          {varNames.map((v) => (
+            <button
+              key={v}
+              onClick={() => setSelectedVar(v)}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                selectedVar === v
+                  ? "bg-blue-500/30 border-blue-400/60 text-blue-200"
+                  : "bg-white/8 border-white/15 text-white/60 hover:text-white"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        <p className="text-white/30 text-[10px]">
+          Selected variable filters: <span className="text-white/50">EDA · ACF/PACF · Frequency Analysis</span>
+          {" "}— Climate Trends and Model Performance always show rainfall.
+        </p>
       </div>
 
       {/* 0. Climate Trends */}
@@ -708,6 +824,26 @@ export function MLAnalysisDashboard() {
                   </div>
                 );
               })()}
+
+              {/* EDA Commentary */}
+              <CommentaryBox
+                variant="indigo"
+                points={(() => {
+                  const e = data.eda[selectedVar] || {};
+                  const varLabels = { rainfall: "rainfall (mm/hr)", temperature: "temperature (°C)", humidity: "relative humidity (%)", wind_speed: "wind speed (km/h)" };
+                  const label = varLabels[selectedVar] || selectedVar;
+                  const pts = [];
+                  pts.push(`Mean = ${e.mean} means the average hourly ${label} across all 8,760+ hours of data. Std = ${e.std} is how much values typically vary around that mean — higher = more volatile.`);
+                  pts.push(`Skewness = ${e.skewness}: A value close to 0 means a symmetric distribution. ${parseFloat(e.skewness) > 1 ? `Positive skewness (${e.skewness}) means most hours are low but a few extreme highs (like a heavy downpour) pull the average up.` : parseFloat(e.skewness) < -1 ? `Negative skewness means most values are high but occasional very low readings exist.` : "Near-zero skewness means the data is roughly bell-shaped and symmetric."}`);
+                  pts.push(`P50 = ${e.p50} means half of all hourly readings are below this value. P99 = ${e.p99} is the 99th percentile — only 1% of hours exceed this, representing extreme events.`);
+                  pts.push(`The "Distribution" histogram shows how often each value occurs. A peak on the left with a long tail to the right means: mostly no/low ${selectedVar} with rare extreme spikes.`);
+                  pts.push(`The hourly pattern chart (blue) shows the typical daily cycle — X-axis is hour of day (0=midnight, 12=noon). ${selectedVar === "temperature" ? "Temperature peaks at ~2pm and is lowest at ~6am — the classic day/night cycle." : selectedVar === "rainfall" ? "Rainfall peaks in the afternoon (convective storms forming from daytime heating) and again after midnight." : selectedVar === "humidity" ? "Humidity is highest at night/early morning and lowest in the afternoon when temperature peaks." : "Wind speed typically peaks in the afternoon when thermal heating drives sea breezes inland."}`);
+                  pts.push(`The monthly pattern (green) shows seasonal variation. ${selectedVar === "rainfall" ? "Singapore has two monsoon seasons — NE Monsoon (Nov–Jan, wetter) and SW Monsoon (Jun–Aug, drier)." : selectedVar === "temperature" ? "Temperature is remarkably stable year-round (equatorial climate) — variation between months is only 1–2°C." : "Seasonal differences reflect Singapore's monsoon cycle."}`);
+                  pts.push(`ADF (Augmented Dickey-Fuller) stationarity test: "Stationary" means the data has consistent statistical properties over time (no systematic drift), which is ideal for machine learning. "Non-stationary" means trends or changing variance exist.`);
+                  return pts;
+                })()}
+                tip={`Switch the tab above to compare ${selectedVar} patterns against other variables (temperature, humidity, wind speed).`}
+              />
             </div>
           );
         })()}
@@ -742,6 +878,18 @@ export function MLAnalysisDashboard() {
               <p className="text-white/30 text-[10px]">
                 Dashed lines = 95% CI. Lags outside bounds indicate significant autocorrelation.
               </p>
+              <CommentaryBox
+                variant="blue"
+                points={[
+                  "ACF (AutoCorrelation Function): Each vertical bar shows how much the current value correlates with a value from X hours ago. A tall bar at lag 1 means 'if it rained an hour ago, it's likely still raining.'",
+                  "PACF (Partial ACF): Like ACF but removes the indirect effect of intermediate lags. A tall bar at lag 2 in PACF means there's a DIRECT 2-hour memory, not just because lag 1 is correlated.",
+                  `The dashed yellow lines are the 95% confidence interval. Any bar extending BEYOND the dashes is statistically significant — the value at that lag genuinely predicts the current value.`,
+                  `Significant ACF lags for ${selectedVar}: ${data.acf_pacf?.[selectedVar]?.significant_acf_lags?.slice(0, 8).join(", ") || "loading..."}. This tells us the model should use these past hours as input features.`,
+                  "A slowly decaying ACF (each bar only slightly smaller than the last) suggests strong persistence — conditions tend to last a long time. A sharp drop after lag 1 means quick changes.",
+                  "These charts directly inform which 'lag features' are built into the ML model — e.g., rain_lag_1h, hum_lag_6h.",
+                ]}
+                tip="Expert tip: If both ACF and PACF cut off sharply after lag p, an AR(p) model is appropriate. Slowly decaying ACF with sharp PACF cutoff → MA model."
+              />
             </div>
           );
         })()}
@@ -782,6 +930,18 @@ export function MLAnalysisDashboard() {
               <p className="text-white/30 text-[10px]">
                 Peaks at 24h and 12h confirm daily cycles. Peaks at 168h (7 days) = weekly pattern.
               </p>
+              <CommentaryBox
+                variant="indigo"
+                points={[
+                  "The FFT Periodogram reveals hidden cycles in the data by converting time-series data into frequency components — like a prism splitting white light into a rainbow.",
+                  "The X-axis shows 'period' (how long a cycle takes in hours). The Y-axis shows 'power' — how strong that cycle is. A tall spike = a very consistent, repeating pattern.",
+                  `A dominant spike at 24h means ${selectedVar} has a strong daily cycle (rises and falls once every 24 hours). The 12h spike is the twice-daily harmonic — also very common in tropical climates.`,
+                  `Spikes around 168h (7 days) would indicate a weekly pattern — common for wind speed and humidity due to different urban activity patterns on weekdays vs weekends.`,
+                  `Spikes at 300–400h range correspond to roughly monthly cycles, likely driven by Singapore's monsoon transitions.`,
+                  "These cycles become features in the ML model — the model 'knows' what time of day and month it is, which dramatically improves forecasting accuracy.",
+                ]}
+                tip="Fun fact: The same mathematical technique (FFT) is used in JPEG image compression and your phone's noise cancellation."
+              />
             </div>
           );
         })()}
@@ -830,6 +990,18 @@ export function MLAnalysisDashboard() {
               ))}
             </div>
           </div>
+          <CommentaryBox
+            variant="amber"
+            points={[
+              "The stem plots show cross-correlation between two variables at different time lags. Each vertical bar = correlation at that lag. Bars outside the dashed lines are statistically significant.",
+              "r=-0.90 between temperature and humidity is extremely strong and NEGATIVE — as temperature rises, humidity falls sharply. This makes physical sense: hot air can hold more water vapor, so relative humidity drops.",
+              "r=0.17 between rainfall and humidity is a weak POSITIVE link — slightly more rain when humid. Correlation does not imply causation: both are driven by the same weather system.",
+              "Granger Causality tests whether PAST values of one variable help predict the FUTURE of another. 'Temperature Granger-causes rainfall' (p=0) means: knowing yesterday's temperature genuinely helps predict today's rainfall — beyond just using rainfall history alone.",
+              "All three variables (temperature, humidity, wind speed) Granger-cause rainfall at p≈0, confirming they are all legitimate predictive features for the ML model.",
+              "Spurious correlation warning: Two variables can appear correlated because they're both driven by a THIRD hidden variable (the monsoon cycle, for example). Granger causality helps distinguish real predictive relationships from coincidence.",
+            ]}
+            tip="The r values (Pearson correlation) range from -1 (perfect inverse) to +1 (perfect positive). Values near 0 mean no linear relationship."
+          />
         </div>
       </Section>
 
@@ -1009,6 +1181,19 @@ export function MLAnalysisDashboard() {
                   missed rain is not.
                 </p>
               </div>
+              <CommentaryBox
+                variant="blue"
+                points={[
+                  "Accuracy (overall %) tells you what fraction of all predictions were correct. But accuracy is misleading for imbalanced data — if 60% of hours are dry, guessing 'no rain' always achieves 60% without being useful.",
+                  "Precision = 'of all times the model predicted rain, how often was it right?' High precision = fewer false alarms.",
+                  "Recall = 'of all actual rain events, how many did the model catch?' High recall = fewer missed rain events. For a weather app, RECALL is more important — being caught in unexpected rain is worse than carrying an umbrella unnecessarily.",
+                  "F1 Score is the harmonic mean of precision and recall. It balances both — useful when you care about both false alarms and missed events.",
+                  "The confusion matrix grid shows where the model makes mistakes. The GREEN diagonal = correct predictions. RED cells = errors. The most costly cell is 'Heavy Rain predicted as No Rain' (top-right area) — that's a missed warning.",
+                  "Why is Heavy Rain recall so low (3.8%)? Heavy rain hours are rare (only 476 out of 8,765), so the model has fewer examples to learn from. Cost-weighting (4×) partially compensates, but heavy rain remains the hardest to forecast.",
+                  "The Binary classifier (Rain vs No-Rain) is simpler and achieves 80% accuracy with 72% rain recall — a much easier task than distinguishing 4 rain categories.",
+                ]}
+                tip="Practical interpretation: At 1h ahead, the model correctly warns about rain 72% of the time. For 3h ahead, this drops further. Always check the hourly forecast!"
+              />
             </div>
           );
         })()}
@@ -1074,6 +1259,22 @@ export function MLAnalysisDashboard() {
                     Mean |SHAP| across {sv.n_samples_used} test samples.
                     Longer bar = more impact on model output.
                   </p>
+                  {key.includes("1h") && (
+                    <CommentaryBox
+                      variant="indigo"
+                      points={[
+                        "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction — unlike feature importance which only measures average effect, SHAP explains individual predictions.",
+                        "dry_spell_hours (top feature): How many consecutive dry hours before this reading. The longer the dry spell, the more the atmosphere can build up heat and instability — making the next rain more intense when it comes.",
+                        "hum_lag_6h: Humidity 6 hours ago. If humidity was high 6 hours ago and has been rising, conditions are becoming favorable for precipitation.",
+                        "rain_streak_hours: Consecutive hours of ongoing rain. Rain systems in Singapore typically last 1–3 hours, so knowing the streak helps predict whether rain will continue or stop.",
+                        "cos_hour: The cosine-transformed hour of day. This captures the time-of-day cycle in a mathematically clean way — afternoon hours have higher convective rainfall risk.",
+                        "wind_accel_3h: Rate of wind speed change over 3 hours. Rapidly increasing winds can signal an approaching storm system.",
+                        "hum_deficit: Gap between actual humidity and saturation point. When this approaches zero, the air is close to condensation — rain becomes likely.",
+                        "The longer the bar, the more that feature influences the model's rain forecasts. Features not listed have negligible impact and were excluded to prevent overfitting.",
+                      ]}
+                      tip="SHAP values tell a story: 'Given this exact combination of dry spell + humidity + time of day + wind, the model predicts rain with X% probability.'"
+                    />
+                  )}
                 </div>
               )
             ))}

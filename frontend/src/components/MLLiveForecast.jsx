@@ -84,6 +84,9 @@ export function MLLiveForecast() {
           <div>
             <h3 className="text-base font-semibold text-white">Live Rain Forecast</h3>
             <p className="text-xs text-slate-400">LightGBM · trained on NEA 2016–2024</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Island-wide average · all NEA stations, not your specific location
+            </p>
           </div>
         </div>
         <button

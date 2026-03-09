@@ -15,14 +15,88 @@ import {
   ThermometerSun,
   Navigation,
   MapPin,
+  Zap,
 } from "lucide-react";
 import { getWeatherIcon } from "../utils/weatherTheme";
 import { request } from "../api/client";
-import { get24HourForecast, get4DayForecast } from "../api/forecasts";
+import { get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
 import { getSunTimes } from "../utils/sunTimes";
-import { getCurrentWeather, get7DayForecast } from "../api/backend";
+import { getCurrentWeather, get7DayForecast, getHourlyForecast } from "../api/backend";
+
+// Map WMO weather codes to simple condition strings
+function wmoToCondition(code) {
+  if (code === 0) return "Clear";
+  if (code <= 3) return "Partly Cloudy";
+  if (code <= 48) return "Cloudy";
+  if (code <= 67) return "Rain";
+  if (code <= 82) return "Showers";
+  if (code <= 99) return "Thunderstorm";
+  return "Cloudy";
+}
+
+// Generate Apple Weather-style commentary from current conditions
+function generateCommentary({ condition, temperature, humidity, uv_index, sunTimes }) {
+  const c = (condition || "").toLowerCase();
+  const hour = new Date().getHours();
+  const isDaytime = hour >= 6 && hour < 20;
+  const lines = [];
+
+  if (c.includes("thunder") || c.includes("storm")) {
+    lines.push("Thunderstorm conditions — stay indoors and avoid open areas.");
+  } else if (c.includes("heavy rain") || c.includes("heavy shower")) {
+    lines.push("Heavy rain expected. Carry an umbrella and watch for flash floods.");
+  } else if (c.includes("rain") || c.includes("shower") || c.includes("drizzle")) {
+    lines.push("Showers likely. Keep an umbrella handy when heading out.");
+  } else if (c.includes("cloudy") || c.includes("overcast") || c.includes("haze")) {
+    lines.push("Overcast skies with little sunshine today.");
+  } else if (c.includes("partly")) {
+    lines.push("Partly cloudy with sunny intervals. A brief shower is possible.");
+  } else if (c.includes("sunny") || c.includes("clear") || c.includes("fair")) {
+    lines.push("Clear skies and plenty of sunshine today.");
+  } else {
+    lines.push("Conditions are relatively stable throughout the day.");
+  }
+
+  if (temperature !== null && temperature !== undefined) {
+    const t = Math.round(temperature);
+    if (t >= 35) lines.push(`Very hot at ${t}°C — stay hydrated and limit time outdoors.`);
+    else if (t >= 32) lines.push(`Warm at ${t}°C with high humidity making it feel hotter.`);
+    else if (t <= 25) lines.push(`A comfortable ${t}°C — pleasant for outdoor activities.`);
+  }
+
+  if (uv_index !== null && uv_index !== undefined && isDaytime) {
+    const uv = Math.round(uv_index);
+    if (uv >= 11) lines.push(`Extreme UV index (${uv}) — sunscreen and shade are essential.`);
+    else if (uv >= 8) lines.push(`Very high UV (${uv}) — apply SPF 50+ before heading outside.`);
+    else if (uv >= 6) lines.push(`High UV index (${uv}) — consider sunscreen for extended outdoor time.`);
+  }
+
+  if (humidity !== null && humidity !== undefined) {
+    const h = Math.round(humidity);
+    if (h >= 85) lines.push(`Humidity at ${h}% will make it feel oppressively muggy.`);
+    else if (h >= 70) lines.push(`At ${h}% humidity it will feel noticeably sticky.`);
+  }
+
+  if (sunTimes?.sunset && sunTimes.sunset !== "N/A") {
+    const now = new Date();
+    const parts = sunTimes.sunset.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (parts) {
+      let sh = parseInt(parts[1]);
+      const sm = parseInt(parts[2]);
+      const meridiem = parts[3].toUpperCase();
+      if (meridiem === "PM" && sh !== 12) sh += 12;
+      if (meridiem === "AM" && sh === 12) sh = 0;
+      const minsToSunset = sh * 60 + sm - (now.getHours() * 60 + now.getMinutes());
+      if (minsToSunset > 0 && minsToSunset <= 90) {
+        lines.push(`Sunset in about ${minsToSunset} min at ${sunTimes.sunset}.`);
+      }
+    }
+  }
+
+  return lines;
+}
 
 const iconMap = {
   Sun,
@@ -44,6 +118,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const [openMeteoData, setOpenMeteoData] = useState({
     visibility: null,
     pressure: null,
+    uv_index: null,
   });
 
   const textColor = isDark ? "text-white" : "text-slate-900";
@@ -65,7 +140,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     fetchSunTimes();
   }, [location.latitude, location.longitude]);
 
-  // Fetch Open-Meteo data for visibility and pressure
+  // Fetch Open-Meteo data for visibility, pressure, and UV index
   useEffect(() => {
     const fetchOpenMeteoData = async () => {
       try {
@@ -73,10 +148,13 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           location.latitude,
           location.longitude,
         );
-        setOpenMeteoData(data);
+        setOpenMeteoData({
+          visibility: data.visibility ?? null,
+          pressure: data.pressure ?? null,
+          uv_index: data.uv_index ?? null,
+        });
       } catch (err) {
         console.error("Error fetching Open-Meteo data:", err);
-        // Keep default null values if fetch fails
       }
     };
 
@@ -100,39 +178,19 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
     const fetchForecasts = async () => {
       try {
-        // Fetch 24-hour forecast
-        const forecast24h = await get24HourForecast();
-        if (forecast24h?.periods) {
-          // Convert periods to hourly format
-          const hourly = [];
+        // Fetch hourly forecast from Open-Meteo (real per-hour temperatures)
+        const hourlyData = await getHourlyForecast(location.latitude, location.longitude);
+        if (hourlyData.length > 0) {
           const now = new Date();
-          for (let i = 0; i < 24; i++) {
-            const hour = new Date(now.getTime() + i * 60 * 60 * 1000);
-            // Find the period that covers this hour
-            const period = forecast24h.periods.find((p) => {
-              const periodStart = new Date(p.time.start);
-              const periodEnd = new Date(p.time.end);
-              return hour >= periodStart && hour < periodEnd;
-            });
-
-            // Parse temperature from period forecast text or use location's current temperature
-            let temp = location.weather.temperature || "N/A";
-            if (period?.temperature) {
-              temp = period.temperature;
-            }
-
-            hourly.push({
-              time:
-                i === 0
-                  ? "Now"
-                  : hour.toLocaleTimeString("en-US", {
-                      hour: "numeric",
-                      hour12: true,
-                    }),
-              temperature: temp,
-              condition: period?.forecast || location.weather.condition,
-            });
-          }
+          const hourly = hourlyData.slice(0, 24).map((slot, i) => ({
+            time: i === 0
+              ? "Now"
+              : slot.time.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }),
+            temperature: slot.temperature !== null ? Math.round(slot.temperature) : null,
+            condition: wmoToCondition(slot.weather_code),
+            precip_prob: slot.precip_prob,
+            isActualTime: slot.time,
+          }));
           setHourlyForecast(hourly);
         }
 
@@ -232,17 +290,95 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     return null;
   };
 
-  const IconComponent = iconMap[getWeatherIcon(location.weather.condition)];
   const temperature = location.weather.temperature || "N/A";
   const feelsLike =
     comprehensiveData?.temperature ||
     (temperature !== "N/A" ? parseInt(temperature) - 2 : "N/A");
+
+  // Apple Weather-style contextual descriptions
+  const humidity = comprehensiveData?.humidity || location.weather?.humidity || null;
+  const dewPoint = (temperature !== "N/A" && humidity)
+    ? Math.round(parseFloat(temperature) - ((100 - humidity) / 5))
+    : null;
+  const humidityDesc = humidity
+    ? humidity >= 85 ? "Very muggy — feels sticky"
+    : humidity >= 70 ? `Dew point is ${dewPoint}°C`
+    : humidity >= 50 ? "Comfortable humidity"
+    : "Dry air today"
+    : null;
+
+  const vis = openMeteoData.visibility;
+  const visibilityDesc = vis !== null
+    ? vis >= 20 ? "Perfectly clear view."
+    : vis >= 10 ? "Good visibility."
+    : vis >= 5 ? "Slightly hazy."
+    : "Poor visibility — haze or fog."
+    : null;
+
+  const pressure = openMeteoData.pressure;
+  const pressureDesc = pressure !== null
+    ? pressure >= 1013 ? "Normal — stable conditions."
+    : pressure >= 1005 ? "Slightly low — change possible."
+    : "Low pressure — rain likely."
+    : null;
+
+  const uv = openMeteoData.uv_index;
+  const uvDesc = uv !== null
+    ? uv >= 11 ? "Extreme — stay indoors."
+    : uv >= 8 ? `Very high — use SPF 50+ outside.`
+    : uv >= 6 ? `High — apply sunscreen if out long.`
+    : uv >= 3 ? `Moderate — consider sunscreen.`
+    : "Low — no protection needed."
+    : null;
+  const uvColor = uv !== null
+    ? uv >= 11 ? "text-purple-300"
+    : uv >= 8 ? "text-red-400"
+    : uv >= 6 ? "text-orange-400"
+    : uv >= 3 ? "text-yellow-400"
+    : "text-green-400"
+    : "text-white/60";
+
+  const windSpeed = comprehensiveData?.wind_speed;
+  const windDesc = windSpeed !== null && windSpeed !== undefined
+    ? windSpeed >= 40 ? "Strong winds — take care outside."
+    : windSpeed >= 20 ? "Breezy conditions."
+    : windSpeed >= 10 ? "Light breeze."
+    : "Calm winds."
+    : null;
+
+  const rainfall = comprehensiveData?.rainfall;
+  const rainfallDesc = rainfall !== null && rainfall !== undefined
+    ? rainfall >= 10 ? "Heavy downpour — seek shelter."
+    : rainfall >= 2.5 ? "Moderate rain ongoing."
+    : rainfall > 0 ? "Light drizzle."
+    : "No active rainfall."
+    : null;
+
+  // Generate commentary once we have data
+  const commentary = generateCommentary({
+    condition: location.weather.condition,
+    temperature: location.weather.temperature,
+    humidity: comprehensiveData?.humidity,
+    uv_index: openMeteoData.uv_index,
+    sunTimes,
+  });
 
   return (
     <div className="space-y-3">
       {/* Error — subtle inline note, not a big banner */}
       {error && (
         <p className="text-white/40 text-xs px-1">{error} — showing cached data</p>
+      )}
+
+      {/* Weather Commentary — Apple Weather style */}
+      {commentary.length > 0 && (
+        <div className={`rounded-2xl backdrop-blur-2xl px-4 py-3 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}>
+          {commentary.map((line, i) => (
+            <p key={i} className={`text-sm leading-relaxed ${i === 0 ? textColor : secondaryTextColor} ${i > 0 ? "mt-1" : ""}`}>
+              {line}
+            </p>
+          ))}
+        </div>
       )}
 
       {/* Hourly Forecast - Horizontal Slider */}
@@ -266,34 +402,55 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         </div>
         {/* Horizontal scrolling container */}
         <div
-          className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
+          className="flex gap-2 overflow-x-auto pb-1"
           style={{
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
           }}
         >
-          {hourlyForecast.map((hour, i) => (
-            <div
-              key={i}
-              className={`flex flex-col items-center gap-1 min-w-[50px] p-2 rounded-xl transition-all duration-200 hover:scale-105 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
-            >
-              <span
-                className={`text-xs font-medium ${i === 0 ? textColor : secondaryTextColor}`}
+          {hourlyForecast.map((hour, i) => {
+            const hourIconKey = getWeatherIcon(hour.condition);
+            const HourIcon = iconMap[hourIconKey];
+            return (
+              <div
+                key={i}
+                className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl transition-all duration-200 ${isDark ? "hover:bg-white/10" : "hover:bg-white/30"}`}
               >
-                {hour.time}
-              </span>
-              {IconComponent && (
-                <IconComponent
-                  className={`h-5 w-5 ${textColor}`}
-                  strokeWidth={1.5}
-                  aria-label={`${hour.condition} weather icon`}
-                />
-              )}
-              <span className={`text-sm font-semibold ${textColor}`}>
-                {hour.temperature}°
-              </span>
+                <span className={`text-xs font-medium ${i === 0 ? textColor : secondaryTextColor}`}>
+                  {hour.time}
+                </span>
+                {HourIcon ? (
+                  <HourIcon className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
+                ) : (
+                  <Sun className={`h-5 w-5 ${textColor}`} strokeWidth={1.5} />
+                )}
+                <span className={`text-sm font-semibold ${textColor}`}>
+                  {hour.temperature !== null ? `${hour.temperature}°` : "—"}
+                </span>
+                {hour.precip_prob !== null && hour.precip_prob > 0 && (
+                  <span className="text-[9px] text-sky-300 font-medium">
+                    {hour.precip_prob}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          {/* Sunrise slot in hourly */}
+          {sunTimes.sunrise !== "N/A" && (
+            <div className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-amber-500/10" : "bg-amber-100/30"}`}>
+              <span className={`text-xs font-medium text-amber-300`}>Rise</span>
+              <Sunrise className="h-5 w-5 text-amber-400" strokeWidth={1.5} />
+              <span className={`text-xs font-semibold text-amber-300`}>{sunTimes.sunrise}</span>
             </div>
-          ))}
+          )}
+          {/* Sunset slot in hourly */}
+          {sunTimes.sunset !== "N/A" && (
+            <div className={`flex flex-col items-center gap-1 min-w-[52px] p-2 rounded-xl ${isDark ? "bg-orange-500/10" : "bg-orange-100/30"}`}>
+              <span className={`text-xs font-medium text-orange-300`}>Set</span>
+              <Sunset className="h-5 w-5 text-orange-400" strokeWidth={1.5} />
+              <span className={`text-xs font-semibold text-orange-300`}>{sunTimes.sunset}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -369,17 +526,12 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         >
           <div className="flex items-center gap-2 mb-2">
             <Droplets className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Humidity
-            </span>
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Humidity</span>
           </div>
-          <div
-            className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-          >
+          <div className={`text-2xl font-light ${textColor}`}>
             {comprehensiveData?.humidity || 75}%
           </div>
+          {humidityDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{humidityDesc}</p>}
         </div>
 
         {/* Wind */}
@@ -388,33 +540,20 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         >
           <div className="flex items-center gap-2 mb-2">
             <Wind className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Wind
-            </span>
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Wind</span>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-            >
-              {comprehensiveData?.wind_speed || 12}
-            </div>
+            <div className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed || 12}</div>
             <span className={`text-base ${secondaryTextColor}`}>km/h</span>
           </div>
           {comprehensiveData?.wind_direction && (
             <div className="flex items-center gap-2 mt-1">
-              <Navigation
-                className={`h-3 w-3 ${tertiaryTextColor}`}
-                style={{
-                  transform: `rotate(${comprehensiveData.wind_direction}deg)`,
-                }}
-              />
-              <span className={`text-xs ${tertiaryTextColor}`}>
-                {comprehensiveData.wind_direction}°
-              </span>
+              <Navigation className={`h-3 w-3 ${tertiaryTextColor}`}
+                style={{ transform: `rotate(${comprehensiveData.wind_direction}deg)` }} />
+              <span className={`text-xs ${tertiaryTextColor}`}>{comprehensiveData.wind_direction}°</span>
             </div>
           )}
+          {windDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{windDesc}</p>}
         </div>
 
         {/* Rainfall */}
@@ -423,20 +562,13 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         >
           <div className="flex items-center gap-2 mb-2">
             <CloudRain className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Rainfall
-            </span>
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Rainfall</span>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-            >
-              {comprehensiveData?.rainfall || 0}
-            </div>
+            <div className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.rainfall || 0}</div>
             <span className={`text-base ${secondaryTextColor}`}>mm</span>
           </div>
+          {rainfallDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{rainfallDesc}</p>}
         </div>
 
         {/* Visibility */}
@@ -445,27 +577,15 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         >
           <div className="flex items-center gap-2 mb-2">
             <Eye className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Visibility
-            </span>
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Visibility</span>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-            >
-              {openMeteoData.visibility !== null
-                ? openMeteoData.visibility
-                : "N/A"}
+            <div className={`text-2xl font-light ${textColor}`}>
+              {vis !== null ? vis : "N/A"}
             </div>
-            {openMeteoData.visibility !== null && (
-              <span className={`text-base ${secondaryTextColor}`}>km</span>
-            )}
+            {vis !== null && <span className={`text-base ${secondaryTextColor}`}>km</span>}
           </div>
-          <div className={`text-[9px] ${tertiaryTextColor} mt-1`}>
-            Open-Meteo
-          </div>
+          {visibilityDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{visibilityDesc}</p>}
         </div>
 
         {/* Pressure */}
@@ -474,44 +594,47 @@ export function DetailedWeatherCard({ location, isDark = false }) {
         >
           <div className="flex items-center gap-2 mb-2">
             <Gauge className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Pressure
-            </span>
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Pressure</span>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-            >
-              {openMeteoData.pressure !== null ? openMeteoData.pressure : "N/A"}
+            <div className={`text-2xl font-light ${textColor}`}>
+              {pressure !== null ? pressure : "N/A"}
             </div>
-            {openMeteoData.pressure !== null && (
-              <span className={`text-base ${secondaryTextColor}`}>hPa</span>
-            )}
+            {pressure !== null && <span className={`text-base ${secondaryTextColor}`}>hPa</span>}
           </div>
-          <div className={`text-[9px] ${tertiaryTextColor} mt-1`}>
-            Open-Meteo
+          {pressureDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{pressureDesc}</p>}
+        </div>
+
+        {/* UV Index */}
+        {uv !== null && (
+        <div
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className={`h-4 w-4 ${tertiaryTextColor}`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>UV Index</span>
+          </div>
+          <div className={`text-2xl font-light ${uvColor}`}>{Math.round(uv)}</div>
+          {uvDesc && <p className={`text-xs mt-1 leading-snug ${uvColor} opacity-80`}>{uvDesc}</p>}
+          {/* UV bar */}
+          <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7)" }}>
+            <div className="h-full w-1 bg-white rounded-full opacity-90" style={{ marginLeft: `${Math.min(Math.round(uv) / 12 * 100, 96)}%` }} />
           </div>
         </div>
+        )}
 
         {/* Sunrise */}
         <div
           className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
-            <Sunrise className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Sunrise
-            </span>
+            <Sunrise className={`h-4 w-4 text-amber-400`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
           </div>
-          <div
-            className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-          >
-            {sunTimes.sunrise}
-          </div>
+          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
+          {sunTimes.sunset !== "N/A" && (
+            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunset {sunTimes.sunset}</p>
+          )}
         </div>
 
         {/* Sunset */}
@@ -519,18 +642,13 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
           <div className="flex items-center gap-2 mb-2">
-            <Sunset className={`h-4 w-4 ${tertiaryTextColor}`} />
-            <span
-              className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}
-            >
-              Sunset
-            </span>
+            <Sunset className={`h-4 w-4 text-orange-400`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
           </div>
-          <div
-            className={`text-2xl xl:text-2xl 2xl:text-2xl font-light ${textColor}`}
-          >
-            {sunTimes.sunset}
-          </div>
+          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+          {sunTimes.sunrise !== "N/A" && (
+            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunrise {sunTimes.sunrise}</p>
+          )}
         </div>
       </div>
 
