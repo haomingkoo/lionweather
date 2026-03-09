@@ -37,17 +37,19 @@ SG_LON = 103.8198
 YEARS = list(range(2016, 2025))
 
 
-# ── 1. Open-Meteo convective variables ───────────────────────────────────────
+# ── 1. Open-Meteo archive variables (ERA5-backed, available for Singapore 2016-2024) ──
+# Note: pressure-level vars (cape, 850hPa) return None for Singapore in the archive API.
+# Use available surface/radiation proxies instead:
+#   cloud_cover        → convective cloud fraction (direct instability signal)
+#   shortwave_radiation→ daytime solar heating drives Sumatra-style convection
+#   wind_direction_10m → surface wind direction identifies Sumatra squall westerly flow
+#   surface_pressure   → mesoscale pressure falls precede squall lines
 
 OM_HOURLY_VARS = [
-    "cape",                      # Convective Available Potential Energy (J/kg)
-    "lifted_index",              # Lifted Index (negative = unstable)
-    "convective_inhibition",     # CIN (J/kg)
-    "wind_speed_850hPa",         # Low-level wind speed (km/h)
-    "wind_speed_200hPa",         # Upper-level jet stream (km/h)
-    "wind_direction_850hPa",     # Low-level wind direction (degrees)
-    "temperature_850hPa",        # Low-level temperature (°C)
-    "relative_humidity_850hPa",  # Low-level humidity (%) — proxy for column moisture
+    "cloud_cover",           # Total cloud cover (%)
+    "shortwave_radiation",   # Solar radiation W/m² — daytime heating proxy
+    "wind_direction_10m",    # Surface wind direction (°) — Sumatra squall indicator
+    "surface_pressure",      # Sea-level pressure (hPa)
 ]
 
 
@@ -118,7 +120,239 @@ def fetch_openmeteo_convective() -> pd.DataFrame:
     return df
 
 
-# ── 2. BOM MJO RMM indices ───────────────────────────────────────────────────
+# ── 2. ERA5 convective variables via Copernicus CDS ──────────────────────────
+# Requires ~/.cdsapirc with url + key from https://cds.climate.copernicus.eu/api-how-to
+# The user must accept Terms of Use for each ERA5 dataset on the CDS website.
+
+ERA5_SINGLE_VARS = [
+    "convective_available_potential_energy",  # CAPE (J/kg)
+    "convective_inhibition",                  # CIN (J/kg)
+    "k_index",                                # K-index (°C) — thunderstorm potential
+    "total_column_water_vapour",              # Precipitable water (kg/m²)
+    "surface_pressure",                       # Surface pressure (Pa → hPa)
+]
+
+ERA5_PRESSURE_VARS = [
+    "u_component_of_wind",    # Zonal wind at 850hPa and 200hPa (m/s)
+    "v_component_of_wind",    # Meridional wind
+    "temperature",            # Temperature at 850hPa (K)
+    "relative_humidity",      # RH at 850hPa (%)
+]
+
+
+def fetch_era5_year(year: int, out_dir: Path) -> bool:
+    """Download one year of ERA5 hourly data for Singapore. Returns True if successful."""
+    try:
+        import cdsapi
+        import xarray as xr
+    except ImportError:
+        log.warning("cdsapi or xarray not installed — skipping ERA5 fetch")
+        return False
+
+    sl_path = out_dir / f"era5_sl_{year}.nc"
+    pl_path = out_dir / f"era5_pl_{year}.nc"
+
+    months = [f"{m:02d}" for m in range(1, 13)]
+    days   = [f"{d:02d}" for d in range(1, 32)]
+    times  = [f"{h:02d}:00" for h in range(24)]
+
+    c = cdsapi.Client(quiet=True)
+
+    # Single-level (CAPE, CIN, K-index, TPW, surface pressure)
+    if not sl_path.exists():
+        log.info(f"  ERA5 single-level {year}: requesting from CDS (may take a few minutes)…")
+        try:
+            c.retrieve(
+                "reanalysis-era5-single-levels",
+                {
+                    "product_type": "reanalysis",
+                    "variable": ERA5_SINGLE_VARS,
+                    "year": str(year),
+                    "month": months,
+                    "day": days,
+                    "time": times,
+                    "area": [2.0, 103.5, 1.0, 104.5],  # Singapore bounding box (N, W, S, E)
+                    "format": "netcdf",
+                },
+                str(sl_path),
+            )
+            log.info(f"  ERA5 SL {year}: downloaded → {sl_path}")
+        except Exception as e:
+            log.error(f"  ERA5 SL {year} failed: {e}")
+            return False
+    else:
+        log.info(f"  ERA5 SL {year}: cache exists")
+
+    # Pressure-levels (850hPa + 200hPa winds/temp/humidity)
+    if not pl_path.exists():
+        log.info(f"  ERA5 pressure-levels {year}: requesting from CDS…")
+        try:
+            c.retrieve(
+                "reanalysis-era5-pressure-levels",
+                {
+                    "product_type": "reanalysis",
+                    "variable": ERA5_PRESSURE_VARS,
+                    "pressure_level": ["200", "850"],
+                    "year": str(year),
+                    "month": months,
+                    "day": days,
+                    "time": times,
+                    "area": [2.0, 103.5, 1.0, 104.5],
+                    "format": "netcdf",
+                },
+                str(pl_path),
+            )
+            log.info(f"  ERA5 PL {year}: downloaded → {pl_path}")
+        except Exception as e:
+            log.error(f"  ERA5 PL {year} failed: {e}")
+            return False
+    else:
+        log.info(f"  ERA5 PL {year}: cache exists")
+
+    return True
+
+
+def _process_era5_year(year: int, out_dir: Path) -> pd.DataFrame | None:
+    """Load downloaded ERA5 NetCDF files for one year into a DataFrame."""
+    try:
+        import xarray as xr
+    except ImportError:
+        return None
+
+    sl_path = out_dir / f"era5_sl_{year}.nc"
+    pl_path = out_dir / f"era5_pl_{year}.nc"
+
+    if not sl_path.exists() or not pl_path.exists():
+        return None
+
+    SGT = "Asia/Singapore"
+
+    # Single-level: average over the bounding box (small area, values are nearly identical)
+    ds_sl = xr.open_dataset(sl_path)
+    sl_mean = ds_sl.mean(dim=["latitude", "longitude"])
+    df_sl = sl_mean.to_dataframe().reset_index()
+
+    # Rename and convert
+    rename_sl = {
+        "cape": "cape",
+        "cin":  "cin",
+        "kx":   "k_index",
+        "tcwv": "total_column_water_vapour",
+        "sp":   "surface_pressure_pa",
+    }
+    # ERA5 variable short names vary — find what we actually got
+    actual_rename = {}
+    for col in df_sl.columns:
+        if col in rename_sl:
+            actual_rename[col] = rename_sl[col]
+    df_sl = df_sl.rename(columns=actual_rename)
+    if "surface_pressure_pa" in df_sl.columns:
+        df_sl["surface_pressure"] = df_sl["surface_pressure_pa"] / 100.0  # Pa → hPa
+
+    df_sl["time"] = pd.to_datetime(df_sl["valid_time"] if "valid_time" in df_sl.columns else df_sl["time"])
+    df_sl = df_sl.set_index("time")
+    if df_sl.index.tz is None:
+        df_sl.index = df_sl.index.tz_localize("UTC").tz_convert(SGT)
+
+    # Pressure-level: separate 850hPa and 200hPa
+    ds_pl = xr.open_dataset(pl_path)
+    pl_mean = ds_pl.mean(dim=["latitude", "longitude"])
+
+    rows = []
+    for t in pl_mean.time.values:
+        row = {"time": t}
+        for lev in [850, 200]:
+            sel = pl_mean.sel(pressure_level=lev) if "pressure_level" in pl_mean.dims else pl_mean.sel(level=lev)
+            for var in pl_mean.data_vars:
+                try:
+                    row[f"{var}_{lev}"] = float(sel[var].sel(time=t, method="nearest"))
+                except Exception:
+                    pass
+        rows.append(row)
+    df_pl = pd.DataFrame(rows).set_index("time")
+    df_pl.index = pd.to_datetime(df_pl.index)
+    if df_pl.index.tz is None:
+        df_pl.index = df_pl.index.tz_localize("UTC").tz_convert(SGT)
+
+    # Compute derived: wind speed and shear
+    for lev in [850, 200]:
+        u_col = f"u_{lev}" if f"u_{lev}" in df_pl.columns else None
+        v_col = f"v_{lev}" if f"v_{lev}" in df_pl.columns else None
+        # Try alternate naming (ERA5 short names)
+        for candidate_u in [f"u_{lev}", f"u_component_of_wind_{lev}", f"u{lev}"]:
+            if candidate_u in df_pl.columns:
+                u_col = candidate_u
+                break
+        for candidate_v in [f"v_{lev}", f"v_component_of_wind_{lev}", f"v{lev}"]:
+            if candidate_v in df_pl.columns:
+                v_col = candidate_v
+                break
+        if u_col and v_col:
+            df_pl[f"wind_speed_{lev}hPa"] = np.sqrt(df_pl[u_col]**2 + df_pl[v_col]**2) * 3.6  # m/s → km/h
+
+    if "wind_speed_850hPa" in df_pl.columns and "wind_speed_200hPa" in df_pl.columns:
+        df_pl["wind_shear_850_200"] = df_pl["wind_speed_850hPa"] - df_pl["wind_speed_200hPa"]
+
+    # Merge
+    df = df_sl.join(df_pl, how="outer")
+
+    # Clean up
+    keep = ["cape", "cin", "k_index", "total_column_water_vapour",
+            "wind_speed_850hPa", "wind_speed_200hPa", "wind_shear_850_200"]
+    # Add temperature_850hPa if present
+    for col in list(df_pl.columns):
+        if "temperature_850" in col.lower() or "t_850" in col.lower():
+            df[f"temperature_850hPa"] = df_pl[col] - 273.15  # K → °C
+            keep.append("temperature_850hPa")
+            break
+
+    df = df[[c for c in keep if c in df.columns]]
+    ds_sl.close()
+    ds_pl.close()
+    return df
+
+
+def fetch_era5_convective() -> pd.DataFrame:
+    """Download and process ERA5 CAPE/wind data for 2016-2024. Returns hourly DataFrame."""
+    out_path = CACHE_DIR / "era5_convective.parquet"
+    nc_dir   = CACHE_DIR / "era5_nc"
+    nc_dir.mkdir(exist_ok=True)
+
+    if out_path.exists():
+        log.info(f"ERA5 convective cache exists: {out_path}")
+        df = pd.read_parquet(out_path)
+        df.index = pd.DatetimeIndex(df.index)
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("Asia/Singapore")
+        else:
+            df.index = df.index.tz_convert("Asia/Singapore")
+        log.info(f"  Loaded ERA5: {len(df)} rows  {df.index.min()} → {df.index.max()}")
+        return df
+
+    log.info("Fetching ERA5 convective features (2016-2024) via CDS API …")
+    frames = []
+    for year in YEARS:
+        log.info(f"  Year {year}…")
+        ok = fetch_era5_year(year, nc_dir)
+        if ok:
+            df_yr = _process_era5_year(year, nc_dir)
+            if df_yr is not None and not df_yr.empty:
+                frames.append(df_yr)
+                log.info(f"  {year}: {len(df_yr)} rows, cols={list(df_yr.columns)}")
+        time.sleep(1.0)
+
+    if not frames:
+        log.warning("No ERA5 data fetched — proceeding without pressure-level features")
+        return pd.DataFrame()
+
+    df = pd.concat(frames).sort_index()
+    df = df[~df.index.duplicated(keep="first")]
+    df.to_parquet(out_path)
+    log.info(f"Saved ERA5 convective → {out_path}  ({len(df)} rows)")
+    return df
+
+
+# ── 3. BOM MJO RMM indices ───────────────────────────────────────────────────
 
 BOM_MJO_URL = "http://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt"
 
@@ -214,10 +448,7 @@ def load_all_external_features(start: str = "2016-01-01",
     Load (and fetch if missing) all external features, merged on hourly timestamps.
 
     Returns DataFrame with columns:
-      cape, lifted_index, convective_inhibition, precipitable_water,
-      wind_speed_850hPa, wind_speed_200hPa, wind_direction_850hPa,
-      temperature_850hPa, relative_humidity_850hPa,
-      wind_shear_850_200,
+      cloud_cover, shortwave_radiation, wind_direction_10m, surface_pressure,
       mjo_amplitude, mjo_sin_phase, mjo_cos_phase, mjo_rmm1, mjo_rmm2
     """
     om = fetch_openmeteo_convective()
@@ -226,9 +457,10 @@ def load_all_external_features(start: str = "2016-01-01",
     frames = []
 
     if not om.empty:
-        # Compute wind shear (850hPa - 200hPa): proxy for convective organisation
-        if "wind_speed_850hPa" in om.columns and "wind_speed_200hPa" in om.columns:
-            om["wind_shear_850_200"] = om["wind_speed_850hPa"] - om["wind_speed_200hPa"]
+        # Add cyclical encoding of wind direction (0-360°)
+        if "wind_direction_10m" in om.columns:
+            om["wind_dir_sin"] = np.sin(np.deg2rad(om["wind_direction_10m"]))
+            om["wind_dir_cos"] = np.cos(np.deg2rad(om["wind_direction_10m"]))
         frames.append(om)
 
     if not mjo.empty:

@@ -182,14 +182,13 @@ def load_historical_weather() -> pd.DataFrame:
 
 
 def _merge_external_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Join CAPE/MJO external features into the weather DataFrame if cached."""
+    """Join cloud/radiation/MJO external features into the weather DataFrame if cached."""
     ext_path = CACHE_DIR / "openmeteo_convective.parquet"
     mjo_path  = CACHE_DIR / "mjo_hourly.parquet"
     cols_added = []
     for path, wanted_cols in [
-        (ext_path, ["cape", "lifted_index", "convective_inhibition",
-                    "wind_speed_850hPa", "wind_speed_200hPa", "wind_shear_850_200",
-                    "temperature_850hPa", "relative_humidity_850hPa"]),
+        (ext_path, ["cloud_cover", "shortwave_radiation", "wind_direction_10m",
+                    "wind_dir_sin", "wind_dir_cos", "surface_pressure"]),
         (mjo_path,  ["mjo_amplitude", "mjo_sin_phase", "mjo_cos_phase"]),
     ]:
         if not path.exists():
@@ -352,24 +351,19 @@ def build_features(hist: pd.DataFrame) -> dict:
         "is_inter_monsoon":  int(month in [4, 5, 10, 11]),
         "is_afternoon_peak": int(13 <= hour <= 17),
         "is_morning_peak":   int(7 <= hour <= 9),
-        # External features — CAPE, MJO, wind shear (0.0 if not available)
-        "cape":                    ext("cape"),
-        "lifted_index":            ext("lifted_index"),
-        "convective_inhibition":   ext("convective_inhibition"),
-        "wind_speed_850hPa":       ext("wind_speed_850hPa"),
-        "wind_speed_200hPa":       ext("wind_speed_200hPa"),
-        "wind_shear_850_200":      ext("wind_shear_850_200"),
-        "temperature_850hPa":      ext("temperature_850hPa"),
-        "relative_humidity_850hPa": ext("relative_humidity_850hPa"),
-        "cape_lag_1h":             ext_lag("cape", 1),
-        "cape_lag_3h":             ext_lag("cape", 3),
-        "cape_roll_6h":            ext_roll("cape", 6),
-        "lifted_index_lag_1h":     ext_lag("lifted_index", 1),
-        "lifted_index_lag_3h":     ext_lag("lifted_index", 3),
-        "lifted_index_roll_6h":    ext_roll("lifted_index", 6),
-        "wind_shear_850_200_lag_1h":  ext_lag("wind_shear_850_200", 1),
-        "wind_shear_850_200_lag_3h":  ext_lag("wind_shear_850_200", 3),
-        "wind_shear_850_200_roll_6h": ext_roll("wind_shear_850_200", 6),
+        # External features — cloud cover, radiation, wind dir, MJO (0.0 if not available)
+        "cloud_cover":             ext("cloud_cover"),
+        "shortwave_radiation":     ext("shortwave_radiation"),
+        "wind_direction_10m":      ext("wind_direction_10m"),
+        "wind_dir_sin":            ext("wind_dir_sin"),
+        "wind_dir_cos":            ext("wind_dir_cos"),
+        "surface_pressure":        ext("surface_pressure"),
+        "cloud_cover_lag_1h":      ext_lag("cloud_cover", 1),
+        "cloud_cover_lag_3h":      ext_lag("cloud_cover", 3),
+        "cloud_cover_roll_6h":     ext_roll("cloud_cover", 6),
+        "shortwave_radiation_lag_1h": ext_lag("shortwave_radiation", 1),
+        "shortwave_radiation_lag_3h": ext_lag("shortwave_radiation", 3),
+        "shortwave_radiation_roll_6h": ext_roll("shortwave_radiation", 6),
         "mjo_amplitude":           ext("mjo_amplitude"),
         "mjo_sin_phase":           ext("mjo_sin_phase"),
         "mjo_cos_phase":           ext("mjo_cos_phase"),

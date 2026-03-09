@@ -699,20 +699,19 @@ def make_features(rain: pd.Series, temp: pd.Series,
     df["sin_day_of_year"] = np.sin(2 * np.pi * df.index.dayofyear / 365)
     df["cos_day_of_year"] = np.cos(2 * np.pi * df.index.dayofyear / 365)
 
-    # ---- External features (CAPE, MJO, wind shear) ----
+    # ---- External features (cloud cover, radiation, wind dir, MJO) ----
     if ext_df is not None and not ext_df.empty:
         ext_aligned = ext_df.reindex(df.index).ffill().bfill()
         ext_cols = [
-            "cape", "lifted_index", "convective_inhibition", "precipitable_water",
-            "wind_speed_850hPa", "wind_speed_200hPa", "wind_shear_850_200",
-            "temperature_850hPa", "relative_humidity_850hPa",
+            "cloud_cover", "shortwave_radiation", "wind_direction_10m",
+            "wind_dir_sin", "wind_dir_cos", "surface_pressure",
             "mjo_amplitude", "mjo_sin_phase", "mjo_cos_phase",
         ]
         for col in ext_cols:
             if col in ext_aligned.columns:
                 df[col] = ext_aligned[col].values
-                # Lag versions for key convective vars (no future leakage)
-                if col in ("cape", "precipitable_water", "lifted_index", "wind_shear_850_200"):
+                # Lag versions for cloud cover and radiation (key instability proxies)
+                if col in ("cloud_cover", "shortwave_radiation"):
                     df[f"{col}_lag_1h"] = df[col].shift(1)
                     df[f"{col}_lag_3h"] = df[col].shift(3)
                     df[f"{col}_roll_6h"] = df[col].shift(1).rolling(6).mean()
