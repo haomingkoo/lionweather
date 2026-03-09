@@ -132,6 +132,66 @@ async def get_forecasts(
 
 
 
+@router.get("/hourly")
+async def get_hourly_forecast(
+    lat: float,
+    lng: float,
+):
+    """
+    Get hourly forecast for the next 24 hours from Open-Meteo.
+    Called server-side so the frontend never hits external APIs directly.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat,
+                    "longitude": lng,
+                    "hourly": "temperature_2m,weather_code,precipitation_probability",
+                    "forecast_days": "2",
+                    "timezone": "auto",
+                },
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        hourly = data.get("hourly", {})
+        if not hourly.get("time"):
+            return []
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).astimezone()
+        results = []
+
+        precip_list = hourly.get("precipitation_probability") or []
+
+        for i, time_str in enumerate(hourly["time"]):
+            # Parse as local time (Open-Meteo returns local ISO strings without tz offset)
+            try:
+                slot_time = datetime.fromisoformat(time_str)
+            except ValueError:
+                continue
+            # Make naive comparison — both naive local
+            slot_naive = slot_time.replace(tzinfo=None)
+            now_naive = now.replace(tzinfo=None)
+            if slot_naive >= now_naive and len(results) < 24:
+                results.append({
+                    "time": time_str,
+                    "temperature": hourly["temperature_2m"][i],
+                    "weather_code": hourly["weather_code"][i],
+                    "precip_prob": precip_list[i] if i < len(precip_list) else None,
+                })
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch hourly forecast: {str(e)}")
+
+
 @router.get("/four-day")
 def get_four_day_forecast():
     """Get 4-day weather outlook"""

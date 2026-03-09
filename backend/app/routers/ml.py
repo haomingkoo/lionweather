@@ -428,6 +428,29 @@ async def get_rain_forecast():
 
     # ── 4. Run classifiers ─────────────────────────────────────────────────────
     predictions = []
+    model_performance = []
+
+    # Try to load detailed performance from full_analysis.json
+    full_analysis_perf = {}
+    try:
+        import json
+        fa_path = MODEL_DIR / "full_analysis.json"
+        if fa_path.exists():
+            with open(fa_path) as _f:
+                _fa = json.load(_f)
+            for _mr in _fa.get("model_results", []):
+                _h = _mr.get("horizon_h")
+                _bc = _mr.get("binary_classification", {})
+                full_analysis_perf[_h] = {
+                    "binary_accuracy": _bc.get("accuracy"),
+                    "rain_precision": _bc.get("rain_precision"),
+                    "rain_recall": _bc.get("rain_recall"),
+                    "rain_f1": _bc.get("rain_f1"),
+                    "no_rain_recall": _bc.get("no_rain_recall"),
+                }
+    except Exception:
+        pass
+
     for h in HORIZONS:
         model_path = MODEL_DIR / f"rainfall_cls_{h}h.joblib"
         if not model_path.exists():
@@ -448,6 +471,15 @@ async def get_rain_forecast():
             "confidence": round(float(proba[pred_class]), 3),
         })
 
+        perf_entry = {
+            "horizon_h": h,
+            "test_accuracy": round(bundle.get("test_accuracy", 0), 4),
+            "trained_at": bundle.get("trained_at", ""),
+        }
+        if h in full_analysis_perf:
+            perf_entry.update(full_analysis_perf[h])
+        model_performance.append(perf_entry)
+
     # ── 5. Current conditions summary ──────────────────────────────────────────
     current = {
         "temperature": round(float(df["temperature"].iloc[-1]), 1),
@@ -461,6 +493,7 @@ async def get_rain_forecast():
     return {
         "current": current,
         "predictions": predictions,
+        "model_performance": model_performance,
         "data_note": "Live predictions from LightGBM classifiers trained on NEA 2016-2024 data." if n_hours >= 24
                      else f"Predictions based on {n_hours}h of live data (lags padded). Accuracy improves after 24h.",
     }

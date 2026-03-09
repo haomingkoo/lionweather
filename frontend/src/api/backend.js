@@ -134,7 +134,7 @@ export async function get7DayForecast(latitude, longitude) {
 }
 
 /**
- * Fetch hourly forecast from Open-Meteo (next 24 hours)
+ * Fetch hourly forecast for next 24 hours via backend proxy (no direct external API calls).
  *
  * @param {number} latitude - Location latitude
  * @param {number} longitude - Location longitude
@@ -143,42 +143,23 @@ export async function get7DayForecast(latitude, longitude) {
 export async function getHourlyForecast(latitude, longitude) {
   try {
     const params = new URLSearchParams({
-      latitude: latitude.toString(),
-      longitude: longitude.toString(),
-      hourly: "temperature_2m,weather_code,precipitation_probability",
-      forecast_days: "2",
-      timezone: "auto",
+      lat: latitude.toString(),
+      lng: longitude.toString(),
     });
 
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?${params}`,
-    );
+    const response = await fetch(`${API_BASE}/forecasts/hourly?${params}`);
 
     if (!response.ok) {
-      throw new Error(`Open-Meteo error: ${response.status}`);
+      throw new Error(`Backend error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const hourly = data.hourly;
-    if (!hourly?.time) return [];
-
-    const now = new Date();
-    const results = [];
-
-    for (let i = 0; i < hourly.time.length; i++) {
-      const slotTime = new Date(hourly.time[i]);
-      // Only include hours from now onwards, max 24 slots
-      if (slotTime >= now && results.length < 24) {
-        results.push({
-          time: slotTime,
-          temperature: hourly.temperature_2m[i],
-          weather_code: hourly.weather_code[i],
-          precip_prob: hourly.precipitation_probability?.[i] ?? null,
-        });
-      }
-    }
-
-    return results;
+    const slots = await response.json();
+    // Backend returns ISO time strings; convert to Date objects to match
+    // the shape expected by DetailedWeatherCard (slot.time as Date).
+    return slots.map((slot) => ({
+      ...slot,
+      time: new Date(slot.time),
+    }));
   } catch (error) {
     console.error("Error fetching hourly forecast:", error);
     return [];
