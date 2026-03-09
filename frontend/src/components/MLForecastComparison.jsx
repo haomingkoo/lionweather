@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Brain, Cloud, TrendingUp, Award, Activity } from "lucide-react";
-import { get24HourPredictions, getModelComparison } from "../api/ml";
+import { getModelComparison } from "../api/ml";
 
 export function MLForecastComparison({ location, isDark = false }) {
   const [mlForecast, setMlForecast] = useState(null);
@@ -16,10 +16,11 @@ export function MLForecastComparison({ location, isDark = false }) {
     const fetchMLData = async () => {
       try {
         setIsLoading(true);
-        const [mlData, benchmarkData] = await Promise.all([
-          get24HourPredictions("singapore"),
+        const [mlRes, benchmarkData] = await Promise.all([
+          fetch("/api/ml/predict/24").then((r) => r.ok ? r.json() : null).catch(() => null),
           getModelComparison(),
         ]);
+        const mlData = mlRes;
         setMlForecast(mlData);
         setBenchmark(benchmarkData);
       } catch (err) {

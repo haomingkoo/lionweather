@@ -56,13 +56,13 @@ class RadarService:
     """
     
     # Exact bounds from weather.gov.sg JS: map_latitude_bottom/top/longitude_left/right
-    SINGAPORE_BOUNDS = ((1.1450, 103.565), (1.4572, 104.130))
+    SINGAPORE_BOUNDS = ((1.1550, 103.565), (1.4750, 104.130))
     
     def __init__(
         self,
         base_url: str = "https://api-open.data.gov.sg",
-        cache_ttl_seconds: int = 600,  # 10 minutes (increased from 5)
-        poll_interval_seconds: int = 600,  # 10 minutes (increased from 5)
+        cache_ttl_seconds: int = 120,  # 2 minutes — near-realtime
+        poll_interval_seconds: int = 120,  # 2 minutes
         timeout_seconds: float = 10.0,
         user_agent: str = "weather-starter/0.1 (educational project)",
         api_key: Optional[str] = None
@@ -162,9 +162,9 @@ class RadarService:
         SGT = timezone(timedelta(hours=8))
         now = datetime.now(SGT)
 
-        # Round down to nearest 5 minutes, go back 10 min to ensure images exist
+        # Round down to nearest 5 minutes — fetch from current slot first
         minutes = (now.minute // 5) * 5
-        current_time = now.replace(minute=minutes, second=0, microsecond=0) - timedelta(minutes=10)
+        current_time = now.replace(minute=minutes, second=0, microsecond=0)
         
         headers = {
             "User-Agent": self.user_agent,

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-09T07:05:24.251361",
+  "generated_at": "2026-03-09T07:25:09.084332",
   "description": "LionWeather ML full analysis: climate trends, EDA, ACF/PACF, FFT, spurious correlations, SHAP, loss curves, classification & regression benchmarks. Train 2016-2022 | Val 2023 | Test 2024.",
   "rain_categories": {
     "0": "No Rain",
@@ -9208,6 +9208,814 @@
       }
     }
   },
+  "nea_2h_benchmark": {
+    "description": "NEA 2h per-area forecast vs actual station rainfall (nearest station, \u226410 km). per_area_nea: NEA area-level accuracy (NEA's natural granularity \u2014 ML not compared here). island_wide: both aggregated to island-wide majority vote for fair ML vs NEA comparison. Test year: 2024.",
+    "test_year": 2024,
+    "overall": {
+      "class3": {
+        "n_area_period_samples": 119645,
+        "n_areas": 37,
+        "per_area_nea": {
+          "accuracy": 0.8505,
+          "confusion_matrix": [
+            [
+              94591,
+              9548,
+              1712
+            ],
+            [
+              2886,
+              5582,
+              2768
+            ],
+            [
+              366,
+              607,
+              1585
+            ]
+          ],
+          "report": {
+            "No Rain": {
+              "precision": 0.9667630796275666,
+              "recall": 0.8936240564567175,
+              "f1-score": 0.9287558789164139,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.3547054711825634,
+              "recall": 0.49679601281594876,
+              "f1-score": 0.4138953768583398,
+              "support": 11236.0
+            },
+            "Heavy + Thundery": {
+              "precision": 0.26133553173948887,
+              "recall": 0.6196247068021892,
+              "f1-score": 0.367621477444045,
+              "support": 2558.0
+            },
+            "accuracy": 0.8504993940407037,
+            "macro avg": {
+              "precision": 0.527601360849873,
+              "recall": 0.6700149253582852,
+              "f1-score": 0.5700909110729329,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.8942020619838226,
+              "recall": 0.8504993940407037,
+              "f1-score": 0.8684077289720715,
+              "support": 119645.0
+            }
+          },
+          "note": "NEA 2h per-area accuracy vs nearest station actual. ML not compared here (ML is island-wide, not per-area).",
+          "per_area": {
+            "Ang Mo Kio": {
+              "n_samples": 3755,
+              "nea_accuracy": 0.8575
+            },
+            "Bishan": {
+              "n_samples": 3733,
+              "nea_accuracy": 0.8572
+            },
+            "Boon Lay": {
+              "n_samples": 3607,
+              "nea_accuracy": 0.8143
+            },
+            "Bukit Batok": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8714
+            },
+            "Bukit Merah": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8633
+            },
+            "Bukit Timah": {
+              "n_samples": 3800,
+              "nea_accuracy": 0.8634
+            },
+            "Central Water Catchment": {
+              "n_samples": 3607,
+              "nea_accuracy": 0.8556
+            },
+            "Changi": {
+              "n_samples": 3799,
+              "nea_accuracy": 0.8521
+            },
+            "Choa Chu Kang": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8701
+            },
+            "City": {
+              "n_samples": 28,
+              "nea_accuracy": 0.7857
+            },
+            "Geylang": {
+              "n_samples": 3459,
+              "nea_accuracy": 0.8612
+            },
+            "Hougang": {
+              "n_samples": 3807,
+              "nea_accuracy": 0.8597
+            },
+            "Jalan Bahar": {
+              "n_samples": 3448,
+              "nea_accuracy": 0.8419
+            },
+            "Jurong East": {
+              "n_samples": 3801,
+              "nea_accuracy": 0.8561
+            },
+            "Jurong Island": {
+              "n_samples": 3655,
+              "nea_accuracy": 0.832
+            },
+            "Jurong West": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8528
+            },
+            "Kallang": {
+              "n_samples": 2949,
+              "nea_accuracy": 0.8481
+            },
+            "Lim Chu Kang": {
+              "n_samples": 3127,
+              "nea_accuracy": 0.8375
+            },
+            "Marine Parade": {
+              "n_samples": 3810,
+              "nea_accuracy": 0.8512
+            },
+            "Novena": {
+              "n_samples": 3718,
+              "nea_accuracy": 0.8585
+            },
+            "Pasir Ris": {
+              "n_samples": 3470,
+              "nea_accuracy": 0.8527
+            },
+            "Paya Lebar": {
+              "n_samples": 574,
+              "nea_accuracy": 0.8206
+            },
+            "Pioneer": {
+              "n_samples": 3764,
+              "nea_accuracy": 0.8417
+            },
+            "Pulau Ubin": {
+              "n_samples": 576,
+              "nea_accuracy": 0.8003
+            },
+            "Punggol": {
+              "n_samples": 3785,
+              "nea_accuracy": 0.8462
+            },
+            "Queenstown": {
+              "n_samples": 3657,
+              "nea_accuracy": 0.8573
+            },
+            "Seletar": {
+              "n_samples": 3774,
+              "nea_accuracy": 0.8503
+            },
+            "Sembawang": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8536
+            },
+            "Sentosa": {
+              "n_samples": 3483,
+              "nea_accuracy": 0.843
+            },
+            "Southern Islands": {
+              "n_samples": 3482,
+              "nea_accuracy": 0.8383
+            },
+            "Tampines": {
+              "n_samples": 3728,
+              "nea_accuracy": 0.8549
+            },
+            "Tanglin": {
+              "n_samples": 1088,
+              "nea_accuracy": 0.8438
+            },
+            "Tengah": {
+              "n_samples": 3671,
+              "nea_accuracy": 0.8513
+            },
+            "Tuas": {
+              "n_samples": 3700,
+              "nea_accuracy": 0.8319
+            },
+            "Western Islands": {
+              "n_samples": 220,
+              "nea_accuracy": 0.7273
+            },
+            "Woodlands": {
+              "n_samples": 3701,
+              "nea_accuracy": 0.8536
+            },
+            "Yishun": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8526
+            }
+          }
+        },
+        "island_wide": {
+          "nea": {
+            "accuracy": 0.8893,
+            "confusion_matrix": [
+              [
+                3191,
+                248,
+                54
+              ],
+              [
+                37,
+                161,
+                69
+              ],
+              [
+                8,
+                6,
+                38
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9860939431396786,
+                "recall": 0.913541368451188,
+                "f1-score": 0.9484321593104473,
+                "support": 3493.0
+              },
+              "Light Rain": {
+                "precision": 0.38795180722891565,
+                "recall": 0.602996254681648,
+                "f1-score": 0.47214076246334313,
+                "support": 267.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.2360248447204969,
+                "recall": 0.7307692307692307,
+                "f1-score": 0.3568075117370892,
+                "support": 52.0
+              },
+              "accuracy": 0.8892969569779643,
+              "macro avg": {
+                "precision": 0.5366901983630303,
+                "recall": 0.7491022846340223,
+                "f1-score": 0.5924601445036266,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9339670954466117,
+                "recall": 0.8892969569779643,
+                "f1-score": 0.9070013396273435,
+                "support": 3812.0
+              }
+            }
+          },
+          "ml_island_wide": {
+            "accuracy": 0.7807,
+            "confusion_matrix": [
+              [
+                2788,
+                482,
+                223
+              ],
+              [
+                8,
+                145,
+                114
+              ],
+              [
+                2,
+                7,
+                43
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9964260185847034,
+                "recall": 0.7981677640996279,
+                "f1-score": 0.886345573040852,
+                "support": 3493.0
+              },
+              "Light Rain": {
+                "precision": 0.22870662460567823,
+                "recall": 0.5430711610486891,
+                "f1-score": 0.3218645948945616,
+                "support": 267.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.11315789473684211,
+                "recall": 0.8269230769230769,
+                "f1-score": 0.19907407407407407,
+                "support": 52.0
+              },
+              "accuracy": 0.7806925498426023,
+              "macro avg": {
+                "precision": 0.44609684597574123,
+                "recall": 0.7227206673571313,
+                "f1-score": 0.4690947473364959,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9306046595520463,
+                "recall": 0.7806925498426023,
+                "f1-score": 0.837433049664322,
+                "support": 3812.0
+              }
+            }
+          },
+          "n_samples": 3812,
+          "ensemble_60ml_40nea": {
+            "accuracy": 0.8166,
+            "confusion_matrix": [
+              [
+                2935,
+                346,
+                212
+              ],
+              [
+                9,
+                130,
+                128
+              ],
+              [
+                2,
+                2,
+                48
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9962661235573659,
+                "recall": 0.8402519324363011,
+                "f1-score": 0.911632241031216,
+                "support": 3493.0
+              },
+              "Light Rain": {
+                "precision": 0.2719665271966527,
+                "recall": 0.4868913857677903,
+                "f1-score": 0.348993288590604,
+                "support": 267.0
+              },
+              "Heavy + Thundery": {
+                "precision": 0.12371134020618557,
+                "recall": 0.9230769230769231,
+                "f1-score": 0.21818181818181817,
+                "support": 52.0
+              },
+              "accuracy": 0.8166316894018888,
+              "macro avg": {
+                "precision": 0.463981330320068,
+                "recall": 0.7500734137603381,
+                "f1-score": 0.4929357826012128,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9336321149103113,
+                "recall": 0.8166316894018888,
+                "f1-score": 0.8627644492448014,
+                "support": 3812.0
+              }
+            }
+          },
+          "note": "Both NEA and actual aggregated to island-wide via majority vote across all 47 areas. Fair apples-to-apples comparison with ML island-wide prediction."
+        }
+      },
+      "class4": {
+        "n_area_period_samples": 119645,
+        "n_areas": 37,
+        "per_area_nea": {
+          "accuracy": 0.8405,
+          "confusion_matrix": [
+            [
+              94591,
+              9548,
+              306,
+              1406
+            ],
+            [
+              2886,
+              5582,
+              856,
+              1912
+            ],
+            [
+              324,
+              534,
+              51,
+              1191
+            ],
+            [
+              42,
+              73,
+              8,
+              335
+            ]
+          ],
+          "report": {
+            "No Rain": {
+              "precision": 0.9667630796275666,
+              "recall": 0.8936240564567175,
+              "f1-score": 0.9287558789164139,
+              "support": 105851.0
+            },
+            "Light Rain": {
+              "precision": 0.3547054711825634,
+              "recall": 0.49679601281594876,
+              "f1-score": 0.4138953768583398,
+              "support": 11236.0
+            },
+            "Heavy Rain": {
+              "precision": 0.04176904176904177,
+              "recall": 0.024285714285714285,
+              "f1-score": 0.03071364046973803,
+              "support": 2100.0
+            },
+            "Thundery Showers": {
+              "precision": 0.06915772089182494,
+              "recall": 0.7314410480349345,
+              "f1-score": 0.12636740852508488,
+              "support": 458.0
+            },
+            "accuracy": 0.8404780809895942,
+            "macro avg": {
+              "precision": 0.3580988283677492,
+              "recall": 0.5365367078983287,
+              "f1-score": 0.37493307619239413,
+              "support": 119645.0
+            },
+            "weighted avg": {
+              "precision": 0.8896125925842977,
+              "recall": 0.8404780809895942,
+              "f1-score": 0.8615708296347744,
+              "support": 119645.0
+            }
+          },
+          "note": "NEA 2h per-area accuracy vs nearest station actual. ML not compared here (ML is island-wide, not per-area).",
+          "per_area": {
+            "Ang Mo Kio": {
+              "n_samples": 3755,
+              "nea_accuracy": 0.8469
+            },
+            "Bishan": {
+              "n_samples": 3733,
+              "nea_accuracy": 0.8489
+            },
+            "Boon Lay": {
+              "n_samples": 3607,
+              "nea_accuracy": 0.8029
+            },
+            "Bukit Batok": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8599
+            },
+            "Bukit Merah": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8533
+            },
+            "Bukit Timah": {
+              "n_samples": 3800,
+              "nea_accuracy": 0.8518
+            },
+            "Central Water Catchment": {
+              "n_samples": 3607,
+              "nea_accuracy": 0.8459
+            },
+            "Changi": {
+              "n_samples": 3799,
+              "nea_accuracy": 0.8436
+            },
+            "Choa Chu Kang": {
+              "n_samples": 3811,
+              "nea_accuracy": 0.8588
+            },
+            "City": {
+              "n_samples": 28,
+              "nea_accuracy": 0.75
+            },
+            "Geylang": {
+              "n_samples": 3459,
+              "nea_accuracy": 0.8526
+            },
+            "Hougang": {
+              "n_samples": 3807,
+              "nea_accuracy": 0.8508
+            },
+            "Jalan Bahar": {
+              "n_samples": 3448,
+              "nea_accuracy": 0.8295
+            },
+            "Jurong East": {
+              "n_samples": 3801,
+              "nea_accuracy": 0.8456
+            },
+            "Jurong Island": {
+              "n_samples": 3655,
+              "nea_accuracy": 0.82
+            },
+            "Jurong West": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8405
+            },
+            "Kallang": {
+              "n_samples": 2949,
+              "nea_accuracy": 0.841
+            },
+            "Lim Chu Kang": {
+              "n_samples": 3127,
+              "nea_accuracy": 0.827
+            },
+            "Marine Parade": {
+              "n_samples": 3810,
+              "nea_accuracy": 0.8423
+            },
+            "Novena": {
+              "n_samples": 3718,
+              "nea_accuracy": 0.8491
+            },
+            "Pasir Ris": {
+              "n_samples": 3470,
+              "nea_accuracy": 0.8432
+            },
+            "Paya Lebar": {
+              "n_samples": 574,
+              "nea_accuracy": 0.8049
+            },
+            "Pioneer": {
+              "n_samples": 3764,
+              "nea_accuracy": 0.8324
+            },
+            "Pulau Ubin": {
+              "n_samples": 576,
+              "nea_accuracy": 0.7847
+            },
+            "Punggol": {
+              "n_samples": 3785,
+              "nea_accuracy": 0.8362
+            },
+            "Queenstown": {
+              "n_samples": 3657,
+              "nea_accuracy": 0.848
+            },
+            "Seletar": {
+              "n_samples": 3774,
+              "nea_accuracy": 0.8413
+            },
+            "Sembawang": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8434
+            },
+            "Sentosa": {
+              "n_samples": 3483,
+              "nea_accuracy": 0.8343
+            },
+            "Southern Islands": {
+              "n_samples": 3482,
+              "nea_accuracy": 0.83
+            },
+            "Tampines": {
+              "n_samples": 3728,
+              "nea_accuracy": 0.846
+            },
+            "Tanglin": {
+              "n_samples": 1088,
+              "nea_accuracy": 0.8382
+            },
+            "Tengah": {
+              "n_samples": 3671,
+              "nea_accuracy": 0.839
+            },
+            "Tuas": {
+              "n_samples": 3700,
+              "nea_accuracy": 0.8222
+            },
+            "Western Islands": {
+              "n_samples": 220,
+              "nea_accuracy": 0.7273
+            },
+            "Woodlands": {
+              "n_samples": 3701,
+              "nea_accuracy": 0.8425
+            },
+            "Yishun": {
+              "n_samples": 3812,
+              "nea_accuracy": 0.8426
+            }
+          }
+        },
+        "island_wide": {
+          "nea": {
+            "accuracy": 0.882,
+            "confusion_matrix": [
+              [
+                3191,
+                249,
+                9,
+                48
+              ],
+              [
+                37,
+                164,
+                26,
+                46
+              ],
+              [
+                8,
+                2,
+                2,
+                25
+              ],
+              [
+                0,
+                0,
+                0,
+                5
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9860939431396786,
+                "recall": 0.9124964255075779,
+                "f1-score": 0.9478687063716026,
+                "support": 3497.0
+              },
+              "Light Rain": {
+                "precision": 0.39518072289156625,
+                "recall": 0.6007326007326007,
+                "f1-score": 0.47674418604651164,
+                "support": 273.0
+              },
+              "Heavy Rain": {
+                "precision": 0.05405405405405406,
+                "recall": 0.05405405405405406,
+                "f1-score": 0.05405405405405406,
+                "support": 37.0
+              },
+              "Thundery Showers": {
+                "precision": 0.04032258064516129,
+                "recall": 1.0,
+                "f1-score": 0.07751937984496124,
+                "support": 5.0
+              },
+              "accuracy": 0.8819517313746065,
+              "macro avg": {
+                "precision": 0.368912825182615,
+                "recall": 0.6418207700735582,
+                "f1-score": 0.38904658157928235,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9334880559842811,
+                "recall": 0.8819517313746065,
+                "f1-score": 0.9043115492842121,
+                "support": 3812.0
+              }
+            }
+          },
+          "ml_island_wide": {
+            "accuracy": 0.7671,
+            "confusion_matrix": [
+              [
+                2752,
+                566,
+                5,
+                174
+              ],
+              [
+                9,
+                166,
+                8,
+                90
+              ],
+              [
+                2,
+                6,
+                1,
+                28
+              ],
+              [
+                0,
+                0,
+                0,
+                5
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9960188201230546,
+                "recall": 0.7869602516442665,
+                "f1-score": 0.8792332268370607,
+                "support": 3497.0
+              },
+              "Light Rain": {
+                "precision": 0.22493224932249323,
+                "recall": 0.608058608058608,
+                "f1-score": 0.3283877349159248,
+                "support": 273.0
+              },
+              "Heavy Rain": {
+                "precision": 0.07142857142857142,
+                "recall": 0.02702702702702703,
+                "f1-score": 0.0392156862745098,
+                "support": 37.0
+              },
+              "Thundery Showers": {
+                "precision": 0.016835016835016835,
+                "recall": 1.0,
+                "f1-score": 0.033112582781456956,
+                "support": 5.0
+              },
+              "accuracy": 0.7670514165792235,
+              "macro avg": {
+                "precision": 0.32730366442728404,
+                "recall": 0.6055114716824754,
+                "f1-score": 0.3199873077022381,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9305381296596,
+                "recall": 0.7670514165792235,
+                "f1-score": 0.8305207211928943,
+                "support": 3812.0
+              }
+            }
+          },
+          "n_samples": 3812,
+          "ensemble_60ml_40nea": {
+            "accuracy": 0.8282,
+            "confusion_matrix": [
+              [
+                3001,
+                348,
+                1,
+                147
+              ],
+              [
+                15,
+                151,
+                7,
+                100
+              ],
+              [
+                2,
+                1,
+                0,
+                34
+              ],
+              [
+                0,
+                0,
+                0,
+                5
+              ]
+            ],
+            "report": {
+              "No Rain": {
+                "precision": 0.9943671305500331,
+                "recall": 0.8581641406920217,
+                "f1-score": 0.9212586339217191,
+                "support": 3497.0
+              },
+              "Light Rain": {
+                "precision": 0.302,
+                "recall": 0.5531135531135531,
+                "f1-score": 0.3906856403622251,
+                "support": 273.0
+              },
+              "Heavy Rain": {
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1-score": 0.0,
+                "support": 37.0
+              },
+              "Thundery Showers": {
+                "precision": 0.017482517482517484,
+                "recall": 1.0,
+                "f1-score": 0.03436426116838488,
+                "support": 5.0
+              },
+              "accuracy": 0.8281741867785939,
+              "macro avg": {
+                "precision": 0.32846241200813764,
+                "recall": 0.6028194234513937,
+                "f1-score": 0.3365771338630823,
+                "support": 3812.0
+              },
+              "weighted avg": {
+                "precision": 0.9338497555406291,
+                "recall": 0.8281741867785939,
+                "f1-score": 0.8731559401754936,
+                "support": 3812.0
+              }
+            }
+          },
+          "note": "Both NEA and actual aggregated to island-wide via majority vote across all 47 areas. Fair apples-to-apples comparison with ML island-wide prediction."
+        }
+      }
+    }
+  },
   "loss_curves": [
     {
       "metric": "multi_logloss",
@@ -14458,145 +15266,145 @@
       "global_importance": [
         {
           "feature": "dry_spell_hours",
-          "mean_abs_shap": 4.808442
-        },
-        {
-          "feature": "wind_accel_3h",
-          "mean_abs_shap": 2.603328
+          "mean_abs_shap": 4.869375
         },
         {
           "feature": "rain_lag_1h",
-          "mean_abs_shap": 2.541353
+          "mean_abs_shap": 2.58667
+        },
+        {
+          "feature": "wind_accel_3h",
+          "mean_abs_shap": 2.427258
         },
         {
           "feature": "hum_deficit",
-          "mean_abs_shap": 2.222071
+          "mean_abs_shap": 2.118686
         },
         {
           "feature": "temp_lag_1h",
-          "mean_abs_shap": 1.889553
+          "mean_abs_shap": 1.909565
         },
         {
           "feature": "hum_temp_product",
-          "mean_abs_shap": 1.619217
+          "mean_abs_shap": 1.602277
         },
         {
           "feature": "hum_lag_1h",
-          "mean_abs_shap": 1.554483
-        },
-        {
-          "feature": "wind_lag_1h",
-          "mean_abs_shap": 0.71724
+          "mean_abs_shap": 1.573568
         },
         {
           "feature": "rain_streak_hours",
-          "mean_abs_shap": 0.609761
+          "mean_abs_shap": 0.642456
+        },
+        {
+          "feature": "wind_lag_1h",
+          "mean_abs_shap": 0.641166
         },
         {
           "feature": "temp_lag_6h",
-          "mean_abs_shap": 0.565557
+          "mean_abs_shap": 0.562258
         },
         {
           "feature": "hum_lag_2h",
-          "mean_abs_shap": 0.461878
+          "mean_abs_shap": 0.524914
         },
         {
           "feature": "cos_day_of_year",
-          "mean_abs_shap": 0.457
+          "mean_abs_shap": 0.451882
         },
         {
           "feature": "temp_roll_6h",
-          "mean_abs_shap": 0.395279
+          "mean_abs_shap": 0.424899
         },
         {
           "feature": "hour_of_day",
-          "mean_abs_shap": 0.351421
-        },
-        {
-          "feature": "wind_lag_3h",
-          "mean_abs_shap": 0.348304
-        },
-        {
-          "feature": "wind_dir_cos",
-          "mean_abs_shap": 0.286097
+          "mean_abs_shap": 0.331816
         },
         {
           "feature": "temp_lag_2h",
-          "mean_abs_shap": 0.280192
+          "mean_abs_shap": 0.309701
         },
         {
-          "feature": "cos_hour",
-          "mean_abs_shap": 0.278962
+          "feature": "wind_dir_cos",
+          "mean_abs_shap": 0.303529
         },
         {
-          "feature": "temp_roll_3h",
-          "mean_abs_shap": 0.278936
+          "feature": "wind_lag_3h",
+          "mean_abs_shap": 0.298245
         },
         {
           "feature": "cloud_cover_roll_6h",
-          "mean_abs_shap": 0.265427
+          "mean_abs_shap": 0.280086
+        },
+        {
+          "feature": "temp_roll_3h",
+          "mean_abs_shap": 0.275412
+        },
+        {
+          "feature": "cos_hour",
+          "mean_abs_shap": 0.266638
         }
       ],
       "waterfall_first_sample": [
         {
           "feature": "dry_spell_hours",
-          "shap_value": 4.829279
-        },
-        {
-          "feature": "rain_lag_1h",
-          "shap_value": -2.967021
-        },
-        {
-          "feature": "wind_accel_3h",
-          "shap_value": -2.772759
-        },
-        {
-          "feature": "hum_deficit",
-          "shap_value": -2.578829
-        },
-        {
-          "feature": "cos_day_of_year",
-          "shap_value": -1.594012
-        },
-        {
-          "feature": "temp_lag_1h",
-          "shap_value": 1.167988
-        },
-        {
-          "feature": "wind_dir_cos",
-          "shap_value": -1.124359
-        },
-        {
-          "feature": "hum_temp_product",
-          "shap_value": 0.914158
-        },
-        {
-          "feature": "rain_streak_hours",
-          "shap_value": 0.842966
-        },
-        {
-          "feature": "temp_lag_6h",
-          "shap_value": -0.832297
-        },
-        {
-          "feature": "hum_lag_1h",
-          "shap_value": 0.810397
-        },
-        {
-          "feature": "cloud_cover_roll_6h",
-          "shap_value": 0.753031
-        },
-        {
-          "feature": "temp_roll_3h",
-          "shap_value": 0.746744
+          "shap_value": 7.169055
         },
         {
           "feature": "temp_roll_6h",
-          "shap_value": 0.725707
+          "shap_value": 1.903635
+        },
+        {
+          "feature": "rain_roll_6h",
+          "shap_value": 1.852869
+        },
+        {
+          "feature": "rain_streak_hours",
+          "shap_value": 1.822686
+        },
+        {
+          "feature": "hum_deficit",
+          "shap_value": -1.733678
+        },
+        {
+          "feature": "rain_roll_std_6h",
+          "shap_value": 1.483879
+        },
+        {
+          "feature": "hum_temp_product",
+          "shap_value": 0.924768
+        },
+        {
+          "feature": "cos_day_of_year",
+          "shap_value": -0.855249
+        },
+        {
+          "feature": "cloud_cover_roll_6h",
+          "shap_value": -0.831534
+        },
+        {
+          "feature": "hum_lag_1h",
+          "shap_value": -0.765764
+        },
+        {
+          "feature": "wind_lag_1h",
+          "shap_value": 0.722502
+        },
+        {
+          "feature": "wind_dir_sin",
+          "shap_value": 0.681454
         },
         {
           "feature": "cloud_cover",
-          "shap_value": 0.500225
+          "shap_value": -0.56747
+        },
+        {
+          "feature": "temp_roll_3h",
+          "shap_value": 0.531052
+        },
+        {
+          "feature": "rain_lag_1h",
+          "shap_value": -0.492773
         }
       ],
       "n_samples_used": 500

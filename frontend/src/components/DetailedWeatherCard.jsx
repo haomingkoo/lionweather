@@ -523,19 +523,31 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* Weather Details Grid */}
       <div className="grid grid-cols-2 gap-2">
-        {/* Sunrise */}
-        <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Sunrise className={`h-4 w-4 text-amber-400`} />
-            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
-          </div>
-          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
-          {sunTimes.sunset !== "N/A" && (
-            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunset {sunTimes.sunset}</p>
-          )}
-        </div>
+        {/* Sunrise — only show if sunrise hasn't passed yet */}
+        {(() => {
+          if (sunTimes.sunrise === "N/A") return null;
+          const m = sunTimes.sunrise.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+          if (m) {
+            let h = parseInt(m[1], 10);
+            const min = parseInt(m[2], 10);
+            if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+            if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+            const sunriseDate = new Date();
+            sunriseDate.setHours(h, min, 0, 0);
+            if (new Date() > sunriseDate) return null;
+          }
+          return (
+            <div
+              className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Sunrise className={`h-4 w-4 text-amber-400`} />
+                <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
+              </div>
+              <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
+            </div>
+          );
+        })()}
 
         {/* Sunset */}
         <div
@@ -546,24 +558,19 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
           </div>
           <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
-          {sunTimes.sunrise !== "N/A" && (
-            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunrise {sunTimes.sunrise}</p>
-          )}
         </div>
 
         {/* Feels Like */}
         <div
-          className={`rounded-2xl backdrop-blur-2xl p-2 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
-          <div className="flex items-center gap-1 mb-1">
-            <ThermometerSun className={`h-3 w-3 ${tertiaryTextColor}`} />
-            <span
-              className={`text-[10px] ${tertiaryTextColor} uppercase tracking-wide`}
-            >
+          <div className="flex items-center gap-2 mb-2">
+            <ThermometerSun className={`h-4 w-4 ${tertiaryTextColor}`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>
               Feels Like
             </span>
           </div>
-          <div className={`text-xl font-light ${textColor}`}>{feelsLike}°</div>
+          <div className={`text-2xl font-light ${textColor}`}>{feelsLike}°</div>
         </div>
 
         {/* Humidity */}

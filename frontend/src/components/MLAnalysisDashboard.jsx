@@ -49,7 +49,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
   const PAD_B = xTicks && xTicks.length > 0 ? 14 : 0;
   const PAD_L = showYAxis ? 30 : 0;
   const plotH = height - PAD_B;
-  const W = PAD_L + vals.length * (barW + 1);
+  const W = Math.max(PAD_L + vals.length * (barW + 1), 60);
 
   const fmtY = (v) => v >= 10000 ? `${(v/1000).toFixed(0)}K` : v >= 1000 ? `${(v/1000).toFixed(1)}K` : v >= 100 ? Math.round(v) : v.toFixed(0);
   const yLabels = showYAxis ? [
@@ -59,7 +59,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
   ] : [];
 
   return (
-    <div>
+    <div style={{ maxWidth: `${W}px` }}>
       {label && <p className="text-white/50 text-xs mb-1">{label}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
         {yLabels.map(({ val, y }, i) => (
@@ -143,7 +143,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
     : null;
 
   return (
-    <div>
+    <div style={{ maxWidth: "480px" }}>
       {(xLabel || yLabel) && (
         <div className="flex justify-between text-white/40 text-[10px] mb-0.5">
           <span>{yLabel}</span><span>{xLabel}</span>
@@ -257,7 +257,7 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
     .filter((v, i, a) => a.indexOf(v) === i && v < nLags);
 
   return (
-    <div>
+    <div style={{ maxWidth: "480px" }}>
       {title && <p className="text-white/50 text-xs mb-1">{title}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
         {/* Y-axis labels + gridlines */}
@@ -528,12 +528,16 @@ function ClimateTrendsSection({ ct }) {
   const rec = ct.all_time_records || {};
 
   const rainfallTotals = years.map((y) => annual[y]?.rainfall?.total_mm ?? 0);
-  const tempMeans = years.map((y) => annual[y]?.temperature?.mean_c ?? 0);
+  // Drop years with effectively no data (< 100 mm total is clearly incomplete)
+  const validYearMask = years.map((_, i) => rainfallTotals[i] >= 100);
+  const displayYears = years.filter((_, i) => validYearMask[i]);
+  const displayRainfallTotals = rainfallTotals.filter((_, i) => validYearMask[i]);
+  const tempMeans = displayYears.map((y) => annual[y]?.temperature?.mean_c ?? 0);
   const rainCatStacks = [
-    { key: "no_rain",    color: "#60a5fa", label: "No Rain",    data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.no_rain ?? 0) },
-    { key: "light_rain", color: "#34d399", label: "Light Rain", data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.light_rain ?? 0) },
-    { key: "heavy_rain", color: "#fbbf24", label: "Heavy Rain", data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.heavy_rain ?? 0) },
-    { key: "thundery",   color: "#f472b6", label: "Thundery",   data: years.map((y) => annual[y]?.rainfall?.rain_category_pct?.thundery ?? 0) },
+    { key: "no_rain",    color: "#60a5fa", label: "No Rain",    data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.no_rain ?? 0) },
+    { key: "light_rain", color: "#34d399", label: "Light Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.light_rain ?? 0) },
+    { key: "heavy_rain", color: "#fbbf24", label: "Heavy Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.heavy_rain ?? 0) },
+    { key: "thundery",   color: "#f472b6", label: "Thundery",   data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.thundery ?? 0) },
   ];
 
   const tTrend = trends.temperature_mean;
@@ -573,9 +577,9 @@ function ClimateTrendsSection({ ct }) {
         <p className="text-white/25 text-[10px] mb-1.5 italic">
           ⚠ Island-wide station aggregate — sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
         </p>
-        <MiniBarChart data={rainfallTotals} height={70} color="#60a5fa" />
+        <MiniBarChart data={displayRainfallTotals} height={70} color="#60a5fa" />
         <div className="flex justify-between text-white/30 text-[10px] mt-1">
-          {years.map((y) => <span key={y}>{y}</span>)}
+          {displayYears.map((y) => <span key={y}>{y}</span>)}
         </div>
         {rTrend?.significant && (
           <p className="text-amber-300 text-[10px] mt-1">
@@ -599,9 +603,9 @@ function ClimateTrendsSection({ ct }) {
       {/* Rain category breakdown */}
       <div>
         <p className="text-white/50 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
-        <StackedBarChart years={years} stacks={rainCatStacks} height={70} />
+        <StackedBarChart years={displayYears} stacks={rainCatStacks} height={70} />
         <div className="flex justify-between text-white/30 text-[10px] mt-1">
-          {years.map((y) => <span key={y}>{y}</span>)}
+          {displayYears.map((y) => <span key={y}>{y}</span>)}
         </div>
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
@@ -621,11 +625,11 @@ function ClimateTrendsSection({ ct }) {
           bandSeries={{
             name: "Min–Max range",
             color: "#fb923c",
-            min: years.map((y) => annual[y]?.temperature?.min_c ?? tempMeans[years.indexOf(y)]),
-            max: years.map((y) => annual[y]?.temperature?.max_c ?? tempMeans[years.indexOf(y)]),
+            min: displayYears.map((y) => annual[y]?.temperature?.min_c ?? tempMeans[displayYears.indexOf(y)]),
+            max: displayYears.map((y) => annual[y]?.temperature?.max_c ?? tempMeans[displayYears.indexOf(y)]),
           }}
           height={80}
-          xTicks={years}
+          xTicks={displayYears}
           yLabel="°C"
           showYAxis={true}
         />
@@ -812,7 +816,7 @@ export function MLAnalysisDashboard() {
       )}
 
       {/* 1. EDA */}
-      <Section icon={BarChart3} title="Exploratory Data Analysis">
+      <Section key={`eda-${selectedVar}`} icon={BarChart3} title="Exploratory Data Analysis">
         {data.eda?.[selectedVar] && (() => {
           const e = data.eda[selectedVar];
           return (
@@ -953,7 +957,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 2. ACF / PACF */}
-      <Section icon={Activity} title="ACF / PACF (Autocorrelation)">
+      <Section key={`acf-${selectedVar}`} icon={Activity} title="ACF / PACF (Autocorrelation)">
         {data.acf_pacf?.[selectedVar] && (() => {
           const ap = data.acf_pacf[selectedVar];
           return (
@@ -999,7 +1003,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 3. Spectral / FFT */}
-      <Section icon={Waves} title="Frequency Analysis (FFT Periodogram)">
+      <Section key={`fft-${selectedVar}`} icon={Waves} title="Frequency Analysis (FFT Periodogram)">
         {data.spectral?.[selectedVar] && (() => {
           const sp = data.spectral[selectedVar];
           const chartData = sp.chart_data || [];
@@ -1327,7 +1331,6 @@ export function MLAnalysisDashboard() {
       {data.nea_benchmark && (() => {
         const nb = data.nea_benchmark;
         const c3 = nb.overall?.class3 || {};
-        // Use island_wide — the only fair comparison (both aggregated to same granularity)
         const iw = c3.island_wide || {};
         const nea = iw.nea || {};
         const ml  = iw.ml_island_wide || {};
@@ -1337,73 +1340,166 @@ export function MLAnalysisDashboard() {
         const ensF1 = ens.report?.["macro avg"]?.["f1-score"];
         const nSamples = iw.n_samples;
         const hasIW = nea.accuracy != null;
+
+        // 2h area benchmark
+        const nb2 = data.nea_2h_benchmark;
+        const c3_2h = nb2?.overall?.class3 || {};
+        const iw2 = c3_2h.island_wide || {};
+        const nea2 = iw2.nea || {};
+        const ml2  = iw2.ml_island_wide || {};
+        const ens2 = iw2.ensemble_60ml_40nea || {};
+        const perAreaNea = c3_2h.per_area_nea || {};
+        const neaF1_2h = nea2.report?.["macro avg"]?.["f1-score"];
+        const mlF1_2h  = ml2.report?.["macro avg"]?.["f1-score"];
+        const ensF1_2h = ens2.report?.["macro avg"]?.["f1-score"];
+        const has2h = nea2.accuracy != null;
+        const hasPerArea = perAreaNea.accuracy != null;
+
         return (
           <Section icon={Trophy} title="NEA Benchmark Comparison" defaultOpen={true}>
             <div className="space-y-4">
               {/* Methodology explanation */}
               <div className="bg-amber-500/8 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
-                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Comparison methodology — granularity matters</p>
+                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Comparison methodology — granularity must match</p>
                 <div className="space-y-1 text-[11px] text-white/55 leading-relaxed">
                   <p>NEA publishes forecasts at two granularities:</p>
                   <ul className="space-y-0.5 ml-2">
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour forecast by area</strong> (~60 named areas, e.g. "Clementi: Light Rain") — most granular, closest to per-station</li>
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour forecast by region</strong> (North / South / East / West / Central) — regional, coarser</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour forecast by area</strong> (47 named areas, e.g. "Clementi: Light Rain") — most granular, validated against nearest NEA rain gauge</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour forecast by region</strong> (North / South / East / West / Central) — coarser regional forecast</li>
                   </ul>
-                  <p>Our ML model predicts <strong className="text-white/70">island-wide</strong>. To compare fairly, we aggregate both the 6-hour NEA regional forecasts AND actual station observations to island-wide using <strong className="text-white/70">majority vote</strong> across regions per 6-hour window. This gives {nSamples?.toLocaleString() ?? "~1,400"} true period comparisons.</p>
-                  <p className="text-amber-300/50 italic text-[10px]">Future: comparing against NEA 2-hour per-area forecasts (matched to nearest stations) would be the gold-standard benchmark.</p>
+                  <p>Our ML model predicts <strong className="text-white/70">island-wide</strong>. To compare like-for-like, we aggregate both NEA forecasts and actual observations to island-wide via <strong className="text-white/70">majority vote</strong> before comparing.</p>
                 </div>
               </div>
 
-              {hasIW ? (
-                <>
-                  <p className="text-white/40 text-[10px]">
-                    Island-wide majority vote — {nSamples?.toLocaleString()} periods · 2024 holdout
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="text-white/40 text-[10px]">
-                          <th className="text-left py-1.5 pr-3">Model</th>
-                          <th className="text-right px-2">Accuracy</th>
-                          <th className="text-right px-2">Macro F1</th>
-                          <th className="text-right pl-2"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { name: "NEA 6h Regional (aggregated to island-wide)", acc: nea.accuracy, f1: neaF1, color: "text-white/70" },
-                          { name: "ML Model (island-wide)", acc: ml.accuracy, f1: mlF1, color: "text-blue-300" },
-                          { name: "Ensemble (60% ML + 40% NEA)", acc: ens.accuracy, f1: ensF1, color: "text-emerald-300" },
-                        ].map(({ name, acc, f1, color }) => (
-                          <tr key={name} className="border-t border-white/5">
-                            <td className={`py-1.5 pr-3 font-medium text-[11px] ${color}`}>{name}</td>
-                            <td className={`text-right px-2 font-mono ${color}`}>{acc != null ? (acc * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className={`text-right px-2 font-mono ${color}`}>{f1 != null ? (f1 * 100).toFixed(1) + "%" : "—"}</td>
-                            <td className="text-right pl-2">
-                              {f1 != null && f1 === Math.max(neaF1 ?? 0, mlF1 ?? 0, ensF1 ?? 0)
-                                ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
-                                : null}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <CommentaryBox
-                    variant="indigo"
-                    points={[
-                      "Both actual observations and NEA forecasts are aggregated to island-wide via majority vote (most common class across 5 regions per 6h window). This ensures the same granularity as our ML model.",
-                      `Macro F1 is the right metric: it weights all 3 classes equally. A model that always predicts 'No Rain' would score well on accuracy but terribly on macro F1.`,
-                      `${mlF1 && neaF1 ? `ML macro F1 ${(mlF1 * 100).toFixed(1)}% vs NEA ${(neaF1 * 100).toFixed(1)}% — ${mlF1 > neaF1 ? "our model performs better on this fair island-wide comparison." : "NEA performs better — this is expected: NEA uses physical models and human expertise at regional granularity, we're an island-wide statistical model."}` : "Awaiting corrected benchmark results."}`,
-                      "The ensemble combines ML probability scores with a softened NEA prediction. If both agree on an outcome, confidence is high. Where they disagree, the 60/40 weighting leans toward ML.",
-                    ]}
-                    tip="Caveat: NEA loses its regional specificity advantage when aggregated island-wide. In a per-area comparison (2-hour forecast matched to stations), NEA would likely score higher."
-                  />
-                </>
-              ) : (
-                <p className="text-white/40 text-sm text-center py-4">
-                  Island-wide benchmark not yet computed. Retraining with corrected methodology in progress...
+              {/* 6h regional benchmark */}
+              <div>
+                <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                  6-hour regional forecast — island-wide aggregation
                 </p>
+                {hasIW ? (
+                  <>
+                    <p className="text-white/35 text-[10px] mb-1.5">
+                      Majority vote across 5 regions per 6h window · {nSamples?.toLocaleString()} periods · 2024 holdout
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="text-white/40 text-[10px]">
+                            <th className="text-left py-1.5 pr-3">Model</th>
+                            <th className="text-right px-2">Accuracy</th>
+                            <th className="text-right px-2">Macro F1</th>
+                            <th className="text-right pl-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { name: "NEA 6h Regional → island-wide", acc: nea.accuracy, f1: neaF1, color: "text-white/70" },
+                            { name: "ML Model (island-wide, 1h ahead)", acc: ml.accuracy, f1: mlF1, color: "text-blue-300" },
+                            { name: "Ensemble (60% ML + 40% NEA)", acc: ens.accuracy, f1: ensF1, color: "text-emerald-300" },
+                          ].map(({ name, acc, f1, color }) => (
+                            <tr key={name} className="border-t border-white/5">
+                              <td className={`py-1.5 pr-3 font-medium text-[11px] ${color}`}>{name}</td>
+                              <td className={`text-right px-2 font-mono ${color}`}>{acc != null ? (acc * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className={`text-right px-2 font-mono ${color}`}>{f1 != null ? (f1 * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right pl-2">
+                                {f1 != null && f1 === Math.max(neaF1 ?? 0, mlF1 ?? 0, ensF1 ?? 0)
+                                  ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
+                                  : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-white/40 text-sm text-center py-4">Retraining in progress...</p>
+                )}
+              </div>
+
+              {/* 2h area benchmark */}
+              <div>
+                <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                  2-hour per-area forecast — NEA's finest granularity
+                </p>
+                {(has2h || hasPerArea) ? (
+                  <>
+                    <p className="text-white/35 text-[10px] mb-1.5">
+                      47 areas matched to nearest rain gauge (≤10 km) · {c3_2h.n_area_period_samples?.toLocaleString()} area-period samples · 2024 holdout
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="text-white/40 text-[10px]">
+                            <th className="text-left py-1.5 pr-3">Comparison</th>
+                            <th className="text-right px-2">Accuracy</th>
+                            <th className="text-right px-2">Macro F1</th>
+                            <th className="text-right pl-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {hasPerArea && (
+                            <tr className="border-t border-white/5">
+                              <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h per-area (native granularity)</td>
+                              <td className="text-right px-2 font-mono text-white/70">{perAreaNea.accuracy != null ? (perAreaNea.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right px-2 font-mono text-white/70">{perAreaNea.report?.["macro avg"]?.["f1-score"] != null ? (perAreaNea.report["macro avg"]["f1-score"] * 100).toFixed(1) + "%" : "—"}</td>
+                              <td className="text-right pl-2 text-[10px] text-white/30 italic">NEA-only</td>
+                            </tr>
+                          )}
+                          {has2h && (
+                            <>
+                              <tr className="border-t border-white/5">
+                                <td className="py-1.5 pr-3 font-medium text-[11px] text-white/70">NEA 2h → island-wide</td>
+                                <td className="text-right px-2 font-mono text-white/70">{nea2.accuracy != null ? (nea2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right px-2 font-mono text-white/70">{neaF1_2h != null ? (neaF1_2h * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right pl-2 text-[10px] text-white/30 italic">fair</td>
+                              </tr>
+                              <tr className="border-t border-white/5">
+                                <td className="py-1.5 pr-3 font-medium text-[11px] text-blue-300">ML Model → island-wide</td>
+                                <td className="text-right px-2 font-mono text-blue-300">{ml2.accuracy != null ? (ml2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right px-2 font-mono text-blue-300">{mlF1_2h != null ? (mlF1_2h * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right pl-2">
+                                  {mlF1_2h != null && neaF1_2h != null && mlF1_2h > neaF1_2h
+                                    ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
+                                    : null}
+                                </td>
+                              </tr>
+                              <tr className="border-t border-white/5">
+                                <td className="py-1.5 pr-3 font-medium text-[11px] text-emerald-300">Ensemble (60% ML + 40% NEA)</td>
+                                <td className="text-right px-2 font-mono text-emerald-300">{ens2.accuracy != null ? (ens2.accuracy * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right px-2 font-mono text-emerald-300">{ensF1_2h != null ? (ensF1_2h * 100).toFixed(1) + "%" : "—"}</td>
+                                <td className="text-right pl-2">
+                                  {ensF1_2h != null && ensF1_2h === Math.max(neaF1_2h ?? 0, mlF1_2h ?? 0, ensF1_2h)
+                                    ? <span className="text-emerald-400 text-[10px] font-semibold">✓ Best</span>
+                                    : null}
+                                </td>
+                              </tr>
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-white/25 text-[10px] mt-1.5 italic">
+                      "NEA-only" row shows NEA's natural per-area accuracy — ML is not compared here since ML is island-wide, not per-area.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-white/30 text-[10px] text-center py-2">2h area benchmark computing during retrain...</p>
+                )}
+              </div>
+
+              {/* Commentary */}
+              {hasIW && (
+                <CommentaryBox
+                  variant="indigo"
+                  points={[
+                    "Both benchmarks use majority vote aggregation to island-wide before comparing with ML. This is the only fair comparison — our model predicts one label for the whole island.",
+                    `Macro F1 weights all 3 classes equally. A model always predicting 'No Rain' would score 60%+ accuracy but near-zero macro F1.`,
+                    `${mlF1 && neaF1 ? `6h comparison: ML macro F1 ${(mlF1 * 100).toFixed(1)}% vs NEA ${(neaF1 * 100).toFixed(1)}% — ${mlF1 > neaF1 ? "ML outperforms NEA on this island-wide metric." : "NEA still ahead — expected, as NEA uses meteorological expertise."}` : ""}`,
+                    "The ensemble blends ML probability scores with a softened NEA forecast. When both agree, confidence is high; when they disagree the 60/40 weighting leans ML.",
+                  ].filter(Boolean)}
+                  tip="NEA 2h per-area accuracy is their strongest metric — they're forecasting 47 specific locations, not a single island-wide label. Our ML model is not designed for per-area prediction."
+                />
               )}
             </div>
           </Section>

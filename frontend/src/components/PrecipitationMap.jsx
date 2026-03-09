@@ -61,10 +61,10 @@ function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
       timeIndex,
     });
 
-    // Singapore bounds for radar overlay
-    const bounds = [
-      [1.15, 103.6], // Southwest
-      [1.5, 104.1], // Northeast
+    // Use bounds from the API response (matches what weather.gov.sg uses)
+    const bounds = currentFrame.bounds || [
+      [1.1550, 103.565], // Southwest fallback
+      [1.4750, 104.130], // Northeast fallback
     ];
 
     // Create image overlay with 70% opacity for better visibility
@@ -182,6 +182,7 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
           timestamp: frame.timestamp,
           date: new Date(frame.timestamp),
           url: frame.imageUrl,
+          bounds: frame.bounds, // [[lat_sw, lon_sw], [lat_ne, lon_ne]]
           loaded: true, // Backend already has the images
         }));
 
