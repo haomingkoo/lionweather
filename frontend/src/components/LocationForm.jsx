@@ -74,6 +74,17 @@ const geocodeSingaporePostal = async (postalCode) => {
   }));
 };
 
+// Detect "lat, lon" input (e.g. "1.3521, 103.8198")
+function parseLatLon(query) {
+  const m = query.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lon = parseFloat(m[2]);
+  // Rough bounding box: SG/MY/ID region
+  if (lat < -11 || lat > 8 || lon < 95 || lon > 142) return null;
+  return { lat, lon };
+}
+
 // Geocode postal code or place name to coordinates
 const geocodeLocation = async (query) => {
   try {
@@ -140,6 +151,17 @@ export function LocationForm({ isDark = false, compact = false }) {
   const handleSearch = async (event) => {
     event.preventDefault();
     if (!searchQuery.trim()) return;
+
+    // If input looks like "lat, lon", add directly
+    const coords = parseLatLon(searchQuery);
+    if (coords) {
+      try {
+        await create({ latitude: coords.lat, longitude: coords.lon });
+        setSearchQuery("");
+        setSearchResults([]);
+      } catch { /* captured in hook */ }
+      return;
+    }
 
     setIsSearching(true);
     try {
@@ -216,9 +238,9 @@ export function LocationForm({ isDark = false, compact = false }) {
                 disabled={isPending}
                 className={`w-full text-left rounded-xl backdrop-blur-sm px-3 py-2 text-sm ${textColor} hover:brightness-110 transition-all ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/30 border border-white/40 hover:bg-white/40"}`}
               >
-                <div className="font-medium truncate">{result.display_name}</div>
-                <div className={`text-xs ${secondaryTextColor} mt-0.5`}>
-                  {result.lat.toFixed(4)}, {result.lon.toFixed(4)}
+                <div className="font-medium truncate">{result.name}</div>
+                <div className={`text-xs ${secondaryTextColor} mt-0.5 truncate`}>
+                  {result.display_name}
                 </div>
               </button>
             ))}
