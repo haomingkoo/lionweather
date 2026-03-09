@@ -21,7 +21,7 @@ import { request } from "../api/client";
 import { get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
-import { getSunTimesSync } from "../utils/sunTimes";
+import { getSunTimesSync, getTomorrowSunrise } from "../utils/sunTimes";
 import { getCurrentWeather, get7DayForecast, getHourlyForecast } from "../api/backend";
 
 // Map WMO weather codes to simple condition strings
@@ -117,6 +117,20 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const [sunTimes] = useState(() =>
     getSunTimesSync(location.latitude, location.longitude),
   );
+  const [tomorrowSunrise] = useState(() =>
+    getTomorrowSunrise(location.latitude, location.longitude),
+  );
+  // Is it after today's sunset?
+  const isAfterSunset = (() => {
+    if (!sunTimes.sunset || sunTimes.sunset === "N/A") return false;
+    const m = sunTimes.sunset.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    if (!m) return false;
+    let h = parseInt(m[1], 10); const min = parseInt(m[2], 10);
+    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
+    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes() > h * 60 + min;
+  })();
   const [openMeteoData, setOpenMeteoData] = useState({
     visibility: null,
     pressure: null,
@@ -646,34 +660,80 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           );
         })()}
 
-        {/* Sunset — arc */}
+        {/* Sunset card — flips to "Sunrise Tomorrow" after sunset */}
         <div
           className={`rounded-3xl backdrop-blur-2xl p-3 transition-all duration-200 ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
         >
-          <div className="flex items-center gap-2 mb-1">
-            <Sunset className="h-4 w-4 text-orange-400" />
-            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
-          </div>
-          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
-          {/* Compact arc */}
-          <svg viewBox="0 0 100 30" width="100%" className="mt-1">
-            <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-            <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
-            {(() => {
-              const prog = Math.min(sunProgress, 0.999);
-              const ax = 50 - 46 * Math.cos(prog * Math.PI);
-              const ay = 22 - 18 * Math.sin(prog * Math.PI);
-              return (
-                <>
-                  <path d={`M 4,22 A 46,18 0 0 1 ${ax},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.5" />
-                  <circle cx={ax} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
-                  <circle cx={ax} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
-                </>
-              );
-            })()}
-            <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
-            <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
-          </svg>
+          {isAfterSunset ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Sunrise className="h-4 w-4 text-amber-400" />
+                <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
+              </div>
+              <div className={`text-2xl font-light ${textColor}`}>{tomorrowSunrise}</div>
+              {/* Night arc — moon dot tracking from sunset (right) toward sunrise (left, ~8h away) */}
+              <svg viewBox="0 0 100 30" width="100%" className="mt-1">
+                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+                <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" strokeDasharray="3 2" />
+                {/* Night moon dot — progress through the night 0→1 */}
+                {(() => {
+                  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                  const sunsetM = sunsetMin ?? nowMin;
+                  // Tomorrow sunrise in minutes past midnight (could be ~7*60=420)
+                  const tmrM = (() => {
+                    const n = tomorrowSunrise.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+                    if (!n) return sunsetM + 720;
+                    let h2 = parseInt(n[1]); const m2 = parseInt(n[2]);
+                    if (n[3].toUpperCase() === "PM" && h2 !== 12) h2 += 12;
+                    if (n[3].toUpperCase() === "AM" && h2 === 12) h2 = 0;
+                    return h2 * 60 + m2 + 1440; // next day = +1440
+                  })();
+                  const nightNow = nowMin < sunsetM ? sunsetM + 1 : nowMin + 1440;
+                  const nightProgress = Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
+                  // Draw from right (sunset) toward left (sunrise) — reverse arc direction
+                  const prog = 1 - nightProgress;
+                  const ax = 50 - 46 * Math.cos(prog * Math.PI);
+                  const ay = 22 - 18 * Math.sin(prog * Math.PI);
+                  return (
+                    <>
+                      <circle cx={ax} cy={ay} r="3" fill="rgba(148,163,184,0.9)" />
+                      <circle cx={ax} cy={ay} r="5.5" fill="rgba(148,163,184,0.15)" />
+                    </>
+                  );
+                })()}
+                <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.25)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
+              </svg>
+              <p className={`text-[10px] ${tertiaryTextColor} mt-0.5`}>Tomorrow</p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Sunset className="h-4 w-4 text-orange-400" />
+                <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
+              </div>
+              <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+              {/* Compact arc */}
+              <svg viewBox="0 0 100 30" width="100%" className="mt-1">
+                <line x1="4" y1="22" x2="96" y2="22" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+                <path d="M 4,22 A 46,18 0 0 1 96,22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+                {(() => {
+                  const prog = Math.min(sunProgress, 0.999);
+                  const ax = 50 - 46 * Math.cos(prog * Math.PI);
+                  const ay = 22 - 18 * Math.sin(prog * Math.PI);
+                  return (
+                    <>
+                      <path d={`M 4,22 A 46,18 0 0 1 ${ax},${ay}`} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.5" />
+                      <circle cx={ax} cy={ay} r="3" fill="#fb923c" opacity="0.95" />
+                      <circle cx={ax} cy={ay} r="5.5" fill="rgba(251,146,60,0.18)" />
+                    </>
+                  );
+                })()}
+                <text x="4" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+                <text x="96" y="29" fontSize="5.5" fill="rgba(255,255,255,0.3)" textAnchor="end" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+              </svg>
+            </>
+          )}
         </div>
 
         {/* Feels Like */}

@@ -27,6 +27,20 @@ export function getSunTimesSync(
   }
 }
 
+export function getTomorrowSunrise(
+  latitude = SINGAPORE_LAT,
+  longitude = SINGAPORE_LNG,
+) {
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const times = SunCalc.getTimes(tomorrow, latitude, longitude);
+    return _fmt(times.sunrise);
+  } catch {
+    return "N/A";
+  }
+}
+
 /**
  * Calculate sunrise and sunset times using the SunCalc library (client-side, no external API).
  * Kept for backwards compatibility — prefer getSunTimesSync where possible.
