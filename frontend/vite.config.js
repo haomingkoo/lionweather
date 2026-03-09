@@ -4,7 +4,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const backendPort = env.VITE_BACKEND_PORT || "8000";
-  const apiTarget = env.VITE_API_TARGET || `http://localhost:${backendPort}`;
+  const rawTarget = env.VITE_API_TARGET || `http://localhost:${backendPort}`;
+  // Force https so the proxy target is never http in production (mixed-content)
+  const apiTarget = rawTarget.replace(/^http:\/\//, "https://");
   const previewPort = parseInt(process.env.PORT || env.PORT || "5173", 10);
 
   return {

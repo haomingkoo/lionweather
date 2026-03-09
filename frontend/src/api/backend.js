@@ -99,7 +99,7 @@ export async function get7DayForecast(latitude, longitude) {
       days: "7",
     });
 
-    const response = await fetch(`${API_BASE}/forecasts?${params}`);
+    const response = await fetch(`${API_BASE}/forecasts/?${params}`);
 
     if (!response.ok) {
       throw new Error(

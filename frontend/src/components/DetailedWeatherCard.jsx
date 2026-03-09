@@ -530,6 +530,34 @@ export function DetailedWeatherCard({ location, isDark = false }) {
 
       {/* Weather Details Grid */}
       <div className="grid grid-cols-2 gap-2">
+        {/* Sunrise */}
+        <div
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Sunrise className={`h-4 w-4 text-amber-400`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
+          </div>
+          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
+          {sunTimes.sunset !== "N/A" && (
+            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunset {sunTimes.sunset}</p>
+          )}
+        </div>
+
+        {/* Sunset */}
+        <div
+          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Sunset className={`h-4 w-4 text-orange-400`} />
+            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
+          </div>
+          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
+          {sunTimes.sunrise !== "N/A" && (
+            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunrise {sunTimes.sunrise}</p>
+          )}
+        </div>
+
         {/* Feels Like */}
         <div
           className={`rounded-2xl backdrop-blur-2xl p-2 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
@@ -647,34 +675,6 @@ export function DetailedWeatherCard({ location, isDark = false }) {
           </div>
         </div>
         )}
-
-        {/* Sunrise */}
-        <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Sunrise className={`h-4 w-4 text-amber-400`} />
-            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
-          </div>
-          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
-          {sunTimes.sunset !== "N/A" && (
-            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunset {sunTimes.sunset}</p>
-          )}
-        </div>
-
-        {/* Sunset */}
-        <div
-          className={`rounded-3xl backdrop-blur-2xl p-3 xl:p-3 2xl:p-3 transition-all duration-200  ${isDark ? "bg-white/10 border border-white/30" : "bg-white/25 border border-white/50"}`}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Sunset className={`h-4 w-4 text-orange-400`} />
-            <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunset</span>
-          </div>
-          <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunset}</div>
-          {sunTimes.sunrise !== "N/A" && (
-            <p className={`text-xs ${tertiaryTextColor} mt-1`}>Sunrise {sunTimes.sunrise}</p>
-          )}
-        </div>
       </div>
 
       {/* Precipitation Map Modal */}
