@@ -146,7 +146,7 @@ const checkWeatherAlerts = (locations, prevLocations = []) => {
   });
 };
 
-// Request notification permission
+// Request notification permission (only when user opts in)
 const requestNotificationPermission = async () => {
   if (!("Notification" in window)) {
     console.log("This browser does not support notifications");
@@ -163,6 +163,42 @@ const requestNotificationPermission = async () => {
   }
 
   return false;
+};
+
+const RAIN_NOTIFY_KEY = "lionweather_rain_notify";
+const RAIN_NOTIFY_LAST_KEY = "lionweather_rain_notify_last";
+const RAIN_NOTIFY_COOLDOWN = 60 * 60 * 1000; // 1 hour cooldown between notifications
+const RAIN_POLL_INTERVAL = 15 * 60 * 1000; // Poll every 15 minutes
+
+// Fetch ML predictions for next 2 hours and notify if rain likely
+const checkMLRainForecast = async () => {
+  try {
+    const response = await fetch("/api/ml/predict/2");
+    if (!response.ok) return;
+    const data = await response.json();
+    const predictions = data.predictions || [];
+
+    // Find highest rain probability in next 2 hours
+    const highRainPred = predictions.find((p) => p.rain_probability > 50);
+    if (!highRainPred) return;
+
+    // Cooldown: don't spam notifications
+    const lastNotify = localStorage.getItem(RAIN_NOTIFY_LAST_KEY);
+    if (lastNotify && Date.now() - parseInt(lastNotify, 10) < RAIN_NOTIFY_COOLDOWN) return;
+
+    // Fire notification
+    if (Notification.permission === "granted") {
+      const prob = Math.round(highRainPred.rain_probability);
+      new Notification("🌧️ Rain expected soon", {
+        body: `${prob}% chance of rain in the next 1–2 hours`,
+        icon: "/favicon.ico",
+        tag: "ml-rain-forecast",
+      });
+      localStorage.setItem(RAIN_NOTIFY_LAST_KEY, String(Date.now()));
+    }
+  } catch (err) {
+    console.warn("ML rain forecast check failed:", err);
+  }
 };
 
 export function LocationsProvider({ children }) {
@@ -352,10 +388,30 @@ export function LocationsProvider({ children }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Request notification permission on mount
-  useEffect(() => {
-    requestNotificationPermission();
+  // Rain forecast notifications (opt-in)
+  const [rainNotifyEnabled, setRainNotifyEnabledState] = useState(
+    () => localStorage.getItem(RAIN_NOTIFY_KEY) === "true",
+  );
+
+  const setRainNotifyEnabled = useCallback(async (enabled) => {
+    if (enabled) {
+      const granted = await requestNotificationPermission();
+      if (!granted) return; // browser denied, don't enable
+    }
+    localStorage.setItem(RAIN_NOTIFY_KEY, String(enabled));
+    setRainNotifyEnabledState(enabled);
   }, []);
+
+  // Poll ML predictions when rain notifications are enabled
+  useEffect(() => {
+    if (!rainNotifyEnabled) return;
+
+    // Check immediately on enable
+    checkMLRainForecast();
+
+    const interval = setInterval(checkMLRainForecast, RAIN_POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [rainNotifyEnabled]);
 
   // Auto-refresh on mount
   useEffect(() => {
@@ -373,6 +429,8 @@ export function LocationsProvider({ children }) {
         getGeolocationPermissionState,
         setGeolocationPermissionState,
         addLocationFromGeolocation,
+        rainNotifyEnabled,
+        setRainNotifyEnabled,
       }}
     >
       {children}

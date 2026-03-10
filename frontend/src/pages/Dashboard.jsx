@@ -6,7 +6,7 @@ import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { MLLiveForecast } from "../components/MLLiveForecast";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
-import { Github } from "lucide-react";
+import { Github, Bell, BellOff } from "lucide-react";
 
 export function Dashboard() {
   const [view, setView] = useState("list");
@@ -15,6 +15,8 @@ export function Dashboard() {
   const {
     locations,
     addLocationFromGeolocation,
+    rainNotifyEnabled,
+    setRainNotifyEnabled,
   } = useLocations();
 
   // Check if user has a current location (from geolocation)
@@ -164,6 +166,23 @@ export function Dashboard() {
                       <p className="text-slate-500 text-[11px] mt-1 text-center">Your location stays in your browser — never sent to our servers.</p>
                     )}
                   </div>
+                )}
+                {/* Rain notification toggle */}
+                <button
+                  onClick={() => setRainNotifyEnabled(!rainNotifyEnabled)}
+                  className={`w-full px-4 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    rainNotifyEnabled
+                      ? "bg-indigo-600/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/30"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  {rainNotifyEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                  {rainNotifyEnabled ? "Rain alerts on" : "Enable rain alerts"}
+                </button>
+                {rainNotifyEnabled && (
+                  <p className="text-slate-500 text-[11px] text-center">
+                    You'll be notified when rain is likely in the next 1–2 hours.
+                  </p>
                 )}
               </div>
             }
