@@ -663,22 +663,18 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{tomorrowSunrise}</div>
-              <svg viewBox="0 0 100 48" width="100%" className="mt-1" overflow="visible">
+              <svg viewBox="0 0 100 50" width="100%" className="mt-1" overflow="visible">
                 {(() => {
-                  const hY = 24, amp = 13, pad = 0.4, N = 60;
-                  const total = Math.PI + 2 * pad;
-                  // Night wave: sunset (left) → dip below → sunrise (right)
+                  const hY = 20, amp = 16, N = 80;
+                  const setX = 18, riseX = 82;
+                  const halfP = riseX - setX;
+                  // One continuous sine wave — dips below horizon between sunset and sunrise
                   const pts = [];
                   for (let i = 0; i <= N; i++) {
-                    const t = i / N;
-                    const a = Math.PI - pad + t * total;
-                    pts.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                    const x = 2 + (i / N) * 96;
+                    const theta = Math.PI * (x - setX) / halfP;
+                    pts.push(`${x.toFixed(1)},${(hY + amp * Math.sin(theta)).toFixed(1)}`);
                   }
-                  // Horizon crossing points
-                  const riseT = (Math.PI + pad) / total;
-                  const setT = pad / total;
-                  const setX = 4 + setT * 92;
-                  const riseX = 4 + riseT * 92;
                   // Night progress → dot position
                   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
                   const sunsetM = sunsetMin ?? nowMin;
@@ -692,25 +688,23 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                   })();
                   const nightNow = nowMin < sunsetM ? nowMin + 1440 : nowMin;
                   const np = Math.max(0, Math.min(0.999, (nightNow - sunsetM) / (tmrM - sunsetM)));
-                  const dotA = Math.PI + np * Math.PI;
-                  const dotT = (dotA - Math.PI + pad) / total;
-                  const dx = 4 + dotT * 92;
-                  const dy = hY - amp * Math.sin(dotA);
-                  // Traced path from sunset to current
+                  const dx = setX + np * halfP;
+                  const dy = hY + amp * Math.sin(np * Math.PI);
+                  // Traced path from sunset to current position
                   const traced = [];
                   for (let i = 0; i <= 30; i++) {
-                    const a = Math.PI + (i / 30) * np * Math.PI;
-                    const t = (a - Math.PI + pad) / total;
-                    traced.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                    const t = (i / 30) * np;
+                    const x = setX + t * halfP;
+                    traced.push(`${x.toFixed(1)},${(hY + amp * Math.sin(t * Math.PI)).toFixed(1)}`);
                   }
                   return (<>
-                    <line x1={setX} y1={hY} x2={riseX} y2={hY} stroke="rgba(255,255,255,0.12)" strokeWidth="0.6" />
-                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2" />
-                    <polyline points={traced.join(" ")} fill="none" stroke="rgba(148,163,184,0.35)" strokeWidth="1.5" />
+                    <line x1="2" y1={hY} x2="98" y2={hY} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                    {traced.length > 1 && <polyline points={traced.join(" ")} fill="none" stroke="rgba(148,163,184,0.4)" strokeWidth="1.5" strokeLinecap="round" />}
+                    <circle cx={dx} cy={dy} r="5.5" fill="rgba(148,163,184,0.12)" />
                     <circle cx={dx} cy={dy} r="3" fill="rgba(148,163,184,0.9)" />
-                    <circle cx={dx} cy={dy} r="5.5" fill="rgba(148,163,184,0.15)" />
-                    <text x={setX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.2)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
-                    <text x={riseX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
+                    <text x={setX} y={hY - 4} fontSize="4" fill="rgba(255,255,255,0.25)" textAnchor="middle" fontFamily="system-ui, sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                    <text x={riseX} y={hY - 4} fontSize="4" fill="rgba(255,255,255,0.35)" textAnchor="middle" fontFamily="system-ui, sans-serif">{tomorrowSunrise !== "N/A" ? tomorrowSunrise : ""}</text>
                   </>);
                 })()}
               </svg>
@@ -723,43 +717,38 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Sunrise</span>
               </div>
               <div className={`text-2xl font-light ${textColor}`}>{sunTimes.sunrise}</div>
-              <svg viewBox="0 0 100 48" width="100%" className="mt-1" overflow="visible">
+              <svg viewBox="0 0 100 50" width="100%" className="mt-1" overflow="visible">
                 {(() => {
-                  const hY = 24, amp = 13, pad = 0.4, N = 60;
-                  const total = Math.PI + 2 * pad;
-                  // Day wave: starts below horizon, rises through sunrise, peaks at noon, dips through sunset
+                  const hY = 28, amp = 16, N = 80;
+                  const riseX = 18, setX = 82;
+                  const halfP = setX - riseX;
+                  // One continuous sine wave across the full card width
+                  // Sunrise and sunset are the horizon crossings
                   const pts = [];
                   for (let i = 0; i <= N; i++) {
-                    const t = i / N;
-                    const a = -pad + t * total;
-                    pts.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                    const x = 2 + (i / N) * 96;
+                    const theta = Math.PI * (x - riseX) / halfP;
+                    pts.push(`${x.toFixed(1)},${(hY - amp * Math.sin(theta)).toFixed(1)}`);
                   }
-                  // Horizon crossing points (sunrise and sunset x)
-                  const riseT = pad / total;
-                  const setT = (Math.PI + pad) / total;
-                  const riseX = 4 + riseT * 92;
-                  const setX = 4 + setT * 92;
-                  // Sun dot position
+                  // Sun dot position (prog 0=sunrise, 1=sunset)
                   const prog = Math.min(sunProgress, 0.999);
-                  const dotA = prog * Math.PI;
-                  const dotT = (dotA + pad) / total;
-                  const sx = 4 + dotT * 92;
-                  const sy = hY - amp * Math.sin(dotA);
-                  // Traced path from sunrise to sun position
+                  const sx = riseX + prog * halfP;
+                  const sy = hY - amp * Math.sin(prog * Math.PI);
+                  // Traced path from sunrise to current position
                   const traced = [];
-                  for (let i = 0; i <= 30; i++) {
-                    const a = (i / 30) * prog * Math.PI;
-                    const t = (a + pad) / total;
-                    traced.push(`${(4 + t * 92).toFixed(1)},${(hY - amp * Math.sin(a)).toFixed(1)}`);
+                  for (let i = 0; i <= 40; i++) {
+                    const t = (i / 40) * prog;
+                    const x = riseX + t * halfP;
+                    traced.push(`${x.toFixed(1)},${(hY - amp * Math.sin(t * Math.PI)).toFixed(1)}`);
                   }
                   return (<>
-                    <line x1={riseX} y1={hY} x2={setX} y2={hY} stroke="rgba(255,255,255,0.12)" strokeWidth="0.6" />
-                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.2" />
-                    <polyline points={traced.join(" ")} fill="none" stroke="rgba(251,146,60,0.5)" strokeWidth="1.5" />
-                    <circle cx={sx} cy={sy} r="3.5" fill="#fb923c" opacity="0.95" />
-                    <circle cx={sx} cy={sy} r="6" fill="rgba(251,146,60,0.15)" />
-                    <text x={riseX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
-                    <text x={setX} y={hY - 3} fontSize="4.5" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
+                    <line x1="2" y1={hY} x2="98" y2={hY} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+                    <polyline points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                    {traced.length > 1 && <polyline points={traced.join(" ")} fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.5" strokeLinecap="round" />}
+                    <circle cx={sx} cy={sy} r="6" fill="rgba(251,146,60,0.12)" />
+                    <circle cx={sx} cy={sy} r="3.5" fill="#fb923c" />
+                    <text x={riseX} y={hY + 7} fontSize="4" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="system-ui, sans-serif">{sunTimes.sunrise !== "N/A" ? sunTimes.sunrise : ""}</text>
+                    <text x={setX} y={hY + 7} fontSize="4" fill="rgba(255,255,255,0.3)" textAnchor="middle" fontFamily="system-ui, sans-serif">{sunTimes.sunset !== "N/A" ? sunTimes.sunset : ""}</text>
                   </>);
                 })()}
               </svg>
