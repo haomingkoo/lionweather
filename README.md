@@ -249,3 +249,4 @@ CORS is configured in `backend/app/main.py` to allow `https://weather.kooexperie
 ## Built by
 
 [Haoming Koo](https://kooexperience.com) with [Claude](https://claude.ai) (Anthropic).
+
