@@ -1112,7 +1112,7 @@ export function MLAnalysisDashboard() {
                   if (selectedVar === "wind_speed") return [...base,
                     `Wind speed ACF decays faster than temperature or humidity — wind changes more erratically. The 24-hour cycle is weaker (wind is less diurnal than temperature), making it harder to forecast.`,
                     "PACF cuts off after lag 2 with a clear negative spike at lag 2, similar to humidity. Wind speed has short direct memory: what happened 1–2 hours ago is most relevant.",
-                    "Despite lower persistence, wind direction and speed changes are still important ML features — wind_accel_3h (acceleration) and wind_from_west are among the top SHAP contributors for thunderstorm prediction.",
+                    "Despite lower persistence, wind direction and speed changes are useful ML features — wind_accel_3h (acceleration) and wind direction contribute to thunderstorm prediction, though spatial rainfall features tend to dominate SHAP importance.",
                   ];
                   return base;
                 })()}
@@ -1172,7 +1172,7 @@ export function MLAnalysisDashboard() {
                 ))}
               </div>
               <p className="text-white/30 text-[10px]">
-                Peaks at 24h and 12h confirm daily cycles. Peaks at 168h (7 days) = weekly pattern.
+                Peaks near 24h and 12h confirm diurnal and semi-diurnal cycles. Broader peaks at 72h+ reflect multi-day weather systems.
               </p>
               <CommentaryBox
                 variant="indigo"
@@ -1238,8 +1238,8 @@ export function MLAnalysisDashboard() {
             variant="amber"
             points={[
               "The stem plots show cross-correlation between two variables at different time lags. Each vertical bar = correlation at that lag. Bars outside the dashed lines are statistically significant.",
-              "r=-0.90 between temperature and humidity is extremely strong and NEGATIVE — as temperature rises, humidity falls sharply. This makes physical sense: hot air can hold more water vapor, so relative humidity drops.",
-              "r=0.17 between rainfall and humidity is a weak POSITIVE link — slightly more rain when humid. Correlation does not imply causation: both are driven by the same weather system.",
+              `r=${data.spurious_correlations?.cross_correlation?.temperature_vs_humidity?.pearson_r ?? "−0.90"} between temperature and humidity is extremely strong and NEGATIVE — as temperature rises, humidity falls sharply. This makes physical sense: hot air can hold more water vapor, so relative humidity drops.`,
+              `r=${data.spurious_correlations?.cross_correlation?.rainfall_vs_humidity?.pearson_r ?? "0.17"} between rainfall and humidity is a weak POSITIVE link — slightly more rain when humid. Correlation does not imply causation: both are driven by the same weather system.`,
               "Granger Causality tests whether PAST values of one variable help predict the FUTURE of another. 'Temperature Granger-causes rainfall' (p=0) means: knowing yesterday's temperature genuinely helps predict today's rainfall — beyond just using rainfall history alone.",
               "All three variables (temperature, humidity, wind speed) Granger-cause rainfall at p≈0, confirming they are all legitimate predictive features for the ML model.",
               "Spurious correlation warning: Two variables can appear correlated because they're both driven by a THIRD hidden variable (the monsoon cycle, for example). Granger causality helps distinguish real predictive relationships from coincidence.",
@@ -1433,10 +1433,10 @@ export function MLAnalysisDashboard() {
                   "Recall = 'of all actual rain events, how many did the model catch?' High recall = fewer missed rain events. For a weather app, RECALL is more important — being caught in unexpected rain is worse than carrying an umbrella unnecessarily.",
                   "F1 Score is the harmonic mean of precision and recall. It balances both — useful when you care about both false alarms and missed events.",
                   "The confusion matrix grid shows where the model makes mistakes. The GREEN diagonal = correct predictions. RED cells = errors. The most costly cell is 'Heavy Rain predicted as No Rain' (top-right area) — that's a missed warning.",
-                  "Why is Heavy Rain recall so low (3.8%)? Heavy rain hours are rare (only 476 out of 8,765), so the model has fewer examples to learn from. Cost-weighting (4×) partially compensates, but heavy rain remains the hardest to forecast.",
-                  "The Binary classifier (Rain vs No-Rain) is simpler and achieves 80% accuracy with 72% rain recall — a much easier task than distinguishing 4 rain categories.",
+                  `Why is Heavy Rain recall low? Heavy rain hours are rare (${report["Heavy Rain"]?.support?.toLocaleString() ?? "~500"} out of ${hr.n_test?.toLocaleString() ?? "~8,700"}), so the model has fewer examples to learn from. Cost-weighting (4×) partially compensates, but heavy rain remains the hardest to forecast.`,
+                  `The Binary classifier (Rain vs No-Rain) is simpler — achieving ${hr.binary_classification ? (hr.binary_classification.accuracy * 100).toFixed(0) + "% accuracy with " + (hr.binary_classification.rain_recall * 100).toFixed(0) + "% rain recall" : "higher accuracy"} — a much easier task than distinguishing 4 rain categories.`,
                 ]}
-                tip="Practical interpretation: At 1h ahead, the model correctly warns about rain 72% of the time. For 3h ahead, this drops further. Always check the hourly forecast!"
+                tip={`Practical interpretation: At ${hr.horizon_h}h ahead, the model correctly warns about rain ${hr.binary_classification ? (hr.binary_classification.rain_recall * 100).toFixed(0) + "%" : "most"} of the time. Longer horizons drop further. Always check the hourly forecast!`}
               />
             </div>
           );
@@ -1514,7 +1514,7 @@ export function MLAnalysisDashboard() {
                   <p>NEA publishes at two levels. We compare at each level separately:</p>
                   <ul className="space-y-0.5 ml-2">
                     <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour by region</strong> (5 regions) — compared at per-region level, then also aggregated to island-wide via majority vote</li>
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour by area</strong> (47 areas) — compared at native per-area level; ML island-wide prediction applied uniformly to all areas</li>
+                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour by area</strong> ({c3_2h.n_areas || nb2?.overall?.class3?.n_areas || 47} areas) — compared at native per-area level; ML island-wide prediction applied uniformly to all areas</li>
                   </ul>
                 </div>
               </div>
@@ -1569,7 +1569,7 @@ export function MLAnalysisDashboard() {
                 {hasPerArea ? (
                   <>
                     <p className="text-white/35 text-[10px] mb-1.5">
-                      47 areas matched to nearest rain gauge (≤10 km) · ML prediction applied uniformly island-wide
+                      {c3_2h.n_areas || 47} areas matched to nearest rain gauge (≤10 km) · ML prediction applied uniformly island-wide
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs border-collapse">
@@ -1609,7 +1609,7 @@ export function MLAnalysisDashboard() {
                       </table>
                     </div>
                     <p className="text-white/25 text-[10px] mt-1.5 italic">
-                      ML island-wide label applied to all 47 areas — this reveals the "local knowledge gap" vs NEA's area-specific forecasts.
+                      ML island-wide label applied to all {c3_2h.n_areas || 47} areas — this reveals the "local knowledge gap" vs NEA's area-specific forecasts.
                     </p>
                   </>
                 ) : (
@@ -1623,7 +1623,7 @@ export function MLAnalysisDashboard() {
                   variant="indigo"
                   points={[
                     `6h island-wide: ML Rain F2 ${iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"} vs NEA ${iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"} — ML catches significantly more rain events despite similar accuracy. NEA is conservative; ML has higher recall.`,
-                    `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "—"}) because it has local area knowledge — our ML applies one island-wide label to all 47 areas. Ensemble blends both, trading some accuracy for better rain recall.`,
+                    `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "—"}) because it has local area knowledge — our ML applies one island-wide label to all ${c3_2h.n_areas || 47} areas. Ensemble blends both, trading some accuracy for better rain recall.`,
                     "Accuracy is misleading here — Singapore is dry ~70% of the time, so predicting 'No Rain' always gives high accuracy. F2 penalises models that miss rain events.",
                     "Next step: per-area ML using each station's local sensor readings + spatial neighbour features — this should close the accuracy gap with NEA.",
                   ]}
@@ -1645,12 +1645,12 @@ export function MLAnalysisDashboard() {
             {[
               {
                 step: "1. Baseline (station lag features only)",
-                detail: "Initial model used only historical station observations: rain_lag_1h, temp_lag_1h, hum_lag_1h, wind_lag_1h. Binary F1 ~0.68.",
+                detail: "Initial model used only historical station observations: rain_lag_1h, temp_lag_1h, hum_lag_1h, wind_lag_1h. Reasonable baseline, but limited by lack of engineered features.",
                 color: "border-white/20",
               },
               {
                 step: "2. Engineered meteorological features",
-                detail: "Added dry_spell_hours, rain_streak_hours, hum_deficit (gap to saturation), wind_accel_3h, time-of-day sine/cosine encoding, month encoding. These capture physical processes (atmospheric instability, storm persistence). F1 improved to ~0.73.",
+                detail: "Added dry_spell_hours, rain_streak_hours, hum_deficit (gap to saturation), wind_accel_3h, time-of-day sine/cosine encoding, month encoding. These capture physical processes (atmospheric instability, storm persistence) and noticeably improved rain recall.",
                 color: "border-blue-400/30",
               },
               {
@@ -1660,7 +1660,7 @@ export function MLAnalysisDashboard() {
               },
               {
                 step: "4. External features: cloud cover, solar radiation, wind direction",
-                detail: "Open-Meteo archive data (2016–2024) added hourly cloud cover, shortwave radiation (daytime heating driver), and surface wind direction encoded cyclically (sin/cos). Cloud cover is the most direct convective signal available without a radiosonde.",
+                detail: "Open-Meteo archive data (2016–2024) added hourly cloud cover, shortwave radiation (daytime heating driver), and surface wind direction encoded cyclically (sin/cos). Cloud cover is one of the more direct convective signals available from surface observations.",
                 color: "border-blue-400/50",
               },
               {
@@ -1689,7 +1689,7 @@ export function MLAnalysisDashboard() {
             <p className="text-emerald-300/80 text-[10px] font-semibold uppercase tracking-wide mb-1.5">Next improvements (planned)</p>
             <ul className="space-y-1">
               {[
-                "ERA5 CAPE/CIN data from Copernicus CDS — direct convective instability index, likely strongest single feature for thunderstorm prediction.",
+                "ERA5 CAPE/CIN data from Copernicus CDS — direct convective instability index, expected to be a high-impact feature for thunderstorm prediction.",
                 "Walk-forward cross-validation across all years (2016–2024) for more robust performance estimates.",
                 "Separate model per region (East/West/Central) rather than island-wide average.",
               ].map((p, i) => (
@@ -1794,17 +1794,15 @@ export function MLAnalysisDashboard() {
                       variant="indigo"
                       points={[
                         "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction — unlike feature importance which only measures average effect, SHAP explains individual predictions.",
-                        "dry_spell_hours (top feature): Consecutive dry hours before this reading. A long dry spell lets heat and instability build up — the longer the drought, the more energetic the next rain event tends to be.",
-                        "wind_accel_3h: Rate of wind speed change over 3 hours. Rapidly accelerating winds signal an approaching front or convective system — one of the strongest short-range storm precursors.",
-                        "rain_lag_1h: Rainfall 1 hour ago. Active rain systems persist for 1–3 hours in Singapore, so recent rain is a strong predictor that rain is still occurring.",
-                        "hum_deficit: Gap between actual humidity and saturation point (100% RH). When this approaches zero the air is near condensation — rain becomes very likely.",
-                        "temp_lag_1h: Temperature 1 hour ago. A sudden temperature drop indicates a cold pool from a nearby storm cell — a sign rain is approaching or already active.",
-                        "hum_temp_product: Interaction of humidity × temperature. High heat + high humidity creates the thermodynamic instability that drives Singapore's convective thunderstorms.",
-                        "hum_lag_1h: Humidity 1 hour ago. Rising humidity trend confirms moisture is converging — a necessary precondition for convective rainfall.",
-                        "rain_streak_hours: Consecutive hours of ongoing rain. Rain systems here typically last 1–3 hours, so a long streak means the system may be weakening.",
+                        "Spatial rainfall features (rain_spatial_std, rain_max_station, rain_west, etc.) typically dominate: these capture how rainfall varies across Singapore's station network — high spatial variability signals active convective cells.",
+                        "rain_max_station / rain_region_max: The wettest single station reading. When one station sees heavy rain, nearby areas often follow within 1–2 hours as the storm cell moves.",
+                        "rain_station_frac_wet: Fraction of stations reporting rain. A high fraction means island-wide rain (monsoon); a low fraction means localised convective showers.",
+                        "dry_spell_hours: Consecutive dry hours before this reading. A long dry spell lets heat and instability build up — the longer the drought, the more energetic the next rain event tends to be.",
+                        "wind_lag_1h: Wind speed 1 hour ago. Sudden changes in wind speed signal approaching fronts or convective systems.",
+                        "Other physically important features include hum_deficit (gap to saturation), wind_accel_3h (squall line detection), and time-of-day encoding — their SHAP ranking varies by model version.",
                         "The longer the bar, the more that feature moves individual predictions. Features not listed have negligible impact and were excluded to prevent overfitting.",
                       ]}
-                      tip="SHAP tells a story per prediction: 'This dry spell of 8 hours + humidity near saturation + accelerating wind → model assigns 73% probability of rain in 1h.'"
+                      tip="SHAP tells a story per prediction: 'High spatial rain variability + wet station fraction rising + dry spell ending → model assigns high probability of rain in 1h.'"
                     />
                   )}
                 </div>

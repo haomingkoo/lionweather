@@ -184,6 +184,7 @@ def _require_admin(secret: str | None) -> None:
 allowed_origins = [
     "https://weather.kooexperience.com",
     "https://lionweather.kooexperience.com",
+    "https://kooexperience.com",
     "https://lionweather-frontend-production.up.railway.app",
     "http://localhost:5173",
     "http://localhost:3000",
