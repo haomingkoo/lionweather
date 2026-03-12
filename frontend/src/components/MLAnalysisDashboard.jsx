@@ -380,8 +380,9 @@ function ConfusionMatrix({ matrix, labels }) {
   );
 }
 
-// Educational commentary panel shown below each section
-function CommentaryBox({ points, tip, variant = "indigo" }) {
+// Educational commentary panel — collapsible, shown below each section
+function CommentaryBox({ points, tip, variant = "indigo", title = "What to look for", defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   const colors = {
     indigo: { bg: "bg-indigo-500/8", border: "border-indigo-400/15", title: "text-indigo-300/80", bullet: "text-indigo-400/60", body: "text-white/60", foot: "text-indigo-300/35" },
     blue:   { bg: "bg-blue-500/8",   border: "border-blue-400/15",   title: "text-blue-300/80",   bullet: "text-blue-400/60",   body: "text-white/60", foot: "text-blue-300/35" },
@@ -389,17 +390,29 @@ function CommentaryBox({ points, tip, variant = "indigo" }) {
   };
   const c = colors[variant] || colors.indigo;
   return (
-    <div className={`mt-3 ${c.bg} border ${c.border} rounded-xl p-3 space-y-1.5`}>
-      <p className={`${c.title} text-[10px] font-semibold uppercase tracking-wide`}>How to read this</p>
-      <ul className="space-y-1.5">
-        {points.map((p, i) => (
-          <li key={i} className={`flex gap-2 ${c.body} text-[11px] leading-relaxed`}>
-            <span className={`${c.bullet} shrink-0 mt-0.5`}>›</span>
-            <span>{p}</span>
-          </li>
-        ))}
-      </ul>
-      {tip && <p className={`${c.foot} text-[10px] italic mt-1`}>{tip}</p>}
+    <div className={`mt-3 ${c.bg} border ${c.border} rounded-xl overflow-hidden`}>
+      <button
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/3 transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className={`${c.title} text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1.5`}>
+          <span className="text-sm">🔍</span> {title}
+        </span>
+        {open ? <ChevronDown className="h-3 w-3 text-white/30" /> : <ChevronRight className="h-3 w-3 text-white/30" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-1.5">
+          <ul className="space-y-1.5">
+            {points.map((p, i) => (
+              <li key={i} className={`flex gap-2 ${c.body} text-[11px] leading-relaxed`}>
+                <span className={`${c.bullet} shrink-0 mt-0.5`}>›</span>
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+          {tip && <p className={`${c.foot} text-[10px] italic mt-1`}>{tip}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -609,14 +622,14 @@ function ClimateTrendsSection({ ct }) {
         )}
         <CommentaryBox
           variant="blue"
+          title="What to look for"
           points={[
-            `Each bar = total rainfall for that entire year (all rain stations aggregated). Singapore averages about 2,300 mm/year — more than London gets in 5 years.`,
-            "Taller bar = wetter year. Short bar = drier year. The differences are driven by large-scale weather patterns like El Niño (drier) and La Niña (wetter).",
+            `Each bar = total rainfall for one year (all NEA rain stations aggregated). Singapore averages ~2,300 mm/year. Year-to-year swings are driven by El Niño (drier) and La Niña (wetter).`,
             rTrend?.significant
-              ? `The trend line shows rainfall is ${rTrend.trend} by ${Math.abs(rTrend.slope_per_year).toFixed(0)} mm per year — statistically significant (p=${rTrend.p_value}). This means Singapore is getting wetter over time.`
-              : "There is no strong long-term trend in annual totals — Singapore's rainfall varies year to year but isn't systematically getting wetter or drier yet.",
+              ? `Rainfall is ${rTrend.trend} by ~${Math.abs(rTrend.slope_per_year).toFixed(0)} mm/year (p=${rTrend.p_value}). Singapore is getting wetter.`
+              : "No strong long-term trend — rainfall varies year to year but isn't systematically changing yet.",
           ]}
-          tip="Singapore's wettest months are Nov–Jan (NE Monsoon) and Mar–Apr (inter-monsoon). Driest are Jun–Aug (SW Monsoon)."
+          tip="Wettest months: Nov–Jan (NE Monsoon). Driest: Jun–Aug (SW Monsoon)."
         />
       </div>
 
@@ -634,6 +647,7 @@ function ClimateTrendsSection({ ct }) {
         </div>
         <CommentaryBox
           variant="blue"
+          title="What to look for"
           points={[
             "Each bar represents one year, split into the percentage of hours that fell into each rain category. Most hours (70–80%) in Singapore are dry — rain is intense but short-lived.",
             "Light Rain (green) makes up the bulk of rainy hours. Heavy Rain (yellow) and Thundery (pink) are small slices — but contribute disproportionately to total rainfall volume.",
@@ -673,6 +687,7 @@ function ClimateTrendsSection({ ct }) {
         )}
         <CommentaryBox
           variant="amber"
+          title="What to look for"
           points={[
             `The orange line shows the mean (average) temperature for each year. ${years.length > 0 ? `Values range from ${Math.min(...tempMeans).toFixed(1)}°C to ${Math.max(...tempMeans).toFixed(1)}°C across the dataset.` : ""}`,
             "The shaded band shows the full temperature range (coldest to hottest recorded hour) within each year — Singapore's daily swing is typically 5–8°C.",
@@ -726,13 +741,13 @@ function ClimateTrendsSection({ ct }) {
           <p className="text-white/45 text-[10px] mt-1">{stl.note}</p>
           <CommentaryBox
             variant="indigo"
+            title="What to look for"
             points={[
-              "STL (Seasonal and Trend decomposition using Loess) splits the raw monthly rainfall signal into three layers: Observed (actual data), Trend (long-run direction), and Residual (random noise).",
-              "The pink Trend line smooths out month-to-month swings to reveal the underlying direction. A rising trend line means Singapore is getting wetter on average; flat means no change.",
-              "The yellow Residual chart shows what's left after removing the trend and seasonal patterns — large spikes indicate unusually wet or dry months driven by events like La Niña or strong monsoons.",
-              "Residual values near zero = that month was 'normal'. Large positive residuals (e.g. 2020–2021) coincide with La Niña years when Singapore received above-average rainfall.",
+              "STL splits the signal into three layers: Observed (raw data), Trend (long-run direction), and Residual (random noise left over).",
+              "The Seasonal component peaks align with the NE monsoon (Nov–Jan). The Trend line reveals whether Singapore is getting wetter or drier over time.",
+              "Large residual spikes = unusually wet or dry months driven by events like La Niña. The larger residuals are relative to the other components, the harder prediction will be.",
             ]}
-            tip="Tip: Watch the Trend line direction. A consistently rising trend over years is stronger evidence of changing climate than any single wet year."
+            tip="A consistently rising trend is stronger evidence of change than any single wet year."
           />
         </div>
         );
@@ -1028,6 +1043,7 @@ export function MLAnalysisDashboard() {
               {/* EDA Commentary */}
               <CommentaryBox
                 variant="indigo"
+                title="What to look for"
                 points={(() => {
                   const e = data.eda[selectedVar] || {};
                   const varLabels = { rainfall: "rainfall (mm/hr)", temperature: "temperature (°C)", humidity: "relative humidity (%)", wind_speed: "wind speed (km/h)" };
@@ -1088,35 +1104,30 @@ export function MLAnalysisDashboard() {
               </p>
               <CommentaryBox
                 variant="blue"
+                title="What to look for"
                 points={(() => {
-                  const sigLags = ap.significant_acf_lags?.slice(0, 8).join(", ") || "—";
                   const base = [
-                    "ACF (AutoCorrelation Function): each bar shows correlation with a value X hours ago. PACF removes the 'chain effect' of intermediate lags — a tall PACF bar at lag 2 means direct 2-hour memory.",
-                    `Dashed yellow lines = 95% CI. Bars beyond the dashes are statistically significant — these lags genuinely predict the current value. Sig lags here: ${sigLags}.`,
+                    "ACF shows correlation with values X hours ago. PACF removes indirect effects — a tall bar at lag 2 means direct 2-hour memory. Bars exceeding the dashed confidence lines are statistically significant.",
                   ];
                   if (selectedVar === "rainfall") return [...base,
-                    `Rainfall sparsity is ${ap.sparsity_pct}% — most hours have zero rain. The ACF drops off quickly after lag 1–2, meaning rain events are short-lived (typically <2 hours). Once it stops, the auto-correlation fades fast.`,
-                    "PACF cuts to near zero after lag 2 — this is an AR(2) pattern. Only the last 1–2 hours matter directly. This is why rain_lag_1h and rain_lag_3h are among the ML model's top features.",
-                    "The absence of a 24-hour cycle in rainfall ACF is expected — Singapore rain is convective (afternoon thunderstorms), not diurnal in the way temperature is.",
+                    `Rainfall correlation drops to near-zero by lag 6–8 — that's the "memory" of Singapore rain. After ~6 hours, current rain tells you almost nothing about the future.`,
+                    `Sparsity is ${ap.sparsity_pct}% (most hours are dry). PACF cuts off after lag 2 — an AR(2) pattern. Only the last 1–2 hours of rain matter directly.`,
                   ];
                   if (selectedVar === "temperature") return [...base,
-                    `Sparsity is 0% — temperature is always measured. The ACF shows strong slow decay WITH clear spikes at lags 24 and 48 — that's Singapore's diurnal (day/night) temperature cycle, visible in the chart as recurring peaks.`,
-                    "PACF cuts off after lag 2, meaning temperature has a short direct memory (just ~2 hours), but the slow ACF decay comes from the daily cycle cascading through each lag.",
-                    "This 24-hour periodicity is why hour_sin and hour_cos cyclical features matter to the ML model — the model learns that time-of-day predicts temperature patterns.",
+                    "Strong periodicity at lag 24 (one full day cycle) — the classic diurnal pattern. PACF cuts off after lag 2, meaning direct memory is short but the daily cycle cascades through each lag.",
+                    "This 24h periodicity is why hour_sin/hour_cos cyclical features matter — the model learns that time-of-day predicts temperature.",
                   ];
                   if (selectedVar === "humidity") return [...base,
-                    `Humidity also shows a 24-hour diurnal cycle in the ACF (peaks at lags 24, 48), similar to temperature — humidity is inversely correlated with temperature (hotter → drier air, cooler mornings → higher humidity).`,
-                    "PACF drops sharply after lag 2 (with a notable negative spike at lag 2), indicating an AR(2) structure. The negative PACF at lag 2 suggests humidity 'corrects' — if it was unusually high 2 hours ago, it tends to fall back.",
-                    "The ML model uses hum_deficit and hum_lag_1h as features. High humidity combined with rising temperature is a key thunderstorm precursor — exactly what these lags capture.",
+                    "24-hour diurnal cycle mirrors temperature (peaks at lags 24, 48) — humidity inverts temperature almost perfectly. Hotter → drier air, cooler mornings → higher humidity.",
+                    "PACF shows a notable negative spike at lag 2 — humidity 'corrects' itself. High humidity + rising temperature is a key thunderstorm precursor.",
                   ];
                   if (selectedVar === "wind_speed") return [...base,
-                    `Wind speed ACF decays faster than temperature or humidity — wind changes more erratically. The 24-hour cycle is weaker (wind is less diurnal than temperature), making it harder to forecast.`,
-                    "PACF cuts off after lag 2 with a clear negative spike at lag 2, similar to humidity. Wind speed has short direct memory: what happened 1–2 hours ago is most relevant.",
-                    "Despite lower persistence, wind direction and speed changes are useful ML features — wind_accel_3h (acceleration) and wind direction contribute to thunderstorm prediction, though spatial rainfall features tend to dominate SHAP importance.",
+                    "Wind ACF decays faster than temperature or humidity — wind changes more erratically, making it harder to forecast. The 24h cycle is weaker.",
+                    "PACF cuts off after lag 2. Despite lower persistence, wind acceleration (wind_accel_3h) is useful for thunderstorm detection — spatial rainfall features tend to dominate overall SHAP importance.",
                   ];
                   return base;
                 })()}
-                tip="Expert tip: If both ACF and PACF cut off sharply after lag p, an AR(p) model is appropriate. Slowly decaying ACF with sharp PACF cutoff → MA model. Temperature/humidity here are AR(2) with a 24h seasonal overlay."
+                tip="If both ACF and PACF cut off after lag p → AR(p) model. Slowly decaying ACF with sharp PACF cutoff → MA model."
               />
             </div>
           );
@@ -1176,15 +1187,14 @@ export function MLAnalysisDashboard() {
               </p>
               <CommentaryBox
                 variant="indigo"
+                title="What to look for"
                 points={[
-                  "The FFT Periodogram reveals hidden cycles in the data by converting time-series data into frequency components — like a prism splitting white light into a rainbow.",
-                  "The X-axis shows 'period' (how long a cycle takes in hours). The Y-axis shows 'power' — how strong that cycle is. A tall spike = a very consistent, repeating pattern.",
-                  `A dominant spike at 24h means ${selectedVar} has a strong daily cycle (rises and falls once every 24 hours). The 12h spike is the twice-daily harmonic — also very common in tropical climates.`,
-                  `Spikes around 168h (7 days) would indicate a weekly pattern — common for wind speed and humidity due to different urban activity patterns on weekdays vs weekends.`,
-                  `Spikes at 300–400h range correspond to roughly monthly cycles, likely driven by Singapore's monsoon transitions.`,
-                  "These cycles become features in the ML model — the model 'knows' what time of day and month it is, which dramatically improves forecasting accuracy.",
+                  "FFT converts time-series into frequency components — each spike is a repeating cycle. Tall spike = strong, consistent pattern.",
+                  `The tallest peak at ~24h confirms the diurnal cycle. The ~12h peak is the semi-diurnal harmonic. Broader peaks at 72h+ reflect multi-day weather systems.`,
+                  `A secondary peak near ~180 days would capture monsoon season transitions (NE → SW). Each peak is a "frequency" the model can learn from.`,
+                  "These cycles become features via hour_sin/hour_cos and month encoding — the model 'knows' what time of day and season it is.",
                 ]}
-                tip="Fun fact: The same mathematical technique (FFT) is used in JPEG image compression and your phone's noise cancellation."
+                tip="The same FFT technique powers JPEG compression and noise cancellation."
               />
             </div>
           );
@@ -1236,15 +1246,14 @@ export function MLAnalysisDashboard() {
           </div>
           <CommentaryBox
             variant="amber"
+            title="What to look for"
             points={[
-              "The stem plots show cross-correlation between two variables at different time lags. Each vertical bar = correlation at that lag. Bars outside the dashed lines are statistically significant.",
-              `r=${data.spurious_correlations?.cross_correlation?.temperature_vs_humidity?.pearson_r ?? "−0.90"} between temperature and humidity is extremely strong and NEGATIVE — as temperature rises, humidity falls sharply. This makes physical sense: hot air can hold more water vapor, so relative humidity drops.`,
-              `r=${data.spurious_correlations?.cross_correlation?.rainfall_vs_humidity?.pearson_r ?? "0.17"} between rainfall and humidity is a weak POSITIVE link — slightly more rain when humid. Correlation does not imply causation: both are driven by the same weather system.`,
-              "Granger Causality tests whether PAST values of one variable help predict the FUTURE of another. 'Temperature Granger-causes rainfall' (p=0) means: knowing yesterday's temperature genuinely helps predict today's rainfall — beyond just using rainfall history alone.",
-              "All three variables (temperature, humidity, wind speed) Granger-cause rainfall at p≈0, confirming they are all legitimate predictive features for the ML model.",
-              "Spurious correlation warning: Two variables can appear correlated because they're both driven by a THIRD hidden variable (the monsoon cycle, for example). Granger causality helps distinguish real predictive relationships from coincidence.",
+              `Temperature vs humidity: r=${data.spurious_correlations?.cross_correlation?.temperature_vs_humidity?.pearson_r ?? "−0.90"} — extremely strong negative link. As temperature rises, relative humidity drops. This makes physical sense and is NOT spurious.`,
+              `Rainfall vs humidity: r=${data.spurious_correlations?.cross_correlation?.rainfall_vs_humidity?.pearson_r ?? "0.17"} — weak positive link. Correlation ≠ causation: both are driven by the same weather system.`,
+              "Granger Causality tests whether past values of one variable help predict the future of another. All three variables Granger-cause rainfall at p≈0 — confirming they are legitimate predictive features.",
+              "Spurious correlation warning: two variables can appear correlated because a THIRD hidden variable (e.g. monsoon cycle) drives both. Granger tests help separate real predictive signal from coincidence.",
             ]}
-            tip="The r values (Pearson correlation) range from -1 (perfect inverse) to +1 (perfect positive). Values near 0 mean no linear relationship."
+            tip="Pearson r ranges from -1 (perfect inverse) to +1 (perfect positive). Near 0 = no linear relationship."
           />
         </div>
       </Section>
@@ -1427,16 +1436,15 @@ export function MLAnalysisDashboard() {
               </div>
               <CommentaryBox
                 variant="blue"
+                title="What to look for"
                 points={[
-                  "Accuracy (overall %) tells you what fraction of all predictions were correct. But accuracy is misleading for imbalanced data — if 60% of hours are dry, guessing 'no rain' always achieves 60% without being useful.",
-                  "Precision = 'of all times the model predicted rain, how often was it right?' High precision = fewer false alarms.",
-                  "Recall = 'of all actual rain events, how many did the model catch?' High recall = fewer missed rain events. For a weather app, RECALL is more important — being caught in unexpected rain is worse than carrying an umbrella unnecessarily.",
-                  "F1 Score is the harmonic mean of precision and recall. It balances both — useful when you care about both false alarms and missed events.",
-                  "The confusion matrix grid shows where the model makes mistakes. The GREEN diagonal = correct predictions. RED cells = errors. The most costly cell is 'Heavy Rain predicted as No Rain' (top-right area) — that's a missed warning.",
-                  `Why is Heavy Rain recall low? Heavy rain hours are rare (${report["Heavy Rain"]?.support?.toLocaleString() ?? "~500"} out of ${hr.n_test?.toLocaleString() ?? "~8,700"}), so the model has fewer examples to learn from. Cost-weighting (4×) partially compensates, but heavy rain remains the hardest to forecast.`,
-                  `The Binary classifier (Rain vs No-Rain) is simpler — achieving ${hr.binary_classification ? (hr.binary_classification.accuracy * 100).toFixed(0) + "% accuracy with " + (hr.binary_classification.rain_recall * 100).toFixed(0) + "% rain recall" : "higher accuracy"} — a much easier task than distinguishing 4 rain categories.`,
+                  "Strong diagonal values in the confusion matrix = correct predictions. Off-diagonal = errors. The model gets more 'confused' at longer horizons — the diagonal weakens and off-diagonal spreads.",
+                  "Recall matters most for weather: 'of all actual rain events, how many did the model catch?' Missing rain (false negative) is worse than a false alarm.",
+                  "The model is conservative: it rarely predicts heavy rain when there's none, but sometimes misses light rain.",
+                  `Heavy Rain recall is low because heavy rain hours are rare (${report["Heavy Rain"]?.support?.toLocaleString() ?? "~500"} out of ${hr.n_test?.toLocaleString() ?? "~8,700"}). Cost-weighting (4×) helps but heavy rain remains hardest to forecast.`,
+                  `Binary (Rain vs No-Rain) is simpler — ${hr.binary_classification ? (hr.binary_classification.accuracy * 100).toFixed(0) + "% accuracy, " + (hr.binary_classification.rain_recall * 100).toFixed(0) + "% rain recall" : "higher accuracy"} — but loses granularity.`,
                 ]}
-                tip={`Practical interpretation: At ${hr.horizon_h}h ahead, the model correctly warns about rain ${hr.binary_classification ? (hr.binary_classification.rain_recall * 100).toFixed(0) + "%" : "most"} of the time. Longer horizons drop further. Always check the hourly forecast!`}
+                tip={`At ${hr.horizon_h}h ahead, the model warns about rain ${hr.binary_classification ? (hr.binary_classification.rain_recall * 100).toFixed(0) + "%" : "most"} of the time. Longer horizons drop further.`}
               />
             </div>
           );
@@ -1621,6 +1629,7 @@ export function MLAnalysisDashboard() {
               {(hasIW || hasPerArea) && (
                 <CommentaryBox
                   variant="indigo"
+                  title="What to look for"
                   points={[
                     `6h island-wide: ML Rain F2 ${iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"} vs NEA ${iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"} — ML catches significantly more rain events despite similar accuracy. NEA is conservative; ML has higher recall.`,
                     `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "—"}) because it has local area knowledge — our ML applies one island-wide label to all ${c3_2h.n_areas || 47} areas. Ensemble blends both, trading some accuracy for better rain recall.`,
@@ -1757,14 +1766,13 @@ export function MLAnalysisDashboard() {
         )}
         <CommentaryBox
           variant="blue"
+          title="What to look for"
           points={[
-            "Each chart shows how the model's error (loss) changed during training. The blue Train line shows error on data the model learned from; the pink Val line shows error on held-out data it never saw.",
-            "A healthy curve: both lines decrease together and level off. If Train keeps falling while Val flattens or rises, the model is overfitting — memorising training data instead of learning general patterns.",
-            "LightGBM uses early stopping: training halts when validation loss stops improving. The 'best iter' number tells you exactly when the model peaked. A low best iter (e.g. 33) means the task converges fast; a high one (e.g. 516) means the model needed many rounds to learn.",
-            "Classification loss (multi_logloss): lower = better probability estimates for each rain category. Regression loss (l1 = mean absolute error): lower = tighter temperature/rainfall predictions in mm.",
-            "The gap between Train and Val is normal — the model always fits training data better than unseen data. A wide gap doesn't mean the model is broken; it means the held-out 2024 period is genuinely harder to predict.",
+            "The gap between train and validation curves indicates overfitting. A small, stable gap is healthy. If the val curve diverges upward while train keeps dropping, the model is memorising noise.",
+            "Early stopping prevents overfitting: training halts when validation loss stops improving. The 'best iter' tells you when the model peaked.",
+            "multi_logloss (classification): lower = better probability estimates. l1 (regression): lower = tighter mm predictions. The gap is normal — 2024 holdout is genuinely harder than training data.",
           ]}
-          tip="Tip: The 3h-ahead models show a larger Train/Val gap than 1h-ahead — forecasting further into the future is harder, so the model can't generalise as well."
+          tip="3h-ahead models show a larger gap than 1h — forecasting further into the future is inherently harder."
         />
       </Section>
 
@@ -1792,6 +1800,7 @@ export function MLAnalysisDashboard() {
                   {key.includes("1h") && (
                     <CommentaryBox
                       variant="indigo"
+                      title="What to look for"
                       points={[
                         "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction — unlike feature importance which only measures average effect, SHAP explains individual predictions.",
                         "Spatial rainfall features (rain_spatial_std, rain_max_station, rain_west, etc.) typically dominate: these capture how rainfall varies across Singapore's station network — high spatial variability signals active convective cells.",
