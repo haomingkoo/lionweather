@@ -1,0 +1,17 @@
+#!/bin/bash
+# Pre-push hook: catch hardcoded /api fetches that bypass VITE_API_BASE_URL
+
+ERRORS=$(grep -rn 'fetch("/api\|fetch(`/api\|fetch('\''/api' frontend/src/ --include="*.jsx" --include="*.js" 2>/dev/null | grep -v 'api/base.js\|api/client.js\|api/backend.js\|api/radar.js\|node_modules')
+
+if [ -n "$ERRORS" ]; then
+    echo ""
+    echo "ERROR: Hardcoded /api fetch calls found!"
+    echo "These will break in production (Caddy serves HTML for /api routes)."
+    echo ""
+    echo "Use: import { API_BASE } from '../api/base.js'"
+    echo "     fetch(\`\${API_BASE}/your-endpoint\`)"
+    echo ""
+    echo "$ERRORS"
+    echo ""
+    exit 1
+fi
