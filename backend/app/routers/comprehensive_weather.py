@@ -1,6 +1,9 @@
-import os
+import logging
 from fastapi import APIRouter, HTTPException
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
+from app.db.database import fetch_one
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/weather", tags=["weather"])
 
@@ -8,36 +11,25 @@ router = APIRouter(prefix="/weather", tags=["weather"])
 @router.get("/comprehensive/{location_id}")
 def get_comprehensive_weather(location_id: str, lat: float = None, lng: float = None):
     """Get comprehensive weather data including temperature, humidity, wind, etc."""
-    
-    # If lat/lng provided, use them directly (for client-side locations)
+
     if lat is not None and lng is not None:
         latitude = lat
         longitude = lng
     else:
-        # Otherwise, try to look up in database (for server-side locations)
-        import sqlite3
-        
-        DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
-        con = sqlite3.connect(DB_PATH)
-        con.row_factory = sqlite3.Row
-        
-        try:
-            location_id_int = int(location_id)
-            row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id_int,)).fetchone()
-            con.close()
-            
-            if row is None:
-                raise HTTPException(status_code=404, detail="Location not found. Please provide lat and lng parameters.")
-            
-            latitude = row["latitude"]
-            longitude = row["longitude"]
-        except ValueError:
-            con.close()
-            raise HTTPException(status_code=400, detail="Invalid location_id. Please provide lat and lng parameters.")
-    
-    api_key = os.getenv("WEATHER_API_KEY")
-    client = SingaporeWeatherClient(api_key=api_key)
-    
+        row = fetch_one(
+            "SELECT latitude, longitude FROM locations WHERE id = :id",
+            {"id": location_id},
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Location not found. Provide lat and lng parameters.",
+            )
+        latitude = row[0]
+        longitude = row[1]
+
+    client = SingaporeWeatherClient()
+
     result = {
         "location_id": location_id,
         "latitude": latitude,
@@ -48,86 +40,67 @@ def get_comprehensive_weather(location_id: str, lat: float = None, lng: float = 
         "wind_direction": None,
         "rainfall": None,
     }
-    
-    # Fetch temperature
-    try:
-        temp_data = client._fetch_json(
-            client._get_client(),
-            f"{client.base_url}{client.temperature_path}"
-        )
-        result["temperature"] = _find_nearest_reading(temp_data, latitude, longitude)
-    except:
-        pass
-    
-    # Fetch humidity
-    try:
-        humidity_data = client._fetch_json(
-            client._get_client(),
-            f"{client.base_url}{client.humidity_path}"
-        )
-        result["humidity"] = _find_nearest_reading(humidity_data, latitude, longitude)
-    except:
-        pass
-    
-    # Fetch wind speed
-    try:
-        wind_speed_data = client._fetch_json(
-            client._get_client(),
-            f"{client.base_url}{client.wind_speed_path}"
-        )
-        result["wind_speed"] = _find_nearest_reading(wind_speed_data, latitude, longitude)
-    except:
-        pass
-    
-    # Fetch wind direction
-    try:
-        wind_dir_data = client._fetch_json(
-            client._get_client(),
-            f"{client.base_url}{client.wind_direction_path}"
-        )
-        result["wind_direction"] = _find_nearest_reading(wind_dir_data, latitude, longitude)
-    except:
-        pass
-    
+
+    fetch_tasks = [
+        ("temperature", client.temperature_path),
+        ("humidity", client.humidity_path),
+        ("wind_speed", client.wind_speed_path),
+        ("wind_direction", client.wind_direction_path),
+    ]
+
+    for field, path in fetch_tasks:
+        try:
+            http_client = client._get_client()
+            data = client._fetch_json(http_client, f"{client.base_url}{path}")
+            result[field] = _find_nearest_reading(data, latitude, longitude)
+        except Exception as e:
+            logger.warning(f"Failed to fetch {field} from NEA: {e}")
+
     return result
 
 
 def _find_nearest_reading(data: dict, target_lat: float, target_lon: float):
-    """Find the nearest weather station reading to the target coordinates"""
-    items = data.get("data", {}).get("items", []) if isinstance(data.get("data"), dict) else data.get("items", [])
-    
+    """Find the nearest weather station reading to the target coordinates."""
+    items = (
+        data.get("data", {}).get("items", [])
+        if isinstance(data.get("data"), dict)
+        else data.get("items", [])
+    )
+
     if not items:
         return None
-    
+
     latest_item = items[0]
     readings = latest_item.get("readings", [])
-    metadata = data.get("data", {}).get("metadata", {}) if isinstance(data.get("data"), dict) else data.get("metadata", {})
+    metadata = (
+        data.get("data", {}).get("metadata", {})
+        if isinstance(data.get("data"), dict)
+        else data.get("metadata", {})
+    )
     stations = metadata.get("stations", [])
-    
+
     nearest_value = None
     nearest_distance = None
-    
+
     for reading in readings:
         station_id = reading.get("station_id")
         value = reading.get("value")
-        
-        # Find station metadata
+
         station = next((s for s in stations if s.get("id") == station_id), None)
         if not station or value is None:
             continue
-        
+
         location = station.get("location", {})
         lat = location.get("latitude")
         lon = location.get("longitude")
-        
+
         if lat is None or lon is None:
             continue
-        
-        # Calculate distance
+
         distance = (float(lat) - target_lat) ** 2 + (float(lon) - target_lon) ** 2
-        
+
         if nearest_distance is None or distance < nearest_distance:
             nearest_distance = distance
             nearest_value = value
-    
+
     return nearest_value

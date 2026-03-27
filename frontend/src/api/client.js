@@ -1,7 +1,4 @@
-const _rawBase = import.meta.env.VITE_API_BASE_URL || "";
-// Force https in production — mixed-content errors when served over HTTPS
-const _secureBase = _rawBase.replace(/^http:\/\//, "https://");
-const API_BASE = _secureBase.startsWith("http") ? `${_secureBase}/api` : "/api";
+import { API_BASE } from "./base.js";
 
 export async function request(endpoint, options = {}) {
   try {

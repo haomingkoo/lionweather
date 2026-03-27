@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE } from "../api/base.js";
 import {
   MapContainer,
@@ -30,58 +30,40 @@ L.Marker.prototype.options.icon = DefaultIcon;
 // Precipitation overlay component with animated radar
 function PrecipitationOverlay({ timeIndex, radarFrames, isLoading }) {
   const map = useMap();
-  const [overlayLayer, setOverlayLayer] = useState(null);
+  const overlayRef = useRef(null);
 
   useEffect(() => {
     if (!map || isLoading || !radarFrames || radarFrames.length === 0) {
-      console.log("PrecipitationOverlay: Waiting for data", {
-        map: !!map,
-        isLoading,
-        framesCount: radarFrames?.length,
-      });
       return;
     }
 
     // Remove previous overlay
-    if (overlayLayer) {
-      map.removeLayer(overlayLayer);
+    if (overlayRef.current) {
+      map.removeLayer(overlayRef.current);
+      overlayRef.current = null;
     }
 
-    // Get current frame
     const currentFrame = radarFrames[timeIndex % radarFrames.length];
-    if (!currentFrame || !currentFrame.loaded) {
-      console.log("PrecipitationOverlay: Frame not loaded", {
-        timeIndex,
-        currentFrame,
-      });
-      return;
-    }
+    if (!currentFrame || !currentFrame.loaded) return;
 
-    console.log("PrecipitationOverlay: Adding overlay", {
-      url: currentFrame.url,
-      timeIndex,
-    });
-
-    // Use bounds from the API response (matches what weather.gov.sg uses)
     const bounds = currentFrame.bounds || [
-      [1.1550, 103.565], // Southwest fallback
-      [1.4750, 104.130], // Northeast fallback
+      [1.1550, 103.565],
+      [1.4750, 104.130],
     ];
 
-    // Create image overlay with 70% opacity for better visibility
     const overlay = L.imageOverlay(currentFrame.url, bounds, {
       opacity: 0.7,
       crossOrigin: true,
     });
     overlay.addTo(map);
-    setOverlayLayer(overlay);
+    overlayRef.current = overlay;
 
     return () => {
       if (overlay) {
         map.removeLayer(overlay);
       }
     };
-  }, [map, timeIndex, radarFrames, isLoading, overlayLayer]);
+  }, [map, timeIndex, radarFrames, isLoading]);
 
   return null;
 }
@@ -135,13 +117,6 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
       });
     }
 
-    console.log(
-      "Generated radar timestamps:",
-      timestamps.map((t) => ({
-        time: t.date.toLocaleTimeString(),
-        url: t.url,
-      })),
-    );
     return timestamps;
   };
 
@@ -151,8 +126,6 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
       setIsLoading(true);
 
       try {
-        console.log("Fetching radar frames from backend API...");
-
         // Fetch from backend API instead of directly from weather.gov.sg
         const response = await fetch(`${API_BASE}/radar/frames?count=20`);
 
@@ -166,7 +139,6 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
         }
 
         const data = await response.json();
-        console.log("Received radar frames:", data);
 
         // Check if we actually received frames
         if (!data.frames || data.frames.length === 0) {
@@ -187,7 +159,6 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
           loaded: true, // Backend already has the images
         }));
 
-        console.log(`Loaded ${frames.length} radar frames from backend`);
         setRadarFrames(frames);
       } catch (error) {
         // Log warning instead of error for better UX

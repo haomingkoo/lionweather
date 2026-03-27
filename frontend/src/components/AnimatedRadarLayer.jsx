@@ -168,8 +168,6 @@ export function AnimatedRadarLayer({
 
     const bounds = currentFrame.bounds || [[1.1550, 103.565], [1.4750, 104.130]];
 
-    console.log("[Radar] Showing frame", currentIndex, currentFrame.imageUrl);
-
     // Remove previous overlay
     if (overlayRef.current) {
       map.removeLayer(overlayRef.current);
