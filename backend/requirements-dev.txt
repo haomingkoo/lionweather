@@ -1,0 +1,13 @@
+# Dev/training dependencies (not needed on Railway)
+-r requirements.txt
+tensorflow>=2.15.0
+prophet>=1.1.5
+scikit-learn>=1.8.0
+lightgbm>=4.3.0
+xgboost>=2.0.0
+shap>=0.45.0
+statsmodels>=0.14.0
+polars>=0.20.0
+hypothesis>=6.92.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

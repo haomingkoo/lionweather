@@ -387,8 +387,6 @@ def get_radar_service() -> RadarService:
     global _radar_service_instance
     if _radar_service_instance is None:
         api_key = os.getenv("WEATHERAPI_KEY")
-        logger.info(f"Initializing radar service with API key: {'present' if api_key else 'missing'}")
-        if api_key:
-            logger.info(f"API key starts with: {api_key[:10]}...")
+        logger.info(f"Initializing radar service (API key: {'set' if api_key else 'missing'})")
         _radar_service_instance = RadarService(api_key=api_key)
     return _radar_service_instance

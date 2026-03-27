@@ -12,22 +12,29 @@ logger = logging.getLogger(__name__)
 
 # Singleton engine - created once, reused for all calls
 _engine = None
+_database_url: str | None = None
 
 
 def get_database_url() -> str:
     """Get database URL from environment, defaulting to SQLite."""
-    database_url = os.getenv("DATABASE_URL")
+    global _database_url
+    if _database_url is not None:
+        return _database_url
 
-    if database_url:
-        logger.info("Using PostgreSQL database from DATABASE_URL")
+    raw = os.getenv("DATABASE_URL")
+
+    if raw:
         # Railway uses postgres:// but SQLAlchemy needs postgresql://
-        if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
-        return database_url
+        if raw.startswith("postgres://"):
+            raw = raw.replace("postgres://", "postgresql://", 1)
+        _database_url = raw
+        logger.info("Using PostgreSQL database from DATABASE_URL")
+    else:
+        db_path = os.getenv("DATABASE_PATH", "weather.db")
+        _database_url = f"sqlite:///{db_path}"
+        logger.info(f"Using SQLite database at {db_path}")
 
-    db_path = os.getenv("DATABASE_PATH", "weather.db")
-    logger.info(f"Using SQLite database at {db_path}")
-    return f"sqlite:///{db_path}"
+    return _database_url
 
 
 def is_postgres() -> bool:
@@ -55,6 +62,8 @@ def get_engine():
             pool_pre_ping=True,
             pool_size=10,
             max_overflow=20,
+            pool_recycle=1800,
+            pool_timeout=30,
         )
 
     return _engine

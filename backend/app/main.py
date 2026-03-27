@@ -3,6 +3,7 @@ import logging
 import asyncio
 import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -164,10 +165,121 @@ migrate_forecast_tables()
 # ---------------------------------------------------------------------------
 limiter = Limiter(key_func=get_remote_address)
 
+# ---------------------------------------------------------------------------
+# Background task lifecycle
+# ---------------------------------------------------------------------------
+_background_tasks: list[asyncio.Task] = []
+
+
+async def _collect_data_loop() -> None:
+    """Background loop: collect weather observations every 10 minutes."""
+    from app.services.data_collector import DataCollector
+    from app.services.data_store import DataStore
+
+    collector = DataCollector()
+    store = DataStore()
+    count = 0
+
+    while True:
+        count += 1
+        try:
+            records = await collector.collect_all_sources()
+            if not records:
+                logger.warning(f"[Collection #{count}] No records collected")
+            else:
+                stored = 0
+                for record in records:
+                    try:
+                        await asyncio.to_thread(store.store_record, record)
+                        stored += 1
+                    except Exception as e:
+                        logger.error(f"Failed to store record for {record.location}: {e}")
+                logger.info(f"[Collection #{count}] Stored {stored}/{len(records)} records")
+        except Exception as e:
+            logger.error(f"[Collection #{count}] Failed: {e}", exc_info=True)
+
+        await asyncio.sleep(600)
+
+
+async def _collect_forecasts_loop() -> None:
+    """Background loop: collect official forecasts every hour."""
+    from app.services.forecast_collector import ForecastCollector
+    from app.services.forecast_store import ForecastStore
+
+    collector = ForecastCollector()
+    store = ForecastStore()
+    count = 0
+
+    while True:
+        count += 1
+        try:
+            forecasts = await collector.collect_all_forecasts()
+            if not forecasts:
+                logger.warning(f"[Forecast #{count}] No forecasts collected")
+            else:
+                result = store.store_forecasts(forecasts)
+                logger.info(f"[Forecast #{count}] Stored {result['stored']}/{len(forecasts)} forecasts")
+        except Exception as e:
+            logger.error(f"[Forecast #{count}] Failed: {e}", exc_info=True)
+
+        await asyncio.sleep(3600)
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Manage background services: start on boot, cancel on shutdown."""
+    from app.ml.scheduler import TrainingScheduler
+
+    logger.info("=" * 60)
+    logger.info("STARTING BACKGROUND SERVICES")
+    logger.info("=" * 60)
+
+    radar_service = get_radar_service()
+    try:
+        await radar_service.start_background_polling()
+        logger.info("Radar service started")
+    except Exception as e:
+        logger.error(f"Radar service failed to start: {e}", exc_info=True)
+
+    training_scheduler = None
+    try:
+        training_scheduler = TrainingScheduler()
+        training_scheduler.start()
+        logger.info("ML training scheduler started")
+    except Exception as e:
+        logger.error(f"ML scheduler failed to start: {e}", exc_info=True)
+
+    _background_tasks.append(asyncio.create_task(_collect_data_loop(), name="data_collector"))
+    _background_tasks.append(asyncio.create_task(_collect_forecasts_loop(), name="forecast_collector"))
+    logger.info("Data collector started (every 10 min)")
+    logger.info("Forecast collector started (every 1 hr)")
+
+    logger.info("=" * 60)
+    logger.info("ALL BACKGROUND SERVICES STARTED")
+    logger.info("=" * 60)
+
+    yield
+
+    logger.info("Shutting down background services...")
+    for task in _background_tasks:
+        task.cancel()
+    await asyncio.gather(*_background_tasks, return_exceptions=True)
+    _background_tasks.clear()
+
+    await radar_service.stop_background_polling()
+    if training_scheduler:
+        try:
+            training_scheduler.shutdown()
+        except Exception:
+            pass
+    logger.info("All background services stopped")
+
+
 app = FastAPI(
     title="LionWeather API",
     description="AI-powered weather forecasting for Singapore, Malaysia, and Indonesia",
     version="1.0.0",
+    lifespan=lifespan,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -193,7 +305,7 @@ allowed_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    allow_origin_regex=r"https://lionweather-.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -219,7 +331,13 @@ app.include_router(ml_models_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    from app.db.database import fetch_one
+    try:
+        fetch_one("SELECT 1")
+        return {"status": "healthy"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="database unreachable")
 
 
 @app.get("/status")
@@ -584,22 +702,21 @@ async def remove_duplicates(
         removed_count = 0
         
         for timestamp, country, location, count in duplicates:
-            # Get all records in this duplicate group, ordered by created_at DESC
             records = execute_sql("""
                 SELECT id FROM weather_records
-                WHERE timestamp = ? AND country = ? AND location = ?
+                WHERE timestamp = :ts AND country = :country AND location = :loc
                 ORDER BY created_at DESC
-            """, (timestamp, country, location))
-            
-            # Keep the first one (most recent), delete the rest
+            """, {"ts": timestamp, "country": country, "loc": location})
+
             if len(records) > 1:
                 delete_ids = [r[0] for r in records[1:]]
-                
-                # Delete duplicates
-                placeholders = ','.join('?' * len(delete_ids))
+                placeholders = ",".join(
+                    f":id{i}" for i in range(len(delete_ids))
+                )
+                params = {f"id{i}": did for i, did in enumerate(delete_ids)}
                 execute_sql(
                     f"DELETE FROM weather_records WHERE id IN ({placeholders})",
-                    delete_ids
+                    params,
                 )
                 
                 removed_count += len(delete_ids)
@@ -722,127 +839,3 @@ async def retrain_status(
     }
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Start background services on application startup"""
-    from app.ml.scheduler import TrainingScheduler
-    from app.services.data_collector import DataCollector
-    from app.services.data_store import DataStore
-    from app.services.forecast_collector import ForecastCollector
-    from app.services.forecast_store import ForecastStore
-    import asyncio
-    
-    logger.info("=" * 60)
-    logger.info("STARTING WEATHER APP - BACKGROUND SERVICES")
-    logger.info("=" * 60)
-    
-    # Start radar service (scraping weather.gov.sg images)
-    try:
-        logger.info("Starting radar service...")
-        radar_service = get_radar_service()
-        await radar_service.start_background_polling()
-        logger.info("✓ Radar service started successfully")
-    except Exception as e:
-        logger.error(f"✗ Radar service failed to start: {e}", exc_info=True)
-    
-    # Start ML training scheduler (weekly training on Sunday 2 AM)
-    try:
-        logger.info("Starting ML training scheduler...")
-        training_scheduler = TrainingScheduler()
-        training_scheduler.start()
-        logger.info("✓ ML training scheduler started (runs Sundays at 2 AM)")
-    except Exception as e:
-        logger.error(f"✗ ML scheduler failed to start: {e}", exc_info=True)
-    
-    # Start data collector (fetch weather data every 10 minutes)
-    logger.info("Starting background data collector...")
-    data_collector = DataCollector()
-    data_store = DataStore()
-    
-    async def collect_and_store_data():
-        """Background task to collect and store weather data"""
-        collection_count = 0
-        while True:
-            try:
-                collection_count += 1
-                logger.info(f"[Collection #{collection_count}] Starting data collection from all sources...")
-                
-                # Collect data
-                records = await data_collector.collect_all_sources()
-                logger.info(f"[Collection #{collection_count}] Collected {len(records)} weather records")
-                
-                if not records:
-                    logger.warning(f"[Collection #{collection_count}] No records collected - all sources may have failed")
-                else:
-                    # Store records in database
-                    stored_count = 0
-                    for record in records:
-                        try:
-                            await asyncio.to_thread(data_store.store_record, record)
-                            stored_count += 1
-                        except Exception as e:
-                            logger.error(f"Failed to store record for {record.location}: {e}")
-                    
-                    logger.info(f"[Collection #{collection_count}] ✓ Stored {stored_count}/{len(records)} records in database")
-                
-                # Log next collection time
-                logger.info(f"[Collection #{collection_count}] Next collection in 10 minutes...")
-                
-            except Exception as e:
-                logger.error(f"[Collection #{collection_count}] Data collection failed: {e}", exc_info=True)
-            
-            # Wait 10 minutes before next collection
-            await asyncio.sleep(600)
-    
-    # Start data collection task in background
-    asyncio.create_task(collect_and_store_data())
-    logger.info("✓ Data collector started (collects every 10 minutes)")
-    
-    # Start forecast collector (fetch forecasts every hour)
-    logger.info("Starting background forecast collector...")
-    forecast_collector = ForecastCollector()
-    forecast_store = ForecastStore()
-    
-    async def collect_and_store_forecasts():
-        """Background task to collect and store official forecasts"""
-        forecast_collection_count = 0
-        while True:
-            try:
-                forecast_collection_count += 1
-                logger.info(f"[Forecast Collection #{forecast_collection_count}] Starting forecast collection from all sources...")
-                
-                # Collect forecasts
-                forecasts = await forecast_collector.collect_all_forecasts()
-                logger.info(f"[Forecast Collection #{forecast_collection_count}] Collected {len(forecasts)} forecasts")
-                
-                if not forecasts:
-                    logger.warning(f"[Forecast Collection #{forecast_collection_count}] No forecasts collected - all sources may have failed")
-                else:
-                    # Store forecasts in database
-                    result = forecast_store.store_forecasts(forecasts)
-                    logger.info(f"[Forecast Collection #{forecast_collection_count}] ✓ Stored {result['stored']}/{len(forecasts)} forecasts in database")
-                
-                # Log next collection time
-                logger.info(f"[Forecast Collection #{forecast_collection_count}] Next forecast collection in 1 hour...")
-                
-            except Exception as e:
-                logger.error(f"[Forecast Collection #{forecast_collection_count}] Forecast collection failed: {e}", exc_info=True)
-            
-            # Wait 1 hour before next collection
-            await asyncio.sleep(3600)
-    
-    # Start forecast collection task in background
-    asyncio.create_task(collect_and_store_forecasts())
-    logger.info("✓ Forecast collector started (collects every hour)")
-    
-    logger.info("=" * 60)
-    logger.info("ALL BACKGROUND SERVICES STARTED")
-    logger.info("=" * 60)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop background services on application shutdown"""
-    radar_service = get_radar_service()
-    await radar_service.stop_background_polling()
-    logger.info("Application shutdown complete")

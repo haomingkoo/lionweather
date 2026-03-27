@@ -1,7 +1,5 @@
 # Railway Multi-Service Configuration for LionWeather
+# Per-service configs live in backend/railway.json and frontend/railway.json
 
 [build]
-builder = "NIXPACKS"
-
-# Deploy commands are in service-specific railway.json files
-# (backend/railway.json and frontend/railway.json)
+builder = "RAILPACK"
