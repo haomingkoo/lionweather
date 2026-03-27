@@ -109,3 +109,7 @@ coverage.xml
 
 # Flox (if not needed in production)
 .flox/
+# Claude Code
+.claude/
+CLAUDE.md
+_bmad/
