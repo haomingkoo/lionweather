@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_BASE } from "../api/base.js";
 import {
   Brain, RefreshCw, CloudRain, Sun, Zap, Droplets,
   Activity, Info, CheckCircle2, XCircle, Minus,
@@ -115,8 +116,8 @@ function ComparisonPanel() {
     setLoading(true);
     try {
       const [cmpRes, cardRes] = await Promise.all([
-        window.fetch("/api/ml/comparison"),
-        window.fetch("/api/ml/scorecard"),
+        window.fetch(`${API_BASE}/ml/comparison`),
+        window.fetch(`${API_BASE}/ml/scorecard`),
       ]);
       const cmp  = cmpRes.ok  ? await cmpRes.json()  : null;
       const card = cardRes.ok ? await cardRes.json() : null;
@@ -342,7 +343,7 @@ export function MLLiveForecast() {
     setLoading(true);
     setError(null);
     try {
-      const res = await window.fetch("/api/ml/rain-forecast");
+      const res = await window.fetch(`${API_BASE}/ml/rain-forecast`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `${res.status}`);
@@ -358,7 +359,7 @@ export function MLLiveForecast() {
 
   const fetchNea = async () => {
     try {
-      const res = await window.fetch("/api/forecasts/two-hour");
+      const res = await window.fetch(`${API_BASE}/forecasts/two-hour`);
       if (!res.ok) return;
       const body = await res.json();
       const forecasts = body.forecasts || [];

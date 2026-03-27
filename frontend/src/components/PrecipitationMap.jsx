@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_BASE } from "../api/base.js";
 import {
   MapContainer,
   TileLayer,
@@ -153,7 +154,7 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
         console.log("Fetching radar frames from backend API...");
 
         // Fetch from backend API instead of directly from weather.gov.sg
-        const response = await fetch("/api/radar/frames?count=20");
+        const response = await fetch(`${API_BASE}/radar/frames?count=20`);
 
         // Handle fetch errors gracefully
         if (!response || !response.ok) {

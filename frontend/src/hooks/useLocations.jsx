@@ -1,3 +1,4 @@
+import { API_BASE } from "../api/base.js";
 import {
   createContext,
   useContext,
@@ -173,7 +174,7 @@ const RAIN_POLL_INTERVAL = 15 * 60 * 1000; // Poll every 15 minutes
 // Fetch ML predictions for next 2 hours and notify if rain likely
 const checkMLRainForecast = async () => {
   try {
-    const response = await fetch("/api/ml/predict/2");
+    const response = await fetch(`${API_BASE}/ml/predict/2`);
     if (!response.ok) return;
     const data = await response.json();
     const predictions = data.predictions || [];

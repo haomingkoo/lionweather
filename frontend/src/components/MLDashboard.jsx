@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { API_BASE } from "../api/base.js";
 import {
   Brain,
   TrendingUp,
@@ -60,13 +61,13 @@ export function MLDashboard({ isDark = false }) {
             console.error("Model comparison error:", err);
             return null;
           }),
-          fetch("/api/data-health/status")
+          fetch(`${API_BASE}/data-health/status`)
             .then((res) => res.json())
             .catch((err) => {
               console.error("Data health error:", err);
               return null;
             }),
-          fetch("/api/forecasts/compare?country=singapore&days_back=7")
+          fetch(`${API_BASE}/forecasts/compare?country=singapore&days_back=7`)
             .then((res) => res.json())
             .catch((err) => {
               console.error("Forecast comparison error:", err);
