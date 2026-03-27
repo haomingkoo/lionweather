@@ -226,12 +226,10 @@ def health_check():
 @limiter.limit("20/minute")
 def status_check(request: Request):
     """Detailed status: shows exactly what's in the DB, per source API, per country."""
-    import os
     from datetime import datetime, timedelta
-    from app.db.database import fetch_one, fetch_all
+    from app.db.database import fetch_all, get_database_url, is_postgres
 
-    db_path = os.getenv("DATABASE_PATH", "weather.db")
-    db_exists = os.path.exists(db_path)
+    db_url = get_database_url()
     now = datetime.utcnow()
     cutoff_1h = (now - timedelta(hours=1)).isoformat()
     cutoff_24h = (now - timedelta(hours=24)).isoformat()
@@ -243,78 +241,78 @@ def status_check(request: Request):
     forecast_total = 0
     forecast_sources = []
 
-    if db_exists:
-        # ── Observations (weather_records) ────────────────────────────────
-        try:
-            rows = fetch_all("""
-                SELECT
-                    source_api,
-                    country,
-                    COUNT(*)          AS total,
-                    MAX(timestamp)    AS latest,
-                    MIN(timestamp)    AS oldest,
-                    SUM(CASE WHEN timestamp >= :c1h  THEN 1 ELSE 0 END) AS last_1h,
-                    SUM(CASE WHEN timestamp >= :c24h THEN 1 ELSE 0 END) AS last_24h
-                FROM weather_records
-                GROUP BY source_api, country
-                ORDER BY country, total DESC
-            """, {"c1h": cutoff_1h, "c24h": cutoff_24h})
+    # Always query the database - no silent skip
+    try:
+        rows = fetch_all("""
+            SELECT
+                source_api,
+                country,
+                COUNT(*)          AS total,
+                MAX(timestamp)    AS latest,
+                MIN(timestamp)    AS oldest,
+                SUM(CASE WHEN timestamp >= :c1h  THEN 1 ELSE 0 END) AS last_1h,
+                SUM(CASE WHEN timestamp >= :c24h THEN 1 ELSE 0 END) AS last_24h
+            FROM weather_records
+            GROUP BY source_api, country
+            ORDER BY country, total DESC
+        """, {"c1h": cutoff_1h, "c24h": cutoff_24h})
 
-            for row in rows:
-                entry = {
-                    "source_api": row["source_api"],
-                    "country": row["country"],
-                    "total_records": row["total"],
-                    "latest_record": row["latest"],
-                    "oldest_record": row["oldest"],
-                    "records_last_1h": row["last_1h"],
-                    "records_last_24h": row["last_24h"],
-                    "status": "ok" if row["last_1h"] and row["last_1h"] > 0 else (
-                        "stale" if row["last_24h"] and row["last_24h"] > 0 else "no_recent_data"
-                    ),
-                }
-                sources.append(entry)
-                total_records += row["total"] or 0
-                records_last_hour += row["last_1h"] or 0
-                records_last_24h += row["last_24h"] or 0
-        except Exception as e:
-            sources = [{"error": str(e)}]
+        for row in rows:
+            entry = {
+                "source_api": row["source_api"],
+                "country": row["country"],
+                "total_records": row["total"],
+                "latest_record": row["latest"],
+                "oldest_record": row["oldest"],
+                "records_last_1h": row["last_1h"],
+                "records_last_24h": row["last_24h"],
+                "status": "ok" if row["last_1h"] and row["last_1h"] > 0 else (
+                    "stale" if row["last_24h"] and row["last_24h"] > 0 else "no_recent_data"
+                ),
+            }
+            sources.append(entry)
+            total_records += row["total"] or 0
+            records_last_hour += row["last_1h"] or 0
+            records_last_24h += row["last_24h"] or 0
+    except Exception as e:
+        logger.error(f"Status check failed querying weather_records: {e}")
+        sources = [{"error": str(e)}]
 
-        # ── Forecasts (forecast_data) ──────────────────────────────────────
-        try:
-            frows = fetch_all("""
-                SELECT
-                    source_api,
-                    country,
-                    COUNT(*) AS total,
-                    MAX(created_at) AS latest
-                FROM forecast_data
-                GROUP BY source_api, country
-                ORDER BY country, total DESC
-            """)
-            for row in frows:
-                forecast_sources.append({
-                    "source_api": row["source_api"],
-                    "country": row["country"],
-                    "total_records": row["total"],
-                    "latest_collected": row["latest"],
-                })
-                forecast_total += row["total"] or 0
-        except Exception as e:
-            forecast_sources = [{"error": str(e)}]
+    try:
+        frows = fetch_all("""
+            SELECT
+                source_api,
+                country,
+                COUNT(*) AS total,
+                MAX(created_at) AS latest
+            FROM forecast_data
+            GROUP BY source_api, country
+            ORDER BY country, total DESC
+        """)
+        for row in frows:
+            forecast_sources.append({
+                "source_api": row["source_api"],
+                "country": row["country"],
+                "total_records": row["total"],
+                "latest_collected": row["latest"],
+            })
+            forecast_total += row["total"] or 0
+    except Exception as e:
+        logger.error(f"Status check failed querying forecast_data: {e}")
+        forecast_sources = [{"error": str(e)}]
 
     return {
         "status": "healthy",
         "timestamp_utc": now.isoformat(),
         "background_services": {
-            "observations": "every 10 min — Singapore (NEA), Malaysia (Open-Meteo), Indonesia (Open-Meteo)",
-            "forecasts": "every hour — Singapore (NEA), Malaysia (data.gov.my), Indonesia (Open-Meteo)",
-            "radar": "every 5 min — Singapore weather.gov.sg",
-            "ml_training": "weekly — Sundays 2 AM",
+            "observations": "every 10 min -- Singapore (NEA), Malaysia (Open-Meteo), Indonesia (Open-Meteo)",
+            "forecasts": "every hour -- Singapore (NEA), Malaysia (data.gov.my), Indonesia (Open-Meteo)",
+            "radar": "every 5 min -- Singapore weather.gov.sg",
+            "ml_training": "weekly -- Sundays 2 AM",
         },
         "database": {
-            "path": db_path,
-            "exists": db_exists,
+            "type": "postgresql" if is_postgres() else "sqlite",
+            "url": db_url.split("@")[-1] if is_postgres() else db_url,
         },
         "observations": {
             "total_records": total_records,
