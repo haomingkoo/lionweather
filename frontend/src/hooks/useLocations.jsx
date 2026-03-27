@@ -50,7 +50,7 @@ const isCacheValid = (lastFetched) => {
 const fetchWeatherForLocation = async (latitude, longitude) => {
   try {
     const response = await fetch(
-      `/api/weather?lat=${latitude}&lng=${longitude}`,
+      `${API_BASE}/weather?lat=${latitude}&lng=${longitude}`,
     );
     if (!response.ok) {
       throw new Error("Failed to fetch weather data");
@@ -71,7 +71,7 @@ const resolveAreaName = async (latitude, longitude) => {
   // 1. Try NEA forecast area snap via backend
   try {
     const response = await fetch(
-      `/api/locations/areas/nearest?lat=${latitude}&lng=${longitude}`,
+      `${API_BASE}/locations/areas/nearest?lat=${latitude}&lng=${longitude}`,
     );
     if (response.ok) {
       const data = await response.json();
