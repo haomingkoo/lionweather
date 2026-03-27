@@ -10,10 +10,10 @@
  * - Development: Uses Vite proxy to forward /api requests to localhost backend
  */
 
-// Always use relative /api — Vite proxy handles routing to backend
-// in both development (vite dev) and production (vite preview on Railway).
-// Never call the backend URL directly from the browser to avoid CORS.
-const API_BASE = "/api";
+// Use VITE_API_BASE_URL if set (production), otherwise relative /api (dev proxy)
+const _rawBase = import.meta.env.VITE_API_BASE_URL || "";
+const _secureBase = _rawBase.replace(/^http:\/\//, "https://");
+const API_BASE = _secureBase.startsWith("http") ? `${_secureBase}/api` : "/api";
 
 /**
  * Fetch current weather conditions from backend
