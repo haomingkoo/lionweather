@@ -29,7 +29,7 @@ def get_comprehensive_weather(location_id: str, lat: float = None, lng: float = 
         latitude = row[0]
         longitude = row[1]
 
-    api_key = os.getenv("WEATHER_API_KEY")
+    api_key = os.getenv("WEATHERAPI_KEY")
     client = SingaporeWeatherClient(api_key=api_key)
     http_client = client._get_client()
 
