@@ -3,5 +3,5 @@
 [build]
 builder = "NIXPACKS"
 
-[deploy]
-startCommand = "echo 'Use service-specific configs'"
+# Deploy commands are in service-specific railway.json files
+# (backend/railway.json and frontend/railway.json)
