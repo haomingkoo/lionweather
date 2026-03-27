@@ -1,3 +1,4 @@
+import os
 import logging
 from fastapi import APIRouter, HTTPException
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
@@ -28,7 +29,8 @@ def get_comprehensive_weather(location_id: str, lat: float = None, lng: float = 
         latitude = row[0]
         longitude = row[1]
 
-    client = SingaporeWeatherClient()
+    api_key = os.getenv("WEATHER_API_KEY")
+    client = SingaporeWeatherClient(api_key=api_key)
     http_client = client._get_client()
 
     result = {
