@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
-import { getRadarFrames } from "../api/radar";
+import { getRadarFrames, getRadarImageUrl } from "../api/radar";
 import { RainfallOverlay } from "./RainfallOverlay";
 
 /**
@@ -81,15 +81,16 @@ export function AnimatedRadarLayer({
     const promises = frameList.map((frame) => {
       return new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => {
-          console.log("[Radar] Preloaded frame:", frame.imageUrl);
-          resolve(frame);
-        };
+        // Extract timestamp from imageUrl (e.g. "/api/radar/image/1774650300")
+        const ts = frame.imageUrl.split("/").pop();
+        const fullUrl = getRadarImageUrl(ts);
+        img.onload = () => resolve({ ...frame, fullUrl });
         img.onerror = () => {
-          console.warn("[Radar] Failed to preload frame:", frame.imageUrl);
+          console.warn("[Radar] Failed to preload frame:", fullUrl);
           resolve(null);
         };
-        img.src = frame.imageUrl;
+        img.crossOrigin = "anonymous";
+        img.src = fullUrl;
       });
     });
 
@@ -175,7 +176,7 @@ export function AnimatedRadarLayer({
     }
 
     // Add new native Leaflet imageOverlay
-    const overlay = L.imageOverlay(currentFrame.imageUrl, bounds, {
+    const overlay = L.imageOverlay(currentFrame.fullUrl || currentFrame.imageUrl, bounds, {
       opacity: 0.7,
       zIndex: 1000,
       crossOrigin: true,

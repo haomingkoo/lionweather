@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { API_BASE } from "../api/base.js";
+import { API_BASE, API_ORIGIN } from "../api/base.js";
 import {
   MapContainer,
   TileLayer,
@@ -154,7 +154,7 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
         const frames = data.frames.map((frame) => ({
           timestamp: frame.timestamp,
           date: new Date(frame.timestamp),
-          url: frame.imageUrl,
+          url: `${API_ORIGIN}${frame.imageUrl}`,
           bounds: frame.bounds, // [[lat_sw, lon_sw], [lat_ne, lon_ne]]
           loaded: true, // Backend already has the images
         }));
