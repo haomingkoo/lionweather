@@ -218,9 +218,9 @@ export function LocationsProvider({ children }) {
       setIsLoading(true);
       const stored = getStoredLocations();
 
-      // Check which locations need refresh
+      // Check which locations need refresh (also retry "Unknown" results)
       const locationsToRefresh = stored.filter(
-        (loc) => !isCacheValid(loc.lastFetched),
+        (loc) => !isCacheValid(loc.lastFetched) || loc.weather?.condition === "Unknown",
       );
 
       if (locationsToRefresh.length === 0) {
