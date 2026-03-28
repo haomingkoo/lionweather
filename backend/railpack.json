@@ -1,5 +1,4 @@
 {
-  "packages": {
-    "apt": ["libgomp1"]
-  }
+  "$schema": "https://schema.railpack.com",
+  "buildAptPackages": ["libgomp1"]
 }
