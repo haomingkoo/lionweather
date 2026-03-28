@@ -1,6 +1,6 @@
 {
   "build": {
-    "builder": "RAILPACK",
+    "builder": "NIXPACKS",
     "watchPatterns": ["backend/**"]
   },
   "deploy": {
