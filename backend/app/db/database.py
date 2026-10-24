@@ -25,8 +25,11 @@ def get_database_url() -> str:
 
     if raw:
         # Railway uses postgres:// but SQLAlchemy needs postgresql://
+        # SQLAlchemy 2.1 defaults postgresql:// to psycopg 3; we ship psycopg2.
         if raw.startswith("postgres://"):
-            raw = raw.replace("postgres://", "postgresql://", 1)
+            raw = raw.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif raw.startswith("postgresql://"):
+            raw = raw.replace("postgresql://", "postgresql+psycopg2://", 1)
         _database_url = raw
         logger.info("Using PostgreSQL database from DATABASE_URL")
     else:
