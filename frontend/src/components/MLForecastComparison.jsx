@@ -54,8 +54,8 @@ export function MLForecastComparison({ isDark = false }) {
     <div
       className={`rounded-3xl backdrop-blur-xl p-6 ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
           <Brain className={`h-6 w-6 ${textColor}`} strokeWidth={1.5} />
           <h3 className={`text-lg font-semibold ${textColor}`}>
             ML-Powered Forecast

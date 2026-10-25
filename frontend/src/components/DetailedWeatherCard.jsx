@@ -22,6 +22,7 @@ import { get4DayForecast } from "../api/forecasts";
 import { PrecipitationMap } from "./PrecipitationMap";
 import { MLForecastComparison } from "./MLForecastComparison";
 import { getSunTimesSync, getTomorrowSunrise } from "../utils/sunTimes";
+import { generateCommentary, feelsLike as heatIndex } from "../utils/currentConditions";
 import { getCurrentWeather, get7DayForecast, getHourlyForecast } from "../api/backend";
 
 // Map WMO weather codes to simple condition strings
@@ -33,68 +34,6 @@ function wmoToCondition(code) {
   if (code <= 82) return "Showers";
   if (code <= 99) return "Thunderstorm";
   return "Cloudy";
-}
-
-// Generate Apple Weather-style commentary from current conditions
-function generateCommentary({ condition, temperature, humidity, uv_index, sunTimes }) {
-  const c = (condition || "").toLowerCase();
-  const hour = new Date().getHours();
-  const isDaytime = hour >= 6 && hour < 20;
-  const lines = [];
-
-  if (c.includes("thunder") || c.includes("storm")) {
-    lines.push("Thunderstorm conditions — stay indoors and avoid open areas.");
-  } else if (c.includes("heavy rain") || c.includes("heavy shower")) {
-    lines.push("Heavy rain expected. Carry an umbrella and watch for flash floods.");
-  } else if (c.includes("rain") || c.includes("shower") || c.includes("drizzle")) {
-    lines.push("Showers likely. Keep an umbrella handy when heading out.");
-  } else if (c.includes("cloudy") || c.includes("overcast") || c.includes("haze")) {
-    lines.push("Overcast skies with little sunshine today.");
-  } else if (c.includes("partly")) {
-    lines.push("Partly cloudy with sunny intervals. A brief shower is possible.");
-  } else if (c.includes("sunny") || c.includes("clear") || c.includes("fair")) {
-    lines.push("Clear skies and plenty of sunshine today.");
-  } else {
-    lines.push("Conditions are relatively stable throughout the day.");
-  }
-
-  if (temperature !== null && temperature !== undefined) {
-    const t = Math.round(temperature);
-    if (t >= 35) lines.push(`Very hot at ${t}°C — stay hydrated and limit time outdoors.`);
-    else if (t >= 32) lines.push(`Warm at ${t}°C with high humidity making it feel hotter.`);
-    else if (t <= 25) lines.push(`A comfortable ${t}°C — pleasant for outdoor activities.`);
-  }
-
-  if (uv_index !== null && uv_index !== undefined && isDaytime) {
-    const uv = Math.round(uv_index);
-    if (uv >= 11) lines.push(`Extreme UV index (${uv}) — sunscreen and shade are essential.`);
-    else if (uv >= 8) lines.push(`Very high UV (${uv}) — apply SPF 50+ before heading outside.`);
-    else if (uv >= 6) lines.push(`High UV index (${uv}) — consider sunscreen for extended outdoor time.`);
-  }
-
-  if (humidity !== null && humidity !== undefined) {
-    const h = Math.round(humidity);
-    if (h >= 85) lines.push(`Humidity at ${h}% will make it feel oppressively muggy.`);
-    else if (h >= 70) lines.push(`At ${h}% humidity it will feel noticeably sticky.`);
-  }
-
-  if (sunTimes?.sunset && sunTimes.sunset !== "N/A") {
-    const now = new Date();
-    const parts = sunTimes.sunset.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (parts) {
-      let sh = parseInt(parts[1]);
-      const sm = parseInt(parts[2]);
-      const meridiem = parts[3].toUpperCase();
-      if (meridiem === "PM" && sh !== 12) sh += 12;
-      if (meridiem === "AM" && sh === 12) sh = 0;
-      const minsToSunset = sh * 60 + sm - (now.getHours() * 60 + now.getMinutes());
-      if (minsToSunset > 0 && minsToSunset <= 90) {
-        lines.push(`Sunset in about ${minsToSunset} min at ${sunTimes.sunset}.`);
-      }
-    }
-  }
-
-  return lines;
 }
 
 const iconMap = {
@@ -304,20 +243,10 @@ export function DetailedWeatherCard({ location, isDark = false }) {
     return null;
   };
 
-  const temperature = location.weather.temperature || "N/A";
-  // Heat index (feels like) — Steadman formula adapted for Celsius
-  const feelsLike = (() => {
-    const T = parseFloat(comprehensiveData?.temperature || temperature);
-    const RH = parseFloat(comprehensiveData?.humidity || 75);
-    if (isNaN(T) || isNaN(RH)) return "N/A";
-    if (T < 27) return Math.round(T); // Below 27°C heat index less meaningful
-    const HI =
-      -8.78469 + 1.61139 * T + 2.33855 * RH
-      - 0.14612 * T * RH - 0.01231 * T * T
-      - 0.01642 * RH * RH + 0.00221 * T * T * RH
-      + 0.00073 * T * RH * RH - 0.0000036 * T * T * RH * RH;
-    return Math.round(HI);
-  })();
+  // Hero, feels-like and humidity all come from the same observation as the hero temperature.
+  const temperature = location.weather.temperature ?? "N/A";
+  const humidity = location.weather?.humidity ?? null;
+  const feelsLike = heatIndex(location.weather.temperature, humidity) ?? "N/A";
   const feelsLikeLabel = (() => {
     const v = typeof feelsLike === "number" ? feelsLike : parseFloat(feelsLike);
     if (isNaN(v)) return null;
@@ -328,7 +257,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   })();
   const feelsLikeDiff = (() => {
     const fl = typeof feelsLike === "number" ? feelsLike : parseFloat(feelsLike);
-    const T  = parseFloat(comprehensiveData?.temperature || temperature);
+    const T  = parseFloat(temperature);
     if (isNaN(fl) || isNaN(T)) return null;
     const diff = fl - Math.round(T);
     if (Math.abs(diff) < 1) return "Same as actual temperature.";
@@ -336,7 +265,6 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   })();
 
   // Apple Weather-style contextual descriptions
-  const humidity = comprehensiveData?.humidity || location.weather?.humidity || null;
   const dewPoint = (temperature !== "N/A" && humidity)
     ? Math.round(parseFloat(temperature) - ((100 - humidity) / 5))
     : null;
@@ -448,7 +376,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
   const commentary = generateCommentary({
     condition: location.weather.condition,
     temperature: location.weather.temperature,
-    humidity: comprehensiveData?.humidity,
+    humidity,
     uv_index: openMeteoData.uv_index,
     sunTimes,
   });
@@ -610,7 +538,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
                 return (
                   <div key={i} className="flex items-center gap-2 py-0.5">
                     {/* Day name */}
-                    <span className={`text-sm font-medium ${textColor} w-9 shrink-0`}>
+                    <span className={`text-sm font-medium ${textColor} w-10 shrink-0`}>
                       {day.dayName}
                     </span>
                     {/* Weather icon */}
@@ -785,7 +713,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             <span className={`text-xs ${tertiaryTextColor} uppercase tracking-wide`}>Humidity</span>
           </div>
           <div className={`text-2xl font-light ${textColor}`}>
-            {comprehensiveData?.humidity || 75}%
+            {humidity != null ? `${humidity}%` : "—"}
           </div>
           {humidityDesc && <p className={`text-xs ${tertiaryTextColor} mt-1 leading-snug`}>{humidityDesc}</p>}
         </div>
@@ -843,7 +771,7 @@ export function DetailedWeatherCard({ location, isDark = false }) {
             {/* Speed + direction label */}
             <div className="min-w-0 flex-1 overflow-hidden">
               <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed ?? 12}</span>
+                <span className={`text-2xl font-light ${textColor}`}>{comprehensiveData?.wind_speed ?? "—"}</span>
                 <span className={`text-sm ${secondaryTextColor}`}>km/h</span>
               </div>
               {windDirLabel && <p className={`text-xs ${tertiaryTextColor} truncate`}>{windDirLabel} · {windDir}°</p>}
