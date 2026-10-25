@@ -238,7 +238,7 @@ class TestSingaporeIndonesiaPreservation:
                 assert record.latitude != 0.0, f"Invalid latitude: {record.latitude}"
                 assert record.longitude != 0.0, f"Invalid longitude: {record.longitude}"
                 assert record.country == "indonesia"
-                assert record.source_api == "open-meteo.com"
+                assert record.source_api == "open-meteo"
             
             # Verify each location has only 1 record (current observation only)
             locations = [record.location for record in records]
@@ -456,7 +456,7 @@ class TestSingaporeIndonesiaPreservation:
             # Property 2: All records have correct country and source
             for record in records:
                 assert record.country == "indonesia", f"Country changed: {record.country}"
-                assert record.source_api == "open-meteo.com", f"Source API changed: {record.source_api}"
+                assert record.source_api == "open-meteo", f"Source API changed: {record.source_api}"
             
             # Property 3: Each city has exactly 1 record (current observation only)
             locations = [record.location for record in records]
@@ -589,7 +589,7 @@ class TestSingaporeIndonesiaPreservation:
             wind_speed=mock_indonesia_response["current"]["wind_speed_10m"],
             wind_direction=mock_indonesia_response["current"]["wind_direction_10m"],
             pressure=mock_indonesia_response["current"]["surface_pressure"],
-            source_api="open-meteo.com"
+            source_api="open-meteo"
         )
         
         # Verify temperature and rainfall are correctly stored

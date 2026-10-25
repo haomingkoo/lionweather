@@ -19,9 +19,10 @@ def data_collector():
 
 @pytest.fixture
 def mock_singapore_temp_response():
-    """Mock Singapore temperature API response"""
+    """Mock Singapore temperature API v2 response"""
     return {
-        "metadata": {
+        "code": 0,
+        "data": {
             "stations": [
                 {
                     "id": "S50",
@@ -33,172 +34,109 @@ def mock_singapore_temp_response():
                     "name": "Changi",
                     "location": {"latitude": 1.3667, "longitude": 103.9833}
                 }
+            ],
+            "readings": [
+                {
+                    "timestamp": "2024-01-15T10:00:00+08:00",
+                    "data": [
+                        {"stationId": "S50", "value": 28.5},
+                        {"stationId": "S44", "value": 29.2}
+                    ]
+                }
             ]
-        },
-        "items": [
-            {
-                "timestamp": "2024-01-15T10:00:00+08:00",
-                "readings": [
-                    {"station_id": "S50", "value": 28.5},
-                    {"station_id": "S44", "value": 29.2}
-                ]
-            }
-        ]
+        }
     }
 
 
 @pytest.fixture
 def mock_singapore_rainfall_response():
-    """Mock Singapore rainfall API response"""
+    """Mock Singapore rainfall API v2 response"""
     return {
-        "items": [
-            {
-                "timestamp": "2024-01-15T10:00:00+08:00",
-                "readings": [
-                    {"station_id": "S50", "value": 0.5},
-                    {"station_id": "S44", "value": 0.0}
-                ]
-            }
-        ]
+        "code": 0,
+        "data": {
+            "readings": [
+                {
+                    "timestamp": "2024-01-15T10:00:00+08:00",
+                    "data": [
+                        {"stationId": "S50", "value": 0.5},
+                        {"stationId": "S44", "value": 0.0}
+                    ]
+                }
+            ]
+        }
     }
 
 
 @pytest.fixture
 def mock_singapore_humidity_response():
-    """Mock Singapore humidity API response"""
+    """Mock Singapore humidity API v2 response"""
     return {
-        "items": [
-            {
-                "timestamp": "2024-01-15T10:00:00+08:00",
-                "readings": [
-                    {"station_id": "S50", "value": 75.0},
-                    {"station_id": "S44", "value": 72.0}
-                ]
-            }
-        ]
+        "code": 0,
+        "data": {
+            "readings": [
+                {
+                    "timestamp": "2024-01-15T10:00:00+08:00",
+                    "data": [
+                        {"stationId": "S50", "value": 75.0},
+                        {"stationId": "S44", "value": 72.0}
+                    ]
+                }
+            ]
+        }
     }
 
 
 @pytest.fixture
 def mock_singapore_wind_speed_response():
-    """Mock Singapore wind speed API response"""
+    """Mock Singapore wind speed API v2 response"""
     return {
-        "items": [
-            {
-                "timestamp": "2024-01-15T10:00:00+08:00",
-                "readings": [
-                    {"station_id": "S50", "value": 12.5},
-                    {"station_id": "S44", "value": 15.0}
-                ]
-            }
-        ]
+        "code": 0,
+        "data": {
+            "readings": [
+                {
+                    "timestamp": "2024-01-15T10:00:00+08:00",
+                    "data": [
+                        {"stationId": "S50", "value": 12.5},
+                        {"stationId": "S44", "value": 15.0}
+                    ]
+                }
+            ]
+        }
     }
 
 
 @pytest.fixture
 def mock_singapore_wind_dir_response():
-    """Mock Singapore wind direction API response"""
+    """Mock Singapore wind direction API v2 response"""
     return {
-        "items": [
-            {
-                "timestamp": "2024-01-15T10:00:00+08:00",
-                "readings": [
-                    {"station_id": "S50", "value": 180.0},
-                    {"station_id": "S44", "value": 200.0}
-                ]
-            }
-        ]
+        "code": 0,
+        "data": {
+            "readings": [
+                {
+                    "timestamp": "2024-01-15T10:00:00+08:00",
+                    "data": [
+                        {"stationId": "S50", "value": 180.0},
+                        {"stationId": "S44", "value": 200.0}
+                    ]
+                }
+            ]
+        }
     }
 
 
 @pytest.fixture
-def mock_malaysia_response():
-    """Mock Malaysia API response"""
+def mock_openmeteo_response():
+    """Mock Open-Meteo current-weather response"""
     return {
-        "data": [
-            {
-                "location_id": "MY001",
-                "location_name": "Kuala Lumpur",
-                "latitude": 3.1390,
-                "longitude": 101.6869,
-                "forecast": [
-                    {
-                        "timestamp": "2024-01-15T10:00:00+08:00",
-                        "temperature": 32.0,
-                        "rainfall": 2.5,
-                        "humidity": 80.0,
-                        "wind_speed": 15.0,
-                        "wind_direction": 90.0,
-                        "pressure": 1010.0
-                    }
-                ]
-            },
-            {
-                "location_id": "MY002",
-                "location_name": "Penang",
-                "latitude": 5.4164,
-                "longitude": 100.3327,
-                "forecast": [
-                    {
-                        "timestamp": "2024-01-15T10:00:00+08:00",
-                        "suhu": 30.5,
-                        "hujan": 0.0,
-                        "kelembapan": 75.0,
-                        "kelajuan_angin": 12.0
-                    }
-                ]
-            }
-        ]
+        "current": {
+            "temperature_2m": 31.5,
+            "precipitation": 0.4,
+            "relative_humidity_2m": 78.0,
+            "wind_speed_10m": 9.0,
+            "wind_direction_10m": 120.0,
+            "surface_pressure": 1008.5
+        }
     }
-
-
-@pytest.fixture
-def mock_indonesia_xml_response():
-    """Mock Indonesia BMKG XML response"""
-    return """<?xml version="1.0" encoding="UTF-8"?>
-<data>
-    <forecast>
-        <area id="ID001" description="Jakarta" latitude="-6.2088" longitude="106.8456">
-            <parameter id="t" description="Temperature">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>31.0</value>
-                </timerange>
-            </parameter>
-            <parameter id="hu" description="Humidity">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>78.0</value>
-                </timerange>
-            </parameter>
-            <parameter id="ws" description="Wind Speed">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>4.2</value>
-                </timerange>
-            </parameter>
-            <parameter id="tp" description="Rainfall">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>1.5</value>
-                </timerange>
-            </parameter>
-        </area>
-        <area id="ID002" description="Surabaya" latitude="-7.2575" longitude="112.7521">
-            <parameter id="temp" description="Temperature">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>29.5</value>
-                </timerange>
-            </parameter>
-            <parameter id="humidity" description="Humidity">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>82.0</value>
-                </timerange>
-            </parameter>
-            <parameter id="wind_speed" description="Wind Speed">
-                <timerange datetime="2024-01-15T10:00:00+07:00">
-                    <value>3.5</value>
-                </timerange>
-            </parameter>
-        </area>
-    </forecast>
-</data>"""
 
 
 class TestWeatherRecord:
@@ -317,7 +255,7 @@ class TestDataCollector:
     @pytest.mark.asyncio
     async def test_fetch_indonesia_data_error_handling(self, data_collector):
         """Test that Indonesia data fetch handles errors gracefully"""
-        with patch.object(data_collector, '_fetch_xml', new_callable=AsyncMock) as mock_fetch:
+        with patch.object(data_collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
             mock_fetch.side_effect = Exception("API error")
             
             records = await data_collector.fetch_indonesia_data()
@@ -438,93 +376,37 @@ class TestDataCollector:
         
         assert records == []
     
-    def test_parse_malaysia_data(self, data_collector, mock_malaysia_response):
-        """Test parsing Malaysia API responses"""
-        records = data_collector._parse_malaysia_data(mock_malaysia_response)
-        
-        assert len(records) == 2
-        
-        # Check first record (Kuala Lumpur with English field names)
-        kl = next(r for r in records if r.location == "Kuala Lumpur")
-        assert kl.country == "malaysia"
-        assert kl.temperature == 32.0
-        assert kl.rainfall == 2.5
-        assert kl.humidity == 80.0
-        assert kl.wind_speed == 15.0
-        assert kl.wind_direction == 90.0
-        assert kl.pressure == 1010.0
-        assert kl.source_api == "api.data.gov.my"
-        
-        # Check second record (Penang with Bahasa Melayu field names)
-        penang = next(r for r in records if r.location == "Penang")
-        assert penang.country == "malaysia"
-        assert penang.temperature == 30.5
-        assert penang.rainfall == 0.0
-        assert penang.humidity == 75.0
-        assert penang.wind_speed == 12.0
-    
-    def test_parse_malaysia_data_empty(self, data_collector):
-        """Test parsing Malaysia data with empty response"""
-        empty_data = {"data": []}
-        records = data_collector._parse_malaysia_data(empty_data)
-        assert records == []
-    
-    def test_parse_indonesia_data(self, data_collector, mock_indonesia_xml_response):
-        """Test parsing Indonesia BMKG XML responses"""
-        records = data_collector._parse_indonesia_data(mock_indonesia_xml_response)
-        
-        assert len(records) == 2
-        
-        # Check first record (Jakarta)
-        jakarta = next(r for r in records if r.location == "Jakarta")
-        assert jakarta.country == "indonesia"
-        assert jakarta.temperature == 31.0
-        assert jakarta.humidity == 78.0
-        assert abs(jakarta.wind_speed - 15.12) < 0.5  # 4.2 m/s * 3.6 = 15.12 km/h
-        assert jakarta.rainfall == 1.5
-        assert jakarta.source_api == "data.bmkg.go.id"
-        
-        # Check second record (Surabaya)
-        surabaya = next(r for r in records if r.location == "Surabaya")
-        assert surabaya.country == "indonesia"
-        assert surabaya.temperature == 29.5
-        assert surabaya.humidity == 82.0
-        assert abs(surabaya.wind_speed - 12.6) < 0.5  # 3.5 m/s * 3.6 = 12.6 km/h
-    
-    def test_parse_indonesia_data_invalid_xml(self, data_collector):
-        """Test parsing Indonesia data with invalid XML"""
-        invalid_xml = "<invalid>xml"
-        records = data_collector._parse_indonesia_data(invalid_xml)
-        assert records == []
-    
     @pytest.mark.asyncio
-    async def test_fetch_malaysia_data_with_mock(self, data_collector, mock_malaysia_response):
-        """Test fetching Malaysia weather data with mocked response"""
+    async def test_fetch_malaysia_data_with_mock(self, data_collector, mock_openmeteo_response):
+        """Test fetching Malaysia weather data from mocked Open-Meteo responses"""
         with patch.object(data_collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_malaysia_response
-            
+            mock_fetch.return_value = mock_openmeteo_response
+
             records = await data_collector.fetch_malaysia_data()
-            
-            # Verify we got records
-            assert len(records) == 2
+
+            assert len(records) == mock_fetch.call_count
             assert all(r.country == "malaysia" for r in records)
-            assert any(r.location == "Kuala Lumpur" for r in records)
-            assert any(r.location == "Penang" for r in records)
-    
+            assert all(r.source_api == "open-meteo" for r in records)
+            kl = next(r for r in records if r.location == "Kuala Lumpur")
+            assert kl.temperature == 31.5
+            assert kl.rainfall == 0.4
+            assert kl.humidity == 78.0
+            assert kl.wind_speed == 9.0
+            assert kl.wind_direction == 120.0
+            assert kl.pressure == 1008.5
+
     @pytest.mark.asyncio
-    async def test_fetch_indonesia_data_with_mock(self, data_collector, mock_indonesia_xml_response):
-        """Test fetching Indonesia weather data with mocked response"""
-        with patch.object(data_collector, '_fetch_xml', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_indonesia_xml_response
-            
+    async def test_fetch_indonesia_data_with_mock(self, data_collector, mock_openmeteo_response):
+        """Test fetching Indonesia weather data from mocked Open-Meteo responses"""
+        with patch.object(data_collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_openmeteo_response
+
             records = await data_collector.fetch_indonesia_data()
-            
-            # Verify we got records
-            assert len(records) == 2
+
+            assert len(records) == mock_fetch.call_count
             assert all(r.country == "indonesia" for r in records)
             assert any(r.location == "Jakarta" for r in records)
             assert any(r.location == "Surabaya" for r in records)
-
 
 
 class TestRateLimiter:
