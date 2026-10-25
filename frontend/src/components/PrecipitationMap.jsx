@@ -244,8 +244,9 @@ export function PrecipitationMap({ location, onClose, isDark = false }) {
           scrollWheelZoom={true}
         >
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
+            className="osm-muted-tiles"
           />
 
           <PrecipitationOverlay
