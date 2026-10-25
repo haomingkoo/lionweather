@@ -527,3 +527,16 @@ describe("weatherTheme.js utility functions", () => {
     });
   });
 });
+
+describe("getWeatherIcon at night", () => {
+  it("swaps the sun for a moon after dark", () => {
+    expect(getWeatherIcon("Fair", true)).toBe("Moon");
+    expect(getWeatherIcon("Partly Cloudy", true)).toBe("CloudMoon");
+    expect(getWeatherIcon("Fair", false)).toBe("Sun");
+  });
+
+  it("keeps rain and storm icons the same day and night", () => {
+    expect(getWeatherIcon("Showers", true)).toBe("CloudRain");
+    expect(getWeatherIcon("Thundery Showers", true)).toBe("CloudLightning");
+  });
+});

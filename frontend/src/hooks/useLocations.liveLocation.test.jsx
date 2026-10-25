@@ -54,3 +54,19 @@ describe("live location toggle", () => {
     expect(result.current.liveLocationEnabled).toBe(false);
   });
 });
+
+describe("a failed refresh", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps the last real reading instead of storing a made-up one", async () => {
+    localStorage.clear();
+    const old = { condition: "Fair", temperature: 30, area: "Bishan" };
+    localStorage.setItem("lionweather_locations", JSON.stringify([
+      { id: "a", latitude: 1.3, longitude: 103.8, weather: old, lastFetched: "2026-01-01T00:00:00Z" },
+    ]));
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useLocations(), { wrapper });
+    await vi.waitFor(() => expect(result.current.locations[0]?.refreshFailed).toBe(true));
+    expect(result.current.locations[0].weather).toEqual(old);
+  });
+});

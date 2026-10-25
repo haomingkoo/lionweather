@@ -122,19 +122,17 @@ const geocodeLocation = async (query) => {
   }
 };
 
-export function LocationForm({ isDark = false, compact = false }) {
+export function LocationForm({ compact = false }) {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const { create, isPending, error } = useCreateLocation();
 
-  const textColor = isDark ? "text-white" : "text-slate-900";
-  const secondaryTextColor = isDark ? "text-white/80" : "text-slate-700";
-  const inputBg = isDark
-    ? "bg-white/15 border-white/30 text-white placeholder-white/60"
-    : "bg-white/40 border-white/50 text-slate-900 placeholder-slate-600";
+  const input = "min-h-11 w-full min-w-0 rounded-control border border-line bg-surface px-3 text-base text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30";
+  const button = "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-control border border-line bg-surface-2 px-4 text-sm font-medium text-ink hover:bg-line/60 disabled:opacity-60";
 
   const onSubmit = async (event) => {
     event.preventDefault();
@@ -153,6 +151,7 @@ export function LocationForm({ isDark = false, compact = false }) {
   const handleSearch = async (event) => {
     event.preventDefault();
     if (!searchQuery.trim()) return;
+    setSearchError("");
 
     // If input looks like "lat, lon", add directly
     const coords = parseLatLon(searchQuery);
@@ -171,6 +170,7 @@ export function LocationForm({ isDark = false, compact = false }) {
       setSearchResults(results);
     } catch (err) {
       setSearchResults([]);
+      setSearchError(/not found/i.test(err.message || "") ? err.message : "Search is not working right now. Check your connection and try again.");
     } finally {
       setIsSearching(false);
     }
@@ -190,131 +190,73 @@ export function LocationForm({ isDark = false, compact = false }) {
     }
   };
 
-  const cardPad = compact ? "p-3" : "p-6";
-  const cardRadius = compact ? "rounded-2xl" : "rounded-[2rem]";
-  const inputPad = compact ? "px-3 py-2 text-sm" : "px-4 py-3 text-base";
-  const btnPad = compact ? "px-3 py-2 text-sm" : "px-5 py-3 text-base";
-
   return (
     <div className="space-y-3">
-      {/* Search by Postal Code or Place Name */}
-      <form
-        onSubmit={handleSearch}
-        className={`${cardRadius} backdrop-blur-xl ${cardPad} shadow-lg ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
-      >
-        {!compact && (
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`rounded-2xl backdrop-blur-sm p-2.5 ${isDark ? "bg-white/15" : "bg-white/30"} ${textColor}`}>
-              <Search className="h-5 w-5" strokeWidth={2} />
-            </div>
-            <h2 className={`text-xl font-semibold ${textColor}`}>
-              Search by Postal Code or Place
-            </h2>
-          </div>
-        )}
-
+      <form onSubmit={handleSearch} role="search">
+        <label htmlFor="place-search" className={compact ? "sr-only" : "mb-1 block text-sm font-medium"}>
+          Postal code or place
+        </label>
         <div className="flex gap-2">
           <input
-            type="text"
+            id="place-search"
+            type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`flex-1 min-w-0 rounded-xl ${inputBg} backdrop-blur-sm border ${inputPad} focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
-            placeholder={compact ? "Postal code or place…" : "e.g. 018956, Orchard Road"}
+            className={input}
+            placeholder="Postal code or place"
+            enterKeyHint="search"
           />
-          <button
-            type="submit"
-            disabled={isSearching || !searchQuery.trim()}
-            className={`rounded-xl backdrop-blur-sm ${btnPad} font-semibold ${textColor} hover:brightness-110 active:scale-[0.99] disabled:opacity-50 transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-white/60 ${isDark ? "bg-white/20 border border-white/35 hover:bg-white/30" : "bg-white/35 border border-white/50 hover:bg-white/45"}`}
-          >
-            {isSearching ? "…" : "Search"}
+          <button type="submit" disabled={isSearching || !searchQuery.trim()} className={`${button} ${compact ? "w-11 px-0" : ""}`} aria-label={compact ? (isSearching ? "Searching" : "Search") : undefined}>
+            <Search className="h-4 w-4" aria-hidden="true" />
+            {!compact && (isSearching ? "Searching" : "Search")}
           </button>
         </div>
 
-        {/* Search Results */}
+        {searchError && <p className="mt-2 text-sm text-bad" role="alert">{searchError}</p>}
+
         {searchResults.length > 0 && (
-          <div className="mt-2 space-y-1">
+          <ul className="mt-2 divide-y divide-line overflow-hidden rounded-card border border-line" aria-label="Search results">
             {searchResults.map((result, index) => (
-              <button
-                key={index}
-                onClick={() => handleSelectResult(result)}
-                disabled={isPending}
-                className={`w-full text-left rounded-xl backdrop-blur-sm px-3 py-2 text-sm ${textColor} hover:brightness-110 transition-all ${isDark ? "bg-white/10 border border-white/20 hover:bg-white/15" : "bg-white/30 border border-white/40 hover:bg-white/40"}`}
-              >
-                <div className="font-medium truncate">{result.name}</div>
-                <div className={`text-xs ${secondaryTextColor} mt-0.5 truncate`}>
-                  {result.display_name}
-                </div>
-              </button>
+              <li key={index}>
+                <button
+                  type="button"
+                  onClick={() => handleSelectResult(result)}
+                  disabled={isPending}
+                  className="block min-h-11 w-full px-3 py-2 text-left hover:bg-surface-2 disabled:opacity-60"
+                >
+                  <span className="block truncate text-sm font-medium">{result.name}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted">{result.display_name}</span>
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
+        {error && compact && <p className="mt-2 text-sm text-bad" role="alert">{error.message}</p>}
       </form>
 
-      {/* Manual Coordinates Entry — hidden in compact mode */}
-      {!compact && <form
-        onSubmit={onSubmit}
-        className={`rounded-[2rem] backdrop-blur-xl p-6 shadow-2xl ${isDark ? "bg-white/10 border border-white/20" : "bg-white/25 border border-white/40"}`}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className={`rounded-2xl backdrop-blur-sm p-2.5 ${isDark ? "bg-white/15" : "bg-white/30"} ${textColor}`}
-          >
-            <MapPin className="h-5 w-5" strokeWidth={2} />
-          </div>
-          <h2 className={`text-xl font-semibold ${textColor}`}>
-            Add by Coordinates
+      {!compact && (
+        <form onSubmit={onSubmit} className="rounded-panel border border-line bg-surface p-5">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+            Add by coordinates
           </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <label className="grid gap-2">
-            <span className={`text-sm font-medium ${secondaryTextColor}`}>
-              Latitude
-            </span>
-            <input
-              type="number"
-              step="any"
-              value={latitude}
-              onChange={(event) => setLatitude(event.target.value)}
-              className={`rounded-2xl ${inputBg} backdrop-blur-sm border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
-              placeholder="1.3508"
-              required
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className={`text-sm font-medium ${secondaryTextColor}`}>
-              Longitude
-            </span>
-            <input
-              type="number"
-              step="any"
-              value={longitude}
-              onChange={(event) => setLongitude(event.target.value)}
-              className={`rounded-2xl ${inputBg} backdrop-blur-sm border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
-              placeholder="103.8390"
-              required
-            />
-          </label>
-        </div>
-
-        <button
-          type="submit"
-          disabled={isPending}
-          className={`w-full flex items-center justify-center gap-2 rounded-2xl backdrop-blur-sm px-5 py-3 text-base font-semibold ${textColor} hover:brightness-110 hover:scale-105 active:scale-[0.99] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:brightness-100 transition-all duration-150 shadow-xl focus:outline-none focus:ring-2 focus:ring-white/60 ${isDark ? "bg-white/20 border border-white/35 hover:bg-white/30" : "bg-white/35 border border-white/50 hover:bg-white/45"}`}
-        >
-          <Plus className="h-5 w-5" strokeWidth={2.5} />
-          <span>{isPending ? "Adding..." : "Add Location"}</span>
-        </button>
-
-        {error && (
-          <p
-            className={`mt-3 text-sm backdrop-blur-sm rounded-2xl px-4 py-2.5 ${isDark ? "bg-red-500/40 border border-red-400/50 text-red-100" : "bg-red-500/30 border border-red-400/40 text-red-900"}`}
-          >
-            {error.message}
-          </p>
-        )}
-      </form>}
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Latitude</span>
+              <input type="number" step="any" value={latitude} onChange={(event) => setLatitude(event.target.value)} className={input} placeholder="1.3508" required />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm font-medium">Longitude</span>
+              <input type="number" step="any" value={longitude} onChange={(event) => setLongitude(event.target.value)} className={input} placeholder="103.8390" required />
+            </label>
+          </div>
+          <button type="submit" disabled={isPending} className={`${button} w-full`}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {isPending ? "Adding..." : "Add place"}
+          </button>
+          {error && <p className="mt-3 text-sm text-bad" role="alert">{error.message}</p>}
+        </form>
+      )}
     </div>
   );
 }

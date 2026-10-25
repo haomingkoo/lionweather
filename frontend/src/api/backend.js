@@ -25,7 +25,8 @@ export async function getCurrentWeather(latitude, longitude) {
     visibility: data.visibility ?? null,
     uv_index: data.uv_index ?? null,
     area: data.area || "Unknown Area",
-    source: data.source || "Backend",
+    source: data.source || "",
+    timestamp: data.timestamp ?? null,
   };
 }
 

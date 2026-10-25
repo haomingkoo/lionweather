@@ -87,3 +87,51 @@ export function generateCommentary({ condition, temperature, humidity, uv_index,
 
   return lines;
 }
+
+const CLOCK = new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "numeric", minute: "2-digit", hour12: true });
+const HOUR = new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "numeric", hour12: true });
+
+// "2:17 am"
+export function formatClock(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return CLOCK.format(date).replace(/\s/g, " ").toLowerCase();
+}
+
+// "2 am"
+export function formatHour(date) {
+  return HOUR.format(date).replace(/\s/g, " ").toLowerCase();
+}
+
+// Who measured the reading, in words a visitor knows.
+export function readingSource(source = "") {
+  const s = String(source).toLowerCase();
+  if (s.includes("data.gov.sg") || s.includes("nea")) return "NEA";
+  if (s.includes("open-meteo") || s.includes("openmeteo")) return "Open-Meteo";
+  return null;
+}
+
+// One sentence on rain over the next hours, from the hourly chances.
+export function rainOutlook(hourly = [], threshold = 50) {
+  const known = hourly.filter((h) => typeof h.rainChance === "number");
+  if (!known.length) return null;
+  const wet = known.find((h) => h.rainChance >= threshold);
+  if (!wet) return `Rain unlikely in the next ${known.length} hours.`;
+  if (wet === known[0]) return `Rain likely now (${wet.rainChance}% chance).`;
+  return `Rain likely from about ${formatHour(wet.time)} (${wet.rainChance}% chance).`;
+}
+
+// Compass point for a wind bearing in degrees.
+export function compassPoint(degrees) {
+  if (typeof degrees !== "number" || Number.isNaN(degrees)) return null;
+  return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(degrees / 45) % 8];
+}
+
+export function uvBand(uv) {
+  if (typeof uv !== "number") return null;
+  if (uv >= 11) return "Extreme";
+  if (uv >= 8) return "Very high";
+  if (uv >= 6) return "High";
+  if (uv >= 3) return "Moderate";
+  return "Low";
+}

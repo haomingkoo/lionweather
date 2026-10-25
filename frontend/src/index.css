@@ -1,103 +1,97 @@
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Animated Background Styles */
-.animated-clouds .cloud {
-  position: absolute;
-  width: 200px;
-  height: 60px;
-  background: white;
-  border-radius: 100px;
-  animation: float linear infinite;
-}
-
-.cloud-part {
-  position: absolute;
-  background: white;
-  border-radius: 50%;
-}
-
-.cloud-part-1 {
-  width: 50px;
-  height: 50px;
-  top: -25px;
-  left: 10px;
-}
-
-.cloud-part-2 {
-  width: 100px;
-  height: 80px;
-  top: -40px;
-  left: 50px;
-}
-
-.cloud-part-3 {
-  width: 60px;
-  height: 60px;
-  top: -30px;
-  right: 10px;
-}
-
-@keyframes float {
-  from {
-    transform: translateX(-100%);
+/* Tokens from DESIGN.md. Light by day, dark after sunset (see ThemeContext). */
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 244 246 249;
+    --surface: 255 255 255;
+    --surface-2: 238 242 246;
+    --line: 213 221 231;
+    --ink: 17 24 39;
+    --muted: 75 85 99;
+    --accent: 3 105 161;
+    --accent-ink: 255 255 255;
+    --rain: 3 105 161;
+    --good: 21 128 61;
+    --warn: 180 83 9;
+    --bad: 185 28 28;
+    --chart-grid: rgb(17 24 39 / 0.08);
+    --chart-axis: rgb(75 85 99);
+    --c1: #0369a1;
+    --c2: #15803d;
+    --c3: #be185d;
+    --c4: #b45309;
+    --c5: #6d28d9;
   }
-  to {
-    transform: translateX(100vw);
+
+  :root.dark {
+    color-scheme: dark;
+    --bg: 11 18 32;
+    --surface: 19 28 46;
+    --surface-2: 26 37 56;
+    --line: 43 56 76;
+    --ink: 232 238 246;
+    --muted: 159 176 196;
+    --accent: 125 211 252;
+    --accent-ink: 11 18 32;
+    --rain: 56 189 248;
+    --good: 74 222 128;
+    --warn: 251 191 36;
+    --bad: 248 113 113;
+    --chart-grid: rgb(232 238 246 / 0.08);
+    --chart-axis: rgb(159 176 196);
+    --c1: #7dd3fc;
+    --c2: #4ade80;
+    --c3: #f9a8d4;
+    --c4: #fbbf24;
+    --c5: #c4b5fd;
   }
-}
 
-.rain-particles {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-.rain-drop {
-  position: absolute;
-  width: 2px;
-  height: 50px;
-  background: linear-gradient(
-    to bottom,
-    rgba(174, 194, 224, 0),
-    rgba(174, 194, 224, 0.8)
-  );
-  animation: fall linear infinite;
-}
-
-@keyframes fall {
-  to {
-    transform: translateY(100vh);
+  body {
+    background: rgb(var(--bg));
+    color: rgb(var(--ink));
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-}
 
-.stars-animation {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-.star {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  background: white;
-  border-radius: 50%;
-  animation: twinkle ease-in-out infinite;
-}
-
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: 0.3;
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
   }
-  50% {
-    opacity: 1;
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+
+  .tabular-nums,
+  time {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 /* Mute OSM's colourful basemap so weather overlays stay legible */
 .osm-muted-tiles {
   filter: grayscale(1) brightness(1.05) contrast(0.9);
+}
+
+.dark .osm-muted-tiles {
+  filter: grayscale(1) invert(0.92) brightness(0.9) contrast(0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

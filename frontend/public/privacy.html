@@ -6,47 +6,61 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Privacy | LionWeather</title>
     <meta name="description" content="How LionWeather handles your location and other data." />
+    <script>
+      // Same rule as the app: light between roughly 7 am and 7 pm Singapore time, dark otherwise.
+      (function () {
+        var h = Number(new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "numeric", hour12: false }).format(new Date()));
+        if (h < 7 || h >= 19) document.documentElement.classList.add("dark");
+      })();
+    </script>
     <style>
-      :root { color-scheme: dark; }
+      @font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+      @font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+      :root { color-scheme: light; --bg: #f4f6f9; --surface: #ffffff; --line: #d5dde7; --ink: #111827; --muted: #4b5563; --accent: #0369a1; }
+      :root.dark { color-scheme: dark; --bg: #0b1220; --surface: #131c2e; --line: #2b384c; --ink: #e8eef6; --muted: #9fb0c4; --accent: #7dd3fc; }
       * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: #0a0e1a;
-        color: #cbd5e1;
-        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.65;
-      }
-      header, footer { border-color: #1e293b; border-style: solid; border-width: 0; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.65; }
+      header, footer { background: var(--surface); border: 0 solid var(--line); }
       header { border-bottom-width: 1px; }
-      footer { border-top-width: 1px; margin-top: 3rem; }
-      .wrap { max-width: 46rem; margin: 0 auto; padding: 1rem 1.5rem; }
-      .bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-      .logo { color: #fff; font-weight: 700; font-size: 1.5rem; text-decoration: none; }
-      a { color: #93c5fd; }
-      a:hover { color: #fff; }
-      a:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
-      nav a { color: #94a3b8; text-decoration: none; margin-left: 1.25rem; }
-      h1 { color: #fff; font-size: 2.25rem; margin: 2rem 0 0.25rem; }
-      h2 { color: #e2e8f0; font-size: 1.2rem; margin: 2.25rem 0 0.5rem; }
-      .muted { color: #64748b; font-size: 0.9rem; }
-      code { color: #e2e8f0; background: #111827; padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.88em; }
-      li { margin: 0.3rem 0; }
+      footer { border-top-width: 1px; margin-top: 48px; }
+      .bar { max-width: 72rem; margin: 0 auto; padding: 0 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 24px; }
+      .logo { color: var(--ink); font-weight: 600; font-size: 18px; text-decoration: none; min-height: 56px; display: inline-flex; align-items: center; }
+      nav.sections a { color: var(--muted); text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; min-height: 48px; padding: 0 12px; }
+      nav.sections a:hover { color: var(--ink); }
+      main { max-width: 44rem; margin: 32px auto 0; padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+      a { color: var(--accent); text-underline-offset: 2px; }
+      a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+      h1 { font-size: 24px; line-height: 1.25; margin: 0 0 4px; }
+      h2 { font-size: 16px; margin: 32px 0 8px; }
+      p, li { font-size: 16px; }
+      li { margin: 4px 0; }
+      .muted { color: var(--muted); font-size: 14px; }
+      code { font-size: 14px; background: var(--bg); border: 1px solid var(--line); padding: 0 4px; border-radius: 4px; }
+      footer .bar { justify-content: flex-start; gap: 4px 8px; padding-top: 20px; padding-bottom: 20px; color: var(--muted); font-size: 14px; }
+      footer a { color: var(--muted); display: inline-flex; align-items: center; min-height: 24px; }
+      footer a:hover { color: var(--ink); }
+      @media (max-width: 720px) {
+        main { margin: 0; border: 0; border-radius: 0; padding: 24px 16px; }
+        .bar { padding: 0 16px; }
+        nav.sections { width: 100%; margin: 0 -12px; }
+      }
     </style>
   </head>
   <body>
     <header>
-      <div class="wrap bar">
+      <div class="bar">
         <a class="logo" href="/">LionWeather</a>
-        <nav>
-          <a href="/">Back to the app</a>
-          <a href="https://kooexperience.com/">Home</a>
+        <nav class="sections" aria-label="Sections">
+          <a href="/">Now</a>
+          <a href="/#map">Rain map</a>
+          <a href="/#model">Forecast model</a>
         </nav>
       </div>
     </header>
 
-    <main class="wrap">
+    <main>
       <h1>Privacy</h1>
-      <p class="muted">Last updated 25 October 2026</p>
+      <p class="muted">Last updated 26 October 2026</p>
 
       <p>
         LionWeather is a free Singapore weather app run by Koo Haoming (individual, Singapore).
@@ -95,17 +109,17 @@
       <h2>Your choices</h2>
       <ul>
         <li>Once you add your location, the app re-reads your GPS every 15 minutes while the tab is open.
-          Use the <strong>Live location</strong> button to turn that off.</li>
+          Use the <strong>Following my location</strong> button to turn that off.</li>
         <li>Delete a location card to remove it. Deleting your GPS card also turns off live location.</li>
-        <li>Clear this site's data in your browser to remove everything it stored. That is five local storage keys:
+        <li>Clear this site's data in your browser to remove everything it stored. That is four local storage keys:
           <ul>
             <li><code>lionweather_locations</code>: your location cards and their last weather</li>
             <li><code>geolocation_permission</code>: whether live location is on</li>
             <li><code>lionweather_rain_notify</code>: whether rain alerts are on</li>
             <li><code>lionweather_rain_notify_last</code>: when the last rain alert fired</li>
-            <li><code>weather-app-theme</code>: light or dark theme</li>
           </ul>
         </li>
+        <li>The light and dark theme follows Singapore's sunrise and sunset. It is worked out in your browser and not stored.</li>
         <li>Rain alerts are notifications from your own browser. We never ask for your email or phone number.</li>
         <li>You can ask what data we hold about you, ask us to correct it, or withdraw consent. Email us and we will reply within 30 days.</li>
       </ul>
@@ -118,10 +132,13 @@
     </main>
 
     <footer>
-      <div class="wrap bar muted">
-        <span>LionWeather Lab by Koo Haoming</span>
-        <span><a href="/">App</a> · <a href="https://github.com/haomingkoo/lionweather">GitHub</a></span>
-      </div>
+      <nav class="bar" aria-label="Site">
+        <span>© 2026 Haoming Koo</span><span aria-hidden="true">·</span>
+        <a href="/privacy.html">Privacy</a><span aria-hidden="true">·</span>
+        <a href="/terms.html">Terms</a><span aria-hidden="true">·</span>
+        <span>Contact (<a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a>)</span><span aria-hidden="true">·</span>
+        <span>More projects → <a href="https://kooexperience.com/">kooexperience.com</a></span>
+      </nav>
     </footer>
   </body>
 </html>

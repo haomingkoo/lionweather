@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { feelsLike, generateCommentary, isNightAt, parseClock } from "./currentConditions";
+import { compassPoint, feelsLike, formatClock, generateCommentary, isNightAt, parseClock, rainOutlook, readingSource, uvBand } from "./currentConditions";
 
 const sunTimes = { sunrise: "6:47 AM", sunset: "6:52 PM" };
 const at = (h, m = 0) => new Date(2026, 9, 26, h, m);
@@ -70,5 +70,51 @@ describe("generateCommentary", () => {
   it("uses no em dashes", () => {
     const lines = generateCommentary({ condition: "Thunderstorm", temperature: 36, humidity: 90, uv_index: 12, sunTimes, now: at(12) });
     expect(lines.join(" ")).not.toMatch(/—/);
+  });
+});
+
+
+describe("reading helpers", () => {
+  it("names the source in plain words", () => {
+    expect(readingSource("Cached (api-open.data.gov.sg)")).toBe("NEA");
+    expect(readingSource("Open-Meteo")).toBe("Open-Meteo");
+    expect(readingSource("")).toBeNull();
+  });
+
+  it("formats the reading time in Singapore time", () => {
+    expect(formatClock("2026-10-26T02:17:00+08:00")).toBe("2:17 am");
+    expect(formatClock("not a date")).toBeNull();
+  });
+
+  it("gives compass points and UV bands", () => {
+    expect(compassPoint(275)).toBe("W");
+    expect(compassPoint(null)).toBeNull();
+    expect(uvBand(0)).toBe("Low");
+    expect(uvBand(9)).toBe("Very high");
+  });
+});
+
+describe("rainOutlook", () => {
+  const at = (h) => new Date(`2026-10-26T${String(h).padStart(2, "0")}:00:00+08:00`);
+
+  it("says when rain becomes likely", () => {
+    expect(rainOutlook([
+      { time: at(2), rainChance: 20 },
+      { time: at(3), rainChance: 40 },
+      { time: at(4), rainChance: 65 },
+    ])).toBe("Rain likely from about 4 am (65% chance).");
+  });
+
+  it("says rain is likely now when the first hour is wet", () => {
+    expect(rainOutlook([{ time: at(2), rainChance: 70 }])).toBe("Rain likely now (70% chance).");
+  });
+
+  it("says rain is unlikely when no hour crosses the threshold", () => {
+    expect(rainOutlook([{ time: at(2), rainChance: 10 }, { time: at(3), rainChance: 5 }])).toBe("Rain unlikely in the next 2 hours.");
+  });
+
+  it("says nothing without data", () => {
+    expect(rainOutlook([])).toBeNull();
+    expect(rainOutlook([{ time: at(2), rainChance: null }])).toBeNull();
   });
 });
