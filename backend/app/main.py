@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import hmac
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -288,7 +289,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 def _require_admin(secret: str | None) -> None:
     """Raise 403 if the provided secret does not match ADMIN_SECRET env var."""
     expected = os.getenv("ADMIN_SECRET")
-    if not expected or secret != expected:
+    if not expected or not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
 
 
@@ -345,9 +346,8 @@ def health_check():
 def status_check(request: Request):
     """Detailed status: shows exactly what's in the DB, per source API, per country."""
     from datetime import datetime, timedelta
-    from app.db.database import fetch_all, get_database_url, is_postgres
+    from app.db.database import fetch_all, is_postgres
 
-    db_url = get_database_url()
     now = datetime.utcnow()
     cutoff_1h = (now - timedelta(hours=1)).isoformat()
     cutoff_24h = (now - timedelta(hours=24)).isoformat()
@@ -377,21 +377,21 @@ def status_check(request: Request):
 
         for row in rows:
             entry = {
-                "source_api": row["source_api"],
-                "country": row["country"],
-                "total_records": row["total"],
-                "latest_record": row["latest"],
-                "oldest_record": row["oldest"],
-                "records_last_1h": row["last_1h"],
-                "records_last_24h": row["last_24h"],
-                "status": "ok" if row["last_1h"] and row["last_1h"] > 0 else (
-                    "stale" if row["last_24h"] and row["last_24h"] > 0 else "no_recent_data"
+                "source_api": row._mapping["source_api"],
+                "country": row._mapping["country"],
+                "total_records": row._mapping["total"],
+                "latest_record": row._mapping["latest"],
+                "oldest_record": row._mapping["oldest"],
+                "records_last_1h": row._mapping["last_1h"],
+                "records_last_24h": row._mapping["last_24h"],
+                "status": "ok" if row._mapping["last_1h"] and row._mapping["last_1h"] > 0 else (
+                    "stale" if row._mapping["last_24h"] and row._mapping["last_24h"] > 0 else "no_recent_data"
                 ),
             }
             sources.append(entry)
-            total_records += row["total"] or 0
-            records_last_hour += row["last_1h"] or 0
-            records_last_24h += row["last_24h"] or 0
+            total_records += row._mapping["total"] or 0
+            records_last_hour += row._mapping["last_1h"] or 0
+            records_last_24h += row._mapping["last_24h"] or 0
     except Exception as e:
         logger.error(f"Status check failed querying weather_records: {e}")
         sources = [{"error": str(e)}]
@@ -409,12 +409,12 @@ def status_check(request: Request):
         """)
         for row in frows:
             forecast_sources.append({
-                "source_api": row["source_api"],
-                "country": row["country"],
-                "total_records": row["total"],
-                "latest_collected": row["latest"],
+                "source_api": row._mapping["source_api"],
+                "country": row._mapping["country"],
+                "total_records": row._mapping["total"],
+                "latest_collected": row._mapping["latest"],
             })
-            forecast_total += row["total"] or 0
+            forecast_total += row._mapping["total"] or 0
     except Exception as e:
         logger.error(f"Status check failed querying forecast_data: {e}")
         forecast_sources = [{"error": str(e)}]
@@ -430,7 +430,6 @@ def status_check(request: Request):
         },
         "database": {
             "type": "postgresql" if is_postgres() else "sqlite",
-            "url": db_url.split("@")[-1] if is_postgres() else db_url,
         },
         "observations": {
             "total_records": total_records,
@@ -768,9 +767,7 @@ async def trigger_retrain(
 
     Poll GET /admin/retrain-status to check progress.
     """
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
 
     if _retrain_state["status"] == "running":
         return {
@@ -826,9 +823,7 @@ async def retrain_status(
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
     """Check the status of the most recent retrain job."""
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
 
     return {
         "status": _retrain_state["status"],
