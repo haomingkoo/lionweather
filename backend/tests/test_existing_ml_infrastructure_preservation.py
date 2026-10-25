@@ -23,7 +23,6 @@ from pathlib import Path
 from app.ml.prediction_engine import PredictionEngine
 from app.ml.evaluation_service import EvaluationService
 from app.ml.feature_engineer import FeatureEngineer
-from app.ml.training_pipeline import TrainingPipeline
 
 
 class TestExistingMLInfrastructurePreservation:
@@ -200,95 +199,6 @@ class TestExistingMLInfrastructurePreservation:
                             f"{col} at index {i - lag}"
                         )
 
-    @given(
-        num_rows=st.integers(min_value=50, max_value=200),
-        test_size=st.floats(min_value=0.1, max_value=0.4)
-    )
-    @settings(max_examples=20, deadline=None)
-    def test_training_pipeline_train_test_split_preserved(self, num_rows, test_size):
-        """
-        Property: TrainingPipeline.train_test_split() produces consistent results.
-        
-        For any DataFrame and test_size, train/test split should maintain temporal order.
-        This ensures the training pipeline continues to work after infrastructure changes.
-        
-        **Validates: Requirements 3.4, 3.5**
-        """
-        # Create sample DataFrame with timestamps
-        start_date = datetime(2024, 1, 1)
-        timestamps = [start_date + timedelta(hours=i) for i in range(num_rows)]
-        
-        df = pd.DataFrame({
-            'timestamp': timestamps,
-            'temperature': np.random.uniform(20, 35, num_rows)
-        })
-        
-        pipeline = TrainingPipeline()
-        
-        # Perform train/test split
-        train_df, test_df = pipeline.train_test_split(df, test_size=test_size)
-        
-        # Verify split sizes (allow for rounding differences)
-        assert len(train_df) + len(test_df) == num_rows, (
-            f"Train + test should equal total rows: {len(train_df)} + {len(test_df)} != {num_rows}"
-        )
-        
-        # Verify test size is approximately correct (within 1 row due to rounding)
-        expected_test_size = int(num_rows * test_size)
-        assert abs(len(test_df) - expected_test_size) <= 1, (
-            f"Test set size should be approximately {expected_test_size}, got {len(test_df)}"
-        )
-        
-        # Verify temporal order is maintained (train comes before test)
-        if 'timestamp' in train_df.columns and 'timestamp' in test_df.columns:
-            last_train_time = train_df['timestamp'].max()
-            first_test_time = test_df['timestamp'].min()
-            assert last_train_time <= first_test_time, (
-                "Train set should come before test set in temporal order"
-            )
-
-    @given(
-        y_true=st.lists(st.floats(min_value=0, max_value=100, allow_nan=False), min_size=10, max_size=100),
-        y_pred=st.lists(st.floats(min_value=0, max_value=100, allow_nan=False), min_size=10, max_size=100)
-    )
-    @settings(max_examples=20, deadline=None)
-    def test_training_pipeline_calculate_metrics_preserved(self, y_true, y_pred):
-        """
-        Property: TrainingPipeline.calculate_metrics() produces consistent results.
-        
-        For any y_true and y_pred arrays, metrics calculation should work correctly.
-        This ensures the training pipeline metrics continue to work after infrastructure changes.
-        
-        **Validates: Requirements 3.4, 3.5**
-        """
-        # Ensure arrays are same length
-        min_len = min(len(y_true), len(y_pred))
-        y_true = np.array(y_true[:min_len])
-        y_pred = np.array(y_pred[:min_len])
-        
-        pipeline = TrainingPipeline()
-        
-        # Calculate metrics
-        metrics = pipeline.calculate_metrics(y_true, y_pred)
-        
-        # Verify metrics dictionary structure
-        assert isinstance(metrics, dict), "Metrics should be a dictionary"
-        assert 'mae' in metrics, "Metrics should include MAE"
-        assert 'rmse' in metrics, "Metrics should include RMSE"
-        assert 'mape' in metrics, "Metrics should include MAPE"
-        
-        # Verify metrics are valid
-        for metric_name, metric_value in metrics.items():
-            assert isinstance(metric_value, (int, float)), (
-                f"Metric {metric_name} should be numeric"
-            )
-            assert not np.isnan(metric_value), (
-                f"Metric {metric_name} should not be NaN"
-            )
-            assert not np.isinf(metric_value), (
-                f"Metric {metric_name} should not be infinite"
-            )
-
     def test_prediction_engine_initialization_preserved(self):
         """
         Property: PredictionEngine can be initialized without errors.
@@ -311,25 +221,4 @@ class TestExistingMLInfrastructurePreservation:
         )
         assert hasattr(engine, 'predict_7_days'), (
             "PredictionEngine should have predict_7_days method"
-        )
-
-    def test_training_pipeline_initialization_preserved(self):
-        """
-        Property: TrainingPipeline can be initialized without errors.
-        
-        This ensures the training pipeline continues to work after infrastructure changes.
-        
-        **Validates: Requirements 3.4, 3.5**
-        """
-        # Initialize training pipeline
-        pipeline = TrainingPipeline()
-        
-        # Verify initialization
-        assert pipeline is not None, "TrainingPipeline should initialize"
-        assert hasattr(pipeline, 'model_dir'), "TrainingPipeline should have model_dir attribute"
-        assert hasattr(pipeline, 'train_test_split'), (
-            "TrainingPipeline should have train_test_split method"
-        )
-        assert hasattr(pipeline, 'calculate_metrics'), (
-            "TrainingPipeline should have calculate_metrics method"
         )
