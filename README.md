@@ -20,7 +20,7 @@ Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecas
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React 18, Vite, Tailwind CSS, Leaflet (CartoDB Positron tiles) |
+| Frontend | React 18, Vite, Tailwind CSS, Leaflet (OpenStreetMap tiles) |
 | Backend | FastAPI, SQLAlchemy, PostgreSQL (Railway) / SQLite (local) |
 | ML | LightGBM, SHAP, statsmodels |
 | Data sources | Singapore data.gov.sg (NEA), Open-Meteo, weather.gov.sg (radar) |

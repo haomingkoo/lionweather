@@ -96,3 +96,8 @@
     opacity: 1;
   }
 }
+
+/* Mute OSM's colourful basemap so weather overlays stay legible */
+.osm-muted-tiles {
+  filter: grayscale(1) brightness(1.05) contrast(0.9);
+}
