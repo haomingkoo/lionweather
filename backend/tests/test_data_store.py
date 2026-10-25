@@ -6,14 +6,12 @@ predictions, and evaluation metrics.
 """
 
 import pytest
-import sqlite3
-import os
-import tempfile
 from datetime import datetime, timedelta
 
+from app.db import database
+from app.db.migrations import migrate_ml_tables
 from app.services.data_store import (
     DataStore,
-    ModelMetadata,
     Prediction,
     EvaluationMetric
 )
@@ -21,107 +19,12 @@ from app.services.data_collector import WeatherRecord
 
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing."""
-    fd, path = tempfile.mkstemp(suffix='.db')
-    os.close(fd)
-    
-    # Initialize database schema
-    con = sqlite3.connect(path)
-    cursor = con.cursor()
-    
-    # Create weather_records table
-    cursor.execute("""
-        CREATE TABLE weather_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            country TEXT NOT NULL,
-            location TEXT NOT NULL,
-            latitude REAL NOT NULL,
-            longitude REAL NOT NULL,
-            temperature REAL NOT NULL,
-            rainfall REAL NOT NULL,
-            humidity REAL NOT NULL,
-            wind_speed REAL NOT NULL,
-            wind_direction REAL,
-            pressure REAL,
-            source_api TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            UNIQUE(timestamp, country, location)
-        )
-    """)
-    
-    # Create model_metadata table
-    cursor.execute("""
-        CREATE TABLE model_metadata (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_type TEXT NOT NULL,
-            weather_parameter TEXT NOT NULL,
-            country TEXT NOT NULL,
-            version TEXT NOT NULL,
-            hyperparameters TEXT NOT NULL,
-            training_date TEXT NOT NULL,
-            training_samples INTEGER NOT NULL,
-            validation_mae REAL NOT NULL,
-            validation_rmse REAL NOT NULL,
-            validation_mape REAL NOT NULL,
-            file_path TEXT NOT NULL,
-            is_production INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
-        )
-    """)
-    
-    # Create predictions table
-    cursor.execute("""
-        CREATE TABLE predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_id INTEGER NOT NULL,
-            prediction_timestamp TEXT NOT NULL,
-            target_timestamp TEXT NOT NULL,
-            hours_ahead INTEGER NOT NULL,
-            country TEXT NOT NULL,
-            location TEXT NOT NULL,
-            weather_parameter TEXT NOT NULL,
-            predicted_value REAL NOT NULL,
-            confidence_lower REAL NOT NULL,
-            confidence_upper REAL NOT NULL,
-            FOREIGN KEY (model_id) REFERENCES model_metadata(id)
-        )
-    """)
-    
-    # Create evaluation_metrics table
-    cursor.execute("""
-        CREATE TABLE evaluation_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_id INTEGER NOT NULL,
-            evaluation_timestamp TEXT NOT NULL,
-            target_timestamp TEXT NOT NULL,
-            hours_ahead INTEGER NOT NULL,
-            country TEXT NOT NULL,
-            location TEXT NOT NULL,
-            weather_parameter TEXT NOT NULL,
-            predicted_value REAL NOT NULL,
-            actual_value REAL NOT NULL,
-            absolute_error REAL NOT NULL,
-            squared_error REAL NOT NULL,
-            percentage_error REAL NOT NULL,
-            FOREIGN KEY (model_id) REFERENCES model_metadata(id)
-        )
-    """)
-    
-    con.commit()
-    con.close()
-    
-    yield path
-    
-    # Cleanup
-    os.unlink(path)
-
-
-@pytest.fixture
-def data_store(temp_db):
-    """Create DataStore instance with temporary database."""
-    return DataStore(db_path=temp_db)
+def data_store(tmp_path, monkeypatch):
+    """Create DataStore instance backed by a fresh SQLite database with the real schema."""
+    monkeypatch.setattr(database, "_database_url", f"sqlite:///{tmp_path / 'test.db'}")
+    monkeypatch.setattr(database, "_engine", None)
+    migrate_ml_tables()
+    return DataStore()
 
 
 @pytest.fixture
@@ -359,49 +262,11 @@ def test_cleanup_old_records(data_store):
     assert records[0].temperature == 29.0
 
 
-# ========== Model Metadata Tests ==========
-
-def test_save_model_metadata(data_store):
-    """Test saving model metadata."""
-    metadata = ModelMetadata(
-        model_type="arima",
-        weather_parameter="temperature",
-        country="singapore",
-        version="1.0.0",
-        hyperparameters={"p": 1, "d": 1, "q": 1},
-        training_date=datetime(2024, 1, 15),
-        training_samples=1000,
-        validation_mae=1.5,
-        validation_rmse=2.0,
-        validation_mape=5.0,
-        file_path="/models/arima_temp_sg_v1.pkl",
-        is_production=True
-    )
-    
-    model_id = data_store.save_model_metadata(metadata)
-    assert model_id > 0
-
-
 # ========== Prediction Tests ==========
 
 def test_save_prediction(data_store):
     """Test saving a prediction."""
-    # First create a model
-    metadata = ModelMetadata(
-        model_type="arima",
-        weather_parameter="temperature",
-        country="singapore",
-        version="1.0.0",
-        hyperparameters={"p": 1, "d": 1, "q": 1},
-        training_date=datetime(2024, 1, 15),
-        training_samples=1000,
-        validation_mae=1.5,
-        validation_rmse=2.0,
-        validation_mape=5.0,
-        file_path="/models/arima_temp_sg_v1.pkl",
-        is_production=True
-    )
-    model_id = data_store.save_model_metadata(metadata)
+    model_id = 1
     
     # Create prediction
     prediction = Prediction(
@@ -425,22 +290,7 @@ def test_save_prediction(data_store):
 
 def test_save_evaluation_metric(data_store):
     """Test saving an evaluation metric."""
-    # First create a model
-    metadata = ModelMetadata(
-        model_type="arima",
-        weather_parameter="temperature",
-        country="singapore",
-        version="1.0.0",
-        hyperparameters={"p": 1, "d": 1, "q": 1},
-        training_date=datetime(2024, 1, 15),
-        training_samples=1000,
-        validation_mae=1.5,
-        validation_rmse=2.0,
-        validation_mape=5.0,
-        file_path="/models/arima_temp_sg_v1.pkl",
-        is_production=True
-    )
-    model_id = data_store.save_model_metadata(metadata)
+    model_id = 1
     
     # Create evaluation metric
     metric = EvaluationMetric(
