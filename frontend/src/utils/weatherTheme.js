@@ -51,15 +51,12 @@ export function getWeatherGradient(condition, isDark = false) {
     : "from-sky-400 via-blue-500 to-indigo-500";
 }
 
-export function getWeatherIcon(condition) {
+// Icon name for a condition. Clear and partly cloudy skies get a moon at night.
+export function getWeatherIcon(condition, isNight = false) {
   const conditionLower = condition?.toLowerCase() || "";
 
-  if (
-    conditionLower.includes("sunny") ||
-    conditionLower.includes("clear") ||
-    conditionLower.includes("fair")
-  ) {
-    return "Sun";
+  if (conditionLower.includes("thunder") || conditionLower.includes("storm")) {
+    return "CloudLightning";
   }
 
   if (
@@ -70,12 +67,20 @@ export function getWeatherIcon(condition) {
     return "CloudRain";
   }
 
-  if (conditionLower.includes("thunder") || conditionLower.includes("storm")) {
-    return "CloudLightning";
+  if (conditionLower.includes("haze") || conditionLower.includes("fog") || conditionLower.includes("mist")) {
+    return "CloudFog";
+  }
+
+  if (
+    conditionLower.includes("sunny") ||
+    conditionLower.includes("clear") ||
+    conditionLower.includes("fair")
+  ) {
+    return isNight ? "Moon" : "Sun";
   }
 
   if (conditionLower.includes("partly")) {
-    return "CloudSun";
+    return isNight ? "CloudMoon" : "CloudSun";
   }
 
   if (conditionLower.includes("cloud")) {
@@ -86,7 +91,7 @@ export function getWeatherIcon(condition) {
     return "Cloudy";
   }
 
-  return "CloudSun";
+  return isNight ? "CloudMoon" : "CloudSun";
 }
 
 export function isDarkGradient(condition) {

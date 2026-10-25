@@ -46,7 +46,9 @@ const isCacheValid = (lastFetched) => {
   return now - fetchedTime < CACHE_DURATION;
 };
 
-// Fetch weather data from API
+export const FETCH_FAILED_MESSAGE = "Could not get the weather for that place. Check your connection and try again.";
+
+// Fetch weather data from API. Null on failure, so callers keep the last real reading.
 const fetchWeatherForLocation = async (latitude, longitude) => {
   try {
     const response = await fetch(
@@ -58,11 +60,7 @@ const fetchWeatherForLocation = async (latitude, longitude) => {
     return await response.json();
   } catch (err) {
     console.error("Weather fetch error:", err);
-    return {
-      condition: "Unknown",
-      temperature: null,
-      area: "Unknown Area",
-    };
+    return null;
   }
 };
 
@@ -129,18 +127,18 @@ const checkWeatherAlerts = (locations, prevLocations = []) => {
     // Rain just started
     if (nowRaining && !wasRaining && prevCondition) {
       const isThundery = condition.toLowerCase().includes("thunder");
-      new Notification(isThundery ? "⛈️ Thundery showers starting" : "🌧️ Rain starting", {
-        body: `${area} — ${condition}`,
-        icon: "/favicon.ico",
+      new Notification(isThundery ? "Thundery showers starting" : "Rain starting", {
+        body: `${area}: ${condition}`,
+        icon: "/favicon.svg",
         tag: `rain-start-${location.id}`,
       });
     }
 
     // Rain just stopped
     if (!nowRaining && wasRaining && prevCondition) {
-      new Notification("☀️ Rain clearing up", {
-        body: `${area} — now ${condition}`,
-        icon: "/favicon.ico",
+      new Notification("Rain clearing up", {
+        body: `${area}: now ${condition}`,
+        icon: "/favicon.svg",
         tag: `rain-stop-${location.id}`,
       });
     }
@@ -190,9 +188,9 @@ const checkMLRainForecast = async () => {
     // Fire notification
     if (Notification.permission === "granted") {
       const prob = Math.round(highRainPred.rain_probability);
-      new Notification("🌧️ Rain expected soon", {
-        body: `${prob}% chance of rain in the next 1–2 hours`,
-        icon: "/favicon.ico",
+      new Notification("Rain expected soon", {
+        body: `${prob}% chance of rain in the next 1 to 2 hours`,
+        icon: "/favicon.svg",
         tag: "ml-rain-forecast",
       });
       localStorage.setItem(RAIN_NOTIFY_LAST_KEY, String(Date.now()));
@@ -220,7 +218,7 @@ export function LocationsProvider({ children }) {
 
       // Check which locations need refresh (also retry "Unknown" results)
       const locationsToRefresh = stored.filter(
-        (loc) => !isCacheValid(loc.lastFetched) || loc.weather?.condition === "Unknown",
+        (loc) => !isCacheValid(loc.lastFetched) || !loc.weather || loc.weather.condition === "Unknown",
       );
 
       if (locationsToRefresh.length === 0) {
@@ -248,10 +246,12 @@ export function LocationsProvider({ children }) {
             loc.latitude,
             loc.longitude,
           );
+          if (!weatherData) return { ...loc, refreshFailed: true };
           return {
             ...loc,
             weather: weatherData,
             lastFetched: new Date().toISOString(),
+            refreshFailed: false,
           };
         });
         refreshPromises.push(...batchPromises);
@@ -318,6 +318,7 @@ export function LocationsProvider({ children }) {
           fetchWeatherForLocation(coords.lat, coords.lng),
           resolveAreaName(coords.lat, coords.lng),
         ]);
+        if (!weatherData) throw new Error(FETCH_FAILED_MESSAGE);
 
         // Override area with reverse geocoded name if weather API didn't provide one
         if (weatherData.area === "Unknown Area" || !weatherData.area) {
@@ -363,6 +364,7 @@ export function LocationsProvider({ children }) {
           if (existing) {
             // Refresh weather for the existing geolocation card
             const weatherData = await fetchWeatherForLocation(latitude, longitude);
+            if (!weatherData) return;
             const updated = stored.map((loc) =>
               loc.source === "geolocation"
                 ? { ...loc, latitude, longitude, weather: weatherData, lastFetched: new Date().toISOString() }
@@ -376,6 +378,7 @@ export function LocationsProvider({ children }) {
               fetchWeatherForLocation(latitude, longitude),
               resolveAreaName(latitude, longitude),
             ]);
+            if (!weatherData) return;
             if (weatherData.area === "Unknown Area" || !weatherData.area) {
               weatherData.area = locationName;
             }
@@ -483,6 +486,7 @@ export function useCreateLocation() {
           ? Promise.resolve(payload.name)
           : resolveAreaName(payload.latitude, payload.longitude),
       ]);
+      if (!weatherData) throw new Error(FETCH_FAILED_MESSAGE);
 
       // Use provided name or reverse geocoded name
       if (payload.name) {
@@ -490,8 +494,6 @@ export function useCreateLocation() {
       } else if (weatherData.area === "Unknown Area" || !weatherData.area) {
         weatherData.area = locationName;
       }
-
-      console.log("Creating location with name:", weatherData.area);
 
       const newLocation = {
         id: generateId(),
@@ -540,6 +542,7 @@ export function useRefreshLocation() {
         location.latitude,
         location.longitude,
       );
+      if (!weatherData) throw new Error(FETCH_FAILED_MESSAGE);
 
       const updated = stored.map((loc) =>
         loc.id === locationId

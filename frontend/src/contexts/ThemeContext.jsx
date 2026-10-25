@@ -1,97 +1,38 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import SunCalc from "suncalc";
 
 const ThemeContext = createContext(undefined);
 
-const STORAGE_KEY = "weather-app-theme";
-const DEFAULT_THEME = "light";
+const SINGAPORE = { lat: 1.3521, lng: 103.8198 };
+const RECHECK_MS = 60 * 1000;
 
-/**
- * Load theme preference from localStorage
- * @returns {'light' | 'dark'} The stored theme or default
- */
-function loadTheme() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return DEFAULT_THEME;
-
-    const config = JSON.parse(stored);
-    if (config.mode === "light" || config.mode === "dark") {
-      return config.mode;
-    }
-  } catch (e) {
-    console.warn("Failed to load theme preference:", e);
+// Light while the sun is up in Singapore, dark from sunset to sunrise.
+export function themeForTime(now = new Date(), { lat, lng } = SINGAPORE) {
+  const { sunrise, sunset } = SunCalc.getTimes(now, lat, lng);
+  if (Number.isNaN(sunrise?.getTime()) || Number.isNaN(sunset?.getTime())) {
+    const hour = now.getHours();
+    return hour >= 7 && hour < 19 ? "light" : "dark";
   }
-  return DEFAULT_THEME;
+  return now >= sunrise && now < sunset ? "light" : "dark";
 }
 
-/**
- * Save theme preference to localStorage
- * @param {'light' | 'dark'} theme - The theme to save
- */
-function saveTheme(theme) {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        mode: theme,
-        savedAt: new Date().toISOString(),
-      }),
-    );
-  } catch (e) {
-    console.warn("Failed to save theme preference:", e);
-    // Continue with in-memory state
-  }
-}
+export function ThemeProvider({ children, now }) {
+  const [theme, setTheme] = useState(() => themeForTime(now ?? new Date()));
 
-/**
- * ThemeProvider component that manages theme state and persistence
- * @param {Object} props
- * @param {React.ReactNode} props.children - Child components
- */
-export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(loadTheme);
-
-  // Apply theme class to document root
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    if (now) return undefined;
+    const id = setInterval(() => setTheme(themeForTime(new Date())), RECHECK_MS);
+    return () => clearInterval(id);
+  }, [now]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0b1220" : "#f4f6f9");
   }, [theme]);
 
-  // Persist theme to localStorage
-  useEffect(() => {
-    saveTheme(theme);
-  }, [theme]);
-
-  const setTheme = (newTheme) => {
-    if (newTheme === "light" || newTheme === "dark") {
-      setThemeState(newTheme);
-    }
-  };
-
-  const toggleTheme = () => {
-    setThemeState((current) => (current === "light" ? "dark" : "light"));
-  };
-
-  const value = {
-    theme,
-    setTheme,
-    toggleTheme,
-  };
-
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ theme, isNight: theme === "dark" }}>{children}</ThemeContext.Provider>;
 }
 
-/**
- * Hook to access theme context
- * @returns {{theme: 'light' | 'dark', setTheme: (theme: 'light' | 'dark') => void, toggleTheme: () => void}}
- * @throws {Error} If used outside ThemeProvider
- */
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (context === undefined) {

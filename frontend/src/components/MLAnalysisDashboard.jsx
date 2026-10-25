@@ -9,7 +9,6 @@
  */
 import { useState, useEffect } from "react";
 import {
-  Brain,
   Activity,
   BarChart3,
   TrendingUp,
@@ -30,18 +29,18 @@ import { getFullAnalysis } from "../api/ml";
 // Colour palette for chart lines
 // ---------------------------------------------------------------------------
 const PALETTE = [
-  "#60a5fa", // blue-400
-  "#34d399", // emerald-400
-  "#f472b6", // pink-400
-  "#fbbf24", // amber-400
-  "#a78bfa", // violet-400
+  "var(--c1)", // blue-400
+  "var(--c2)", // emerald-400
+  "var(--c3)", // pink-400
+  "var(--c4)", // amber-400
+  "var(--c5)", // violet-400
 ];
 
 
 // ---------------------------------------------------------------------------
 // Tiny inline SVG chart primitives (no chart library dep)
 // ---------------------------------------------------------------------------
-function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = null, showYAxis = false }) {
+function MiniBarChart({ data, height = 60, color = "var(--c1)", label, xTicks = null, showYAxis = false }) {
   if (!data || data.length === 0) return null;
   const vals = data.map((d) => (typeof d === "object" ? d.value ?? d : d));
   const max = Math.max(...vals, 0.001);
@@ -60,12 +59,12 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
 
   return (
     <div style={{ width: "100%" }}>
-      {label && <p className="text-white/65 text-xs mb-1">{label}</p>}
+      {label && <p className="text-muted text-xs mb-1">{label}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${height}`} className="overflow-visible">
         {yLabels.map(({ val, y }, i) => (
           <g key={i}>
-            <line x1={PAD_L} y1={y} x2={W} y2={y} stroke="#ffffff0a" strokeWidth="0.5" />
-            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="#ffffff40" textAnchor="end" fontFamily="monospace">{val}</text>
+            <line x1={PAD_L} y1={y} x2={W} y2={y} stroke="var(--chart-grid)" strokeWidth="0.5" />
+            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="var(--chart-axis)" textAnchor="end" fontFamily="monospace">{val}</text>
           </g>
         ))}
         {vals.map((v, i) => (
@@ -85,7 +84,7 @@ function MiniBarChart({ data, height = 60, color = "#60a5fa", label, xTicks = nu
             x={PAD_L + index * (barW + 1) + barW / 2}
             y={height - 2}
             fontSize="6"
-            fill="#ffffff40"
+            fill="var(--chart-axis)"
             textAnchor="middle"
             fontFamily="monospace"
           >
@@ -145,7 +144,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
   return (
     <div style={{ maxWidth: "100%" }}>
       {(xLabel || yLabel) && (
-        <div className="flex justify-between text-white/40 text-[10px] mb-0.5">
+        <div className="flex justify-between text-muted text-xs mb-0.5">
           <span>{yLabel}</span><span>{xLabel}</span>
         </div>
       )}
@@ -154,10 +153,10 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
         {yGridlines.map(({ val, y }, i) => (
           <g key={i}>
             <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y}
-                  stroke="#ffffff12" strokeWidth="1" />
+                  stroke="var(--chart-grid)" strokeWidth="1" />
             {showYAxis && (
               <text x={PAD_L - 4} y={y + 3.5}
-                    fontSize="6.5" fill="#ffffff50" textAnchor="end" fontFamily="monospace">
+                    fontSize="6.5" fill="var(--chart-axis)" textAnchor="end" fontFamily="monospace">
                 {(() => {
                   const abs = Math.abs(val);
                   const sign = val < 0 ? "−" : "";
@@ -172,7 +171,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
         {/* Optional band */}
         {bandPoints && (
           <polygon points={bandPoints}
-            fill={bandSeries.color || "#60a5fa"} opacity={0.12} />
+            fill={bandSeries.color || "var(--c1)"} opacity={0.12} />
         )}
         {/* X tick labels — positions either at specific data indices or evenly spaced */}
         {xTicks && xTicks.map((tick, i) => {
@@ -181,7 +180,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
             : PAD_L + (i / Math.max(xTicks.length - 1, 1)) * PLOT_W;
           return (
             <text key={i} x={x} y={H - 3}
-                  fontSize="6.5" fill="#ffffff35" textAnchor="middle" fontFamily="monospace">
+                  fontSize="6.5" fill="var(--chart-axis)" textAnchor="middle" fontFamily="monospace">
               {tick}
             </text>
           );
@@ -210,14 +209,14 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
           <div key={i} className="flex items-center gap-1">
             <span className="w-4 h-1 inline-block rounded"
               style={{ background: s.color || PALETTE[i % PALETTE.length] }} />
-            <span className="text-white/60 text-[10px]">{s.name}</span>
+            <span className="text-muted text-xs">{s.name}</span>
           </div>
         ))}
         {bandSeries && (
           <div className="flex items-center gap-1">
             <span className="w-4 h-3 inline-block rounded opacity-40"
-              style={{ background: bandSeries.color || "#60a5fa" }} />
-            <span className="text-white/60 text-[10px]">{bandSeries.name || "Range"}</span>
+              style={{ background: bandSeries.color || "var(--c1)" }} />
+            <span className="text-muted text-xs">{bandSeries.name || "Range"}</span>
           </div>
         )}
       </div>
@@ -225,7 +224,7 @@ function LineChart({ series, height = 80, xTicks, xTickIndices, xLabel, yLabel, 
   );
 }
 
-function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) {
+function StemChart({ lags, values, ci, height = 90, color = "var(--c1)", title }) {
   // ACF / PACF stem plot with x/y axis labels
   if (!lags || !values) return null;
   const W = 600;
@@ -258,27 +257,27 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
 
   return (
     <div style={{ maxWidth: "100%" }}>
-      {title && <p className="text-white/65 text-xs mb-1">{title}</p>}
+      {title && <p className="text-muted text-xs mb-1">{title}</p>}
       <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
         {/* Y-axis labels + gridlines */}
         {yLabels.map(({ val, y }) => (
           <g key={val}>
             <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y}
-                  stroke="#ffffff08" strokeWidth="0.5" strokeDasharray="2,3" />
-            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="#ffffff40"
+                  stroke="var(--chart-grid)" strokeWidth="0.5" strokeDasharray="2,3" />
+            <text x={PAD_L - 3} y={y + 3} fontSize="6" fill="var(--chart-axis)"
                   textAnchor="end" fontFamily="monospace">{val}</text>
           </g>
         ))}
         {/* zero line (slightly stronger) */}
         <line x1={PAD_L} y1={midY} x2={W - PAD_R} y2={midY}
-              stroke="#ffffff25" strokeWidth="1" />
+              stroke="var(--chart-axis)" strokeWidth="1" />
         {/* CI bounds */}
         {ci && (
           <>
             <line x1={PAD_L} y1={ciY} x2={W - PAD_R} y2={ciY}
-                  stroke="#fbbf2455" strokeWidth="1" strokeDasharray="4,2" />
+                  stroke="var(--c4)" strokeWidth="1" strokeDasharray="4,2" />
             <line x1={PAD_L} y1={toY(-ci)} x2={W - PAD_R} y2={toY(-ci)}
-                  stroke="#fbbf2455" strokeWidth="1" strokeDasharray="4,2" />
+                  stroke="var(--c4)" strokeWidth="1" strokeDasharray="4,2" />
           </>
         )}
         {/* stems */}
@@ -289,17 +288,17 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
           return (
             <g key={lag}>
               <line x1={x} y1={midY} x2={x} y2={y}
-                    stroke={aboveThreshold ? color : "#ffffff22"}
+                    stroke={aboveThreshold ? color : "var(--chart-axis)"}
                     strokeWidth="1.2" />
               <circle cx={x} cy={y} r="1.8"
-                      fill={aboveThreshold ? color : "#ffffff22"} />
+                      fill={aboveThreshold ? color : "var(--chart-axis)"} />
             </g>
           );
         })}
         {/* X-axis lag labels */}
         {xLabelIdxs.map((idx) => (
           <text key={idx} x={toX(idx)} y={H - 2} fontSize="6"
-                fill="#ffffff30" textAnchor="middle" fontFamily="monospace">
+                fill="var(--chart-axis)" textAnchor="middle" fontFamily="monospace">
             {lags[idx]}
           </text>
         ))}
@@ -309,7 +308,7 @@ function StemChart({ lags, values, ci, height = 90, color = "#60a5fa", title }) 
 }
 
 function HorizontalBar({ items, nameKey = "feature", valueKey = "mean_abs_shap",
-                          color = "#60a5fa", maxItems = 12 }) {
+                          color = "var(--c1)", maxItems = 12 }) {
   if (!items || items.length === 0) return null;
   const top = items.slice(0, maxItems);
   const maxVal = Math.max(...top.map((d) => Math.abs(d[valueKey])), 0.001);
@@ -318,10 +317,10 @@ function HorizontalBar({ items, nameKey = "feature", valueKey = "mean_abs_shap",
     <div className="space-y-1.5">
       {top.map((d, i) => (
         <div key={i} className="flex items-center gap-2">
-          <span className="text-white/60 text-[10px] w-36 truncate text-right shrink-0">
+          <span className="text-muted text-xs w-36 truncate text-right shrink-0">
             {d[nameKey]}
           </span>
-          <div className="flex-1 bg-white/10 rounded-full h-3 relative overflow-hidden">
+          <div className="flex-1 bg-surface-2 rounded-full h-3 relative overflow-hidden">
             <div
               className="h-full rounded-full"
               style={{
@@ -331,7 +330,7 @@ function HorizontalBar({ items, nameKey = "feature", valueKey = "mean_abs_shap",
               }}
             />
           </div>
-          <span className="text-white/50 text-[10px] w-14 shrink-0">
+          <span className="text-muted text-xs w-14 shrink-0">
             {typeof d[valueKey] === "number" ? d[valueKey].toFixed(4) : d[valueKey]}
           </span>
         </div>
@@ -346,12 +345,12 @@ function ConfusionMatrix({ matrix, labels }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="text-[10px] border-collapse">
+      <table className="text-xs border-collapse">
         <thead>
           <tr>
-            <th className="text-white/40 p-1">P↓ A→</th>
+            <th className="text-muted p-1">P↓ A→</th>
             {labels.map((l) => (
-              <th key={l} className="text-white/60 p-1 text-center max-w-[60px] truncate">
+              <th key={l} className="text-muted p-1 text-center max-w-[60px] truncate">
                 {l.split(" ")[0]}
               </th>
             ))}
@@ -360,13 +359,13 @@ function ConfusionMatrix({ matrix, labels }) {
         <tbody>
           {matrix.map((row, i) => (
             <tr key={i}>
-              <td className="text-white/60 p-1 pr-2 text-right">{labels[i]?.split(" ")[0]}</td>
+              <td className="text-muted p-1 pr-2 text-right">{labels[i]?.split(" ")[0]}</td>
               {row.map((val, j) => {
                 const bg = i === j
                   ? `rgba(52, 211, 153, ${val / maxVal})`
                   : `rgba(248, 113, 113, ${val / maxVal * 0.8})`;
                 return (
-                  <td key={j} className="p-1 text-center font-mono text-white/90 rounded"
+                  <td key={j} className="p-1 text-center font-mono text-ink rounded"
                       style={{ background: bg }}>
                     {val}
                   </td>
@@ -384,33 +383,33 @@ function ConfusionMatrix({ matrix, labels }) {
 function CommentaryBox({ points, tip, variant = "indigo", title = "What to look for", defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   const colors = {
-    indigo: { bg: "bg-indigo-500/8", border: "border-indigo-400/15", title: "text-indigo-300/80", bullet: "text-indigo-400/60", body: "text-white/60", foot: "text-indigo-300/35" },
-    blue:   { bg: "bg-blue-500/8",   border: "border-blue-400/15",   title: "text-blue-300/80",   bullet: "text-blue-400/60",   body: "text-white/60", foot: "text-blue-300/35" },
-    amber:  { bg: "bg-amber-500/8",  border: "border-amber-400/15",  title: "text-amber-300/80",  bullet: "text-amber-400/60",  body: "text-white/60", foot: "text-amber-300/35" },
+    indigo: { bg: "bg-accent/5", border: "border-accent/40", title: "text-accent/80", bullet: "text-accent/60", body: "text-muted", foot: "text-accent/35" },
+    blue:   { bg: "bg-accent/5",   border: "border-accent/40",   title: "text-accent/80",   bullet: "text-accent/60",   body: "text-muted", foot: "text-accent/35" },
+    amber:  { bg: "bg-warn/5",  border: "border-warn/40",  title: "text-warn/80",  bullet: "text-warn/60",  body: "text-muted", foot: "text-warn/35" },
   };
   const c = colors[variant] || colors.indigo;
   return (
-    <div className={`mt-3 ${c.bg} border ${c.border} rounded-xl overflow-hidden`}>
+    <div className={`mt-3 ${c.bg} border ${c.border} rounded-card overflow-hidden`}>
       <button
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/3 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-surface-2 transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={`${c.title} text-[10px] font-semibold uppercase tracking-wide flex items-center gap-1.5`}>
+        <span className={`${c.title} text-xs font-semibold flex items-center gap-1.5`}>
           <span className="text-sm">🔍</span> {title}
         </span>
-        {open ? <ChevronDown className="h-3 w-3 text-white/30" /> : <ChevronRight className="h-3 w-3 text-white/30" />}
+        {open ? <ChevronDown className="h-3 w-3 text-muted" /> : <ChevronRight className="h-3 w-3 text-muted" />}
       </button>
       {open && (
         <div className="px-3 pb-3 space-y-1.5">
           <ul className="space-y-1.5">
             {points.map((p, i) => (
-              <li key={i} className={`flex gap-2 ${c.body} text-[11px] leading-relaxed`}>
+              <li key={i} className={`flex gap-2 ${c.body} text-xs leading-relaxed`}>
                 <span className={`${c.bullet} shrink-0 mt-0.5`}>›</span>
                 <span>{p}</span>
               </li>
             ))}
           </ul>
-          {tip && <p className={`${c.foot} text-[10px] italic mt-1`}>{tip}</p>}
+          {tip && <p className={`${c.foot} text-xs italic mt-1`}>{tip}</p>}
         </div>
       )}
     </div>
@@ -452,7 +451,7 @@ function StackedBarChart({ years, stacks, height = 70 }) {
             x={xi * BAR_W + BAR_W / 2}
             y={SVG_H - 1}
             fontSize="7"
-            fill="#ffffff35"
+            fill="var(--chart-axis)"
             textAnchor="middle"
             fontFamily="monospace"
           >
@@ -498,12 +497,12 @@ function AnalysisSummary({ ct }) {
 
   // Rainfall
   if (wettest && driest) {
-    bullets.push(`${wettest.year} was the wettest year on record (${wettest.total.toLocaleString()} mm island-wide), while ${driest.year} was the driest (${driest.total.toLocaleString()} mm) — a ${((wettest.total / driest.total - 1) * 100).toFixed(0)}% swing.`);
+    bullets.push(`${wettest.year} was the wettest year on record (${wettest.total.toLocaleString()} mm island-wide), while ${driest.year} was the driest (${driest.total.toLocaleString()} mm), a ${((wettest.total / driest.total - 1) * 100).toFixed(0)}% swing.`);
   }
 
   // Temperature trend
   if (tTrend?.significant) {
-    bullets.push(`Temperatures are rising at +${tTrend.slope_per_year.toFixed(3)}°C per year (p=${tTrend.p_value}, R²=${tTrend.r_squared}) — consistent with Singapore's urban heat island effect and broader regional warming.`);
+    bullets.push(`Temperatures are rising at +${tTrend.slope_per_year.toFixed(3)}°C per year (p=${tTrend.p_value}, R²=${tTrend.r_squared}), consistent with Singapore's urban heat island effect and broader regional warming.`);
   } else if (tTrend) {
     bullets.push(`No statistically significant warming trend detected over the study period (p=${tTrend.p_value}), though year-to-year variability exists. Longer time series are needed to confirm.`);
   }
@@ -526,23 +525,23 @@ function AnalysisSummary({ ct }) {
 
   // All-time records
   if (rec.wettest_hour) {
-    bullets.push(`The single wettest hour recorded was ${rec.wettest_hour.value_mm} mm on ${rec.wettest_hour.date} — likely a severe convective storm. The windiest hour hit ${rec.windiest_hour?.value_kmh} km/h on ${rec.windiest_hour?.date}.`);
+    bullets.push(`The single wettest hour recorded was ${rec.wettest_hour.value_mm} mm on ${rec.wettest_hour.date}, likely a severe convective storm. The windiest hour hit ${rec.windiest_hour?.value_kmh} km/h on ${rec.windiest_hour?.date}.`);
   }
 
   if (bullets.length === 0) return null;
 
   return (
-    <div className="bg-blue-500/5 border border-blue-400/15 rounded-xl p-3 space-y-2">
-      <p className="text-blue-300/80 text-[10px] font-semibold uppercase tracking-wide">Analysis</p>
+    <div className="bg-accent/5 border border-accent/40 rounded-card p-3 space-y-2">
+      <p className="text-accent/80 text-xs font-semibold">Analysis</p>
       <ul className="space-y-2">
         {bullets.map((b, i) => (
-          <li key={i} className="flex gap-2 text-white/60 text-[11px] leading-relaxed">
-            <span className="text-blue-400/60 shrink-0 mt-0.5">›</span>
+          <li key={i} className="flex gap-2 text-muted text-xs leading-relaxed">
+            <span className="text-accent/60 shrink-0 mt-0.5">›</span>
             <span>{b}</span>
           </li>
         ))}
       </ul>
-      <p className="text-white/20 text-[10px]">
+      <p className="text-muted text-xs">
         Based on NEA station data 2016–2024 · island-wide aggregate · {years.length} years
       </p>
     </div>
@@ -565,37 +564,37 @@ function ClimateTrendsSection({ ct }) {
   const displayRainfallTotals = rainfallTotals.filter((_, i) => validYearMask[i]);
   const tempMeans = displayYears.map((y) => annual[y]?.temperature?.mean_c ?? 0);
   const rainCatStacks = [
-    { key: "no_rain",    color: "#60a5fa", label: "No Rain",    data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.no_rain ?? 0) },
-    { key: "light_rain", color: "#34d399", label: "Light Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.light_rain ?? 0) },
-    { key: "heavy_rain", color: "#fbbf24", label: "Heavy Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.heavy_rain ?? 0) },
-    { key: "thundery",   color: "#f472b6", label: "Thundery",   data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.thundery ?? 0) },
+    { key: "no_rain",    color: "var(--c1)", label: "No Rain",    data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.no_rain ?? 0) },
+    { key: "light_rain", color: "var(--c2)", label: "Light Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.light_rain ?? 0) },
+    { key: "heavy_rain", color: "var(--c4)", label: "Heavy Rain", data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.heavy_rain ?? 0) },
+    { key: "thundery",   color: "var(--c3)", label: "Thundery",   data: displayYears.map((y) => annual[y]?.rainfall?.rain_category_pct?.thundery ?? 0) },
   ];
 
   const tTrend = trends.temperature_mean;
   const rTrend = trends.rainfall_total;
 
   const records = [
-    { icon: Droplets, label: "Wettest Hour",    value: rec.wettest_hour  ? `${rec.wettest_hour.value_mm} mm`  : "—", date: rec.wettest_hour?.date,  color: "text-sky-400" },
-    { icon: Thermometer, label: "Hottest Hour", value: rec.hottest_hour  ? `${rec.hottest_hour.value_c}°C`   : "—", date: rec.hottest_hour?.date,  color: "text-orange-400" },
-    { icon: Thermometer, label: "Coolest Hour", value: rec.coolest_hour  ? `${rec.coolest_hour.value_c}°C`   : "—", date: rec.coolest_hour?.date,  color: "text-blue-300" },
-    { icon: Wind,        label: "Windiest Hour",value: rec.windiest_hour ? `${rec.windiest_hour.value_kmh} km/h` : "—", date: rec.windiest_hour?.date, color: "text-teal-400" },
+    { icon: Droplets, label: "Wettest Hour",    value: rec.wettest_hour  ? `${rec.wettest_hour.value_mm} mm`  : "n/a", date: rec.wettest_hour?.date,  color: "text-accent" },
+    { icon: Thermometer, label: "Hottest Hour", value: rec.hottest_hour  ? `${rec.hottest_hour.value_c}°C`   : "n/a", date: rec.hottest_hour?.date,  color: "text-warn" },
+    { icon: Thermometer, label: "Coolest Hour", value: rec.coolest_hour  ? `${rec.coolest_hour.value_c}°C`   : "n/a", date: rec.coolest_hour?.date,  color: "text-accent" },
+    { icon: Wind,        label: "Windiest Hour",value: rec.windiest_hour ? `${rec.windiest_hour.value_kmh} km/h` : "n/a", date: rec.windiest_hour?.date, color: "text-accent" },
   ];
 
   return (
     <div className="space-y-5">
       {/* All-time records */}
       <div>
-        <p className="text-white/50 text-xs font-medium mb-2 flex items-center gap-1">
+        <p className="text-muted text-xs font-medium mb-2 flex items-center gap-1">
           <Trophy className="w-3 h-3" /> All-time records (2016–2024)
         </p>
         <div className="grid grid-cols-2 gap-2">
           {records.map((r) => (
-            <div key={r.label} className="bg-white/5 rounded-xl p-3 flex items-start gap-2">
+            <div key={r.label} className="bg-surface-2 rounded-card p-3 flex items-start gap-2">
               <r.icon className={`w-4 h-4 mt-0.5 shrink-0 ${r.color}`} />
               <div>
-                <p className="text-white/40 text-[10px]">{r.label}</p>
+                <p className="text-muted text-xs">{r.label}</p>
                 <p className={`font-semibold text-sm ${r.color}`}>{r.value}</p>
-                <p className="text-white/30 text-[10px]">{r.date}</p>
+                <p className="text-muted text-xs">{r.date}</p>
               </div>
             </div>
           ))}
@@ -604,18 +603,18 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Annual rainfall totals */}
       <div>
-        <p className="text-white/65 text-xs mb-2">Annual Rainfall Total (mm) — each bar = one year</p>
-        <p className="text-white/25 text-[10px] mb-1.5 italic">
-          ⚠ Island-wide station aggregate — sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
+        <p className="text-muted text-xs mb-2">Annual Rainfall Total (mm), each bar = one year</p>
+        <p className="text-muted text-xs mb-1.5 italic">
+          Note: Island-wide station aggregate: sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
         </p>
         <MiniBarChart
           data={displayRainfallTotals}
           height={120}
-          color="#60a5fa"
+          color="var(--c1)"
           xTicks={displayYears.map((y, i) => ({ label: String(y), index: i }))}
         />
         {rTrend?.significant && (
-          <p className="text-amber-300 text-[10px] mt-1">
+          <p className="text-warn text-xs mt-1">
             Trend: {rTrend.trend} {rTrend.slope_per_year > 0 ? "+" : ""}{rTrend.slope_per_year.toFixed(0)} mm/yr
             · R²={rTrend.r_squared} · p={rTrend.p_value}
           </p>
@@ -627,7 +626,7 @@ function ClimateTrendsSection({ ct }) {
             `Each bar = total rainfall for one year (all NEA rain stations aggregated). Singapore averages ~2,300 mm/year. Year-to-year swings are driven by El Niño (drier) and La Niña (wetter).`,
             rTrend?.significant
               ? `Rainfall is ${rTrend.trend} by ~${Math.abs(rTrend.slope_per_year).toFixed(0)} mm/year (p=${rTrend.p_value}). Singapore is getting wetter.`
-              : "No strong long-term trend — rainfall varies year to year but isn't systematically changing yet.",
+              : "No strong long-term trend: rainfall varies year to year but isn't systematically changing yet.",
           ]}
           tip="Wettest months: Nov–Jan (NE Monsoon). Driest: Jun–Aug (SW Monsoon)."
         />
@@ -635,13 +634,13 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Rain category breakdown */}
       <div>
-        <p className="text-white/65 text-xs mb-2">Rain Category Breakdown (% of hours)</p>
+        <p className="text-muted text-xs mb-2">Rain Category Breakdown (% of hours)</p>
         <StackedBarChart years={displayYears} stacks={rainCatStacks} height={110} />
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
             <div key={s.key} className="flex items-center gap-1">
               <span className="w-3 h-3 rounded-sm inline-block" style={{ background: s.color }} />
-              <span className="text-white/60 text-[10px]">{s.label}</span>
+              <span className="text-muted text-xs">{s.label}</span>
             </div>
           ))}
         </div>
@@ -649,23 +648,23 @@ function ClimateTrendsSection({ ct }) {
           variant="blue"
           title="What to look for"
           points={[
-            "Each bar represents one year, split into the percentage of hours that fell into each rain category. Most hours (70–80%) in Singapore are dry — rain is intense but short-lived.",
-            "Light Rain (green) makes up the bulk of rainy hours. Heavy Rain (yellow) and Thundery (pink) are small slices — but contribute disproportionately to total rainfall volume.",
+            "Each bar represents one year, split into the percentage of hours that fell into each rain category. Most hours (70–80%) in Singapore are dry: rain is intense but short-lived.",
+            "Light Rain (green) makes up the bulk of rainy hours. Heavy Rain (yellow) and Thundery (pink) are small slices, but contribute disproportionately to total rainfall volume.",
             "Thundery showers have been increasing visibly from 2020 onwards, consistent with Singapore's wetter inter-monsoon seasons. Heavy Rain also shows a slight upward trend.",
-            "No Rain dominating the chart is normal — Singapore averages ~160 rainy days per year, but rain typically lasts only 1–2 hours per event.",
+            "No Rain dominating the chart is normal: Singapore averages ~160 rainy days per year, but rain typically lasts only 1–2 hours per event.",
           ]}
-          tip="Tip: A growing pink (Thundery) slice year-over-year suggests more convective activity — important for flood risk planning."
+          tip="Tip: A growing pink (Thundery) slice year-over-year suggests more convective activity, important for flood risk planning."
         />
       </div>
 
       {/* Temperature trend */}
       <div>
-        <p className="text-white/65 text-xs mb-2">Mean Temperature by Year (°C)</p>
+        <p className="text-muted text-xs mb-2">Mean Temperature by Year (°C)</p>
         <LineChart
-          series={[{ name: "Mean temp", data: tempMeans, color: "#fb923c" }]}
+          series={[{ name: "Mean temp", data: tempMeans, color: "var(--c4)" }]}
           bandSeries={{
             name: "Min–Max range",
-            color: "#fb923c",
+            color: "var(--c4)",
             min: displayYears.map((y) => annual[y]?.temperature?.min_c ?? tempMeans[displayYears.indexOf(y)]),
             max: displayYears.map((y) => annual[y]?.temperature?.max_c ?? tempMeans[displayYears.indexOf(y)]),
           }}
@@ -675,13 +674,13 @@ function ClimateTrendsSection({ ct }) {
           showYAxis={true}
         />
         {tTrend?.significant && (
-          <p className="text-orange-300 text-[10px] mt-1">
+          <p className="text-warn text-xs mt-1">
             Warming trend: +{tTrend.slope_per_year.toFixed(3)}°C/yr
             · R²={tTrend.r_squared} · p={tTrend.p_value}
           </p>
         )}
         {tTrend && !tTrend.significant && (
-          <p className="text-white/30 text-[10px] mt-1">
+          <p className="text-muted text-xs mt-1">
             No statistically significant temperature trend (p={tTrend.p_value})
           </p>
         )}
@@ -690,11 +689,11 @@ function ClimateTrendsSection({ ct }) {
           title="What to look for"
           points={[
             `The orange line shows the mean (average) temperature for each year. ${years.length > 0 ? `Values range from ${Math.min(...tempMeans).toFixed(1)}°C to ${Math.max(...tempMeans).toFixed(1)}°C across the dataset.` : ""}`,
-            "The shaded band shows the full temperature range (coldest to hottest recorded hour) within each year — Singapore's daily swing is typically 5–8°C.",
+            "The shaded band shows the full temperature range (coldest to hottest recorded hour) within each year: Singapore's daily swing is typically 5–8°C.",
             tTrend?.significant
-              ? `There IS a statistically significant warming trend of +${tTrend.slope_per_year?.toFixed(3)}°C per year (p=${tTrend.p_value}). Over 9 years that adds up to roughly +${(tTrend.slope_per_year * 9).toFixed(1)}°C — consistent with Singapore's urban heat island and global warming.`
-              : "There is NO statistically significant warming trend in this dataset period. Weather is naturally variable year to year — a longer dataset (20+ years) would give more certainty.",
-            "Singapore's temperature doesn't vary much seasonally because it is near the equator — the sun is always roughly overhead. Year-to-year differences are driven by El Niño/La Niña cycles and urban development.",
+              ? `There IS a statistically significant warming trend of +${tTrend.slope_per_year?.toFixed(3)}°C per year (p=${tTrend.p_value}). Over 9 years that adds up to roughly +${(tTrend.slope_per_year * 9).toFixed(1)}°C, consistent with Singapore's urban heat island and global warming.`
+              : "There is NO statistically significant warming trend in this dataset period. Weather is naturally variable year to year, a longer dataset (20+ years) would give more certainty.",
+            "Singapore's temperature doesn't vary much seasonally because it is near the equator: the sun is always roughly overhead. Year-to-year differences are driven by El Niño/La Niña cycles and urban development.",
           ]}
           tip="Tip: A statistically significant trend means the pattern is unlikely to be random chance (p < 0.05)."
         />
@@ -716,13 +715,13 @@ function ClimateTrendsSection({ ct }) {
         }
         return (
         <div>
-          <p className="text-white/65 text-xs mb-2">
-            STL Decomposition — Monthly Rainfall
+          <p className="text-muted text-xs mb-2">
+            STL Decomposition: Monthly Rainfall
           </p>
           <LineChart
             series={[
-              { name: "Observed", data: stl.observed, color: "#60a5fa" },
-              { name: "Trend",    data: stl.trend,    color: "#f472b6" },
+              { name: "Observed", data: stl.observed, color: "var(--c1)" },
+              { name: "Trend",    data: stl.trend,    color: "var(--c3)" },
             ]}
             height={110}
             xTicks={stlTicks}
@@ -731,14 +730,14 @@ function ClimateTrendsSection({ ct }) {
             yLabel="mm"
           />
           <LineChart
-            series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
+            series={[{ name: "Residual", data: stl.residual, color: "var(--c4)" }]}
             height={65}
             xTicks={stlTicks}
             xTickIndices={stlTickIndices}
             xLabel=""
             yLabel="Residual"
           />
-          <p className="text-white/45 text-[10px] mt-1">{stl.note}</p>
+          <p className="text-muted text-xs mt-1">{stl.note}</p>
           <CommentaryBox
             variant="indigo"
             title="What to look for"
@@ -768,16 +767,16 @@ function Section({ icon: Icon, title, children, defaultOpen = false, forceOpen }
   }, [forceOpen]);
 
   return (
-    <div className="rounded-2xl bg-white/8 border border-white/10 overflow-hidden">
+    <div className="rounded-panel bg-surface-2 border border-line overflow-hidden">
       <button
-        className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-surface-2 transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-blue-400" />
-          <span className="text-white font-semibold text-sm">{title}</span>
+          <Icon className="h-4 w-4 text-accent" />
+          <span className="text-ink font-semibold text-sm">{title}</span>
         </div>
-        {open ? <ChevronDown className="h-4 w-4 text-white/40" /> : <ChevronRight className="h-4 w-4 text-white/40" />}
+        {open ? <ChevronDown className="h-4 w-4 text-muted" /> : <ChevronRight className="h-4 w-4 text-muted" />}
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
     </div>
@@ -809,29 +808,29 @@ export function MLAnalysisDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
-        <RefreshCw className="h-8 w-8 text-blue-400 animate-spin" />
+        <RefreshCw className="h-8 w-8 text-accent animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-red-500/20 border border-red-400/30 p-6 flex items-center gap-3">
-        <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-        <p className="text-red-200 text-sm">{error}</p>
+      <div className="rounded-panel bg-bad/10 border border-bad/40 p-6 flex items-center gap-3">
+        <AlertCircle className="h-5 w-5 text-bad shrink-0" />
+        <p className="text-bad text-sm">{error}</p>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="rounded-2xl bg-white/8 border border-white/15 p-8 text-center space-y-3">
-        <Brain className="h-12 w-12 text-white/30 mx-auto" />
-        <p className="text-white/70 font-medium">ML Analysis Not Trained Yet</p>
-        <p className="text-white/40 text-sm">
+      <div className="rounded-panel bg-surface-2 border border-line p-8 text-center space-y-3">
+        <BarChart3 className="h-12 w-12 text-muted mx-auto" aria-hidden="true" />
+        <p className="text-ink font-medium">ML Analysis Not Trained Yet</p>
+        <p className="text-muted text-sm">
           Run the training pipeline to generate the full analysis:
         </p>
-        <code className="block text-xs text-blue-300 bg-black/30 rounded-xl px-4 py-2 text-left">
+        <code className="block text-xs text-accent bg-black/30 rounded-card px-4 py-2 text-left">
           cd backend<br />
           python -m ml.train_full_analysis
         </code>
@@ -849,12 +848,10 @@ export function MLAnalysisDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-white font-bold text-lg flex items-center gap-2">
-            <Brain className="h-5 w-5 text-blue-400" /> ML Analysis
-          </h2>
-          <p className="text-white/40 text-xs mt-0.5">
-            Trained: {data.generated_at?.slice(0, 10)} ·{" "}
-            {data.description?.slice(0, 60)}…
+          <h2 className="text-xl font-semibold text-ink">How the model was built</h2>
+          <p className="text-muted text-sm mt-1 max-w-[65ch]">
+            The analysis behind the forecast above: nine years of NEA readings, what patterns they show, and how well the model does.
+            {data.generated_at ? ` Trained on ${new Date(data.generated_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}.` : ""}
           </p>
         </div>
       </div>
@@ -863,7 +860,7 @@ export function MLAnalysisDashboard() {
       <div className="flex justify-end">
         <button
           onClick={() => setAllOpen((prev) => (prev === true ? false : true))}
-          className="text-xs text-white/40 hover:text-white/70 transition-colors px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20"
+          className="min-h-10 rounded-control border border-line px-3 text-sm text-ink transition-colors hover:bg-surface-2"
         >
           {allOpen === true ? "Collapse all" : "Expand all"}
         </button>
@@ -871,17 +868,17 @@ export function MLAnalysisDashboard() {
 
       {/* 0. Climate Trends */}
       {data.climate_trends && (
-        <Section icon={TrendingUp} title="Singapore Climate Trends" forceOpen={allOpen}>
+        <Section icon={TrendingUp} title="Singapore climate trends" forceOpen={allOpen}>
           <ClimateTrendsSection ct={data.climate_trends} />
         </Section>
       )}
 
       {/* 1. EDA */}
-      <Section icon={BarChart3} title="Exploratory Data Analysis" forceOpen={allOpen}>
+      <Section icon={BarChart3} title="What the data looks like" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
-              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-accent border-accent/40 text-ink" : "bg-surface-2 border-line text-muted hover:text-ink hover:bg-surface-2"}`}>
               {v}
             </button>
           ))}
@@ -903,11 +900,11 @@ export function MLAnalysisDashboard() {
                   const num = parseFloat(val);
                   const display = Number.isFinite(num)
                     ? (Math.abs(num) >= 100 ? num.toFixed(1) : num.toFixed(2))
-                    : (val ?? "—");
+                    : (val ?? "n/a");
                   return (
-                  <div key={label} className="bg-white/5 rounded-xl px-2 py-2 text-center">
-                    <p className="text-white/40 text-[10px] mb-0.5">{label}</p>
-                    <p className="text-white font-semibold text-xs tabular-nums">{display}</p>
+                  <div key={label} className="bg-surface-2 rounded-card px-2 py-2 text-center">
+                    <p className="text-muted text-xs mb-0.5">{label}</p>
+                    <p className="text-ink font-semibold text-xs tabular-nums">{display}</p>
                   </div>
                   );
                 })}
@@ -916,11 +913,11 @@ export function MLAnalysisDashboard() {
               {/* Distribution histogram */}
               {e.histogram && (
                 <div>
-                  <p className="text-white/65 text-xs mb-2">Distribution (value → frequency)</p>
+                  <p className="text-muted text-xs mb-2">Distribution (value → frequency)</p>
                   <MiniBarChart
                     data={e.histogram.counts}
                     height={110}
-                    color="#60a5fa"
+                    color="var(--c1)"
                     showYAxis={true}
                     xTicks={(() => {
                       const edges = e.histogram.bin_edges;
@@ -951,7 +948,7 @@ export function MLAnalysisDashboard() {
                 series={[{
                   name: `Hourly mean (${selectedVar})`,
                   data: Object.values(e.hourly_pattern),
-                  color: "#60a5fa",
+                  color: "var(--c1)",
                 }]}
                 height={110}
                 xTicks={["0h", "6h", "12h", "18h", "23h"]}
@@ -965,7 +962,7 @@ export function MLAnalysisDashboard() {
                 series={[{
                   name: `Monthly mean (${selectedVar})`,
                   data: Object.values(e.monthly_pattern),
-                  color: "#34d399",
+                  color: "var(--c2)",
                 }]}
                 height={110}
                 xTicks={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]}
@@ -978,7 +975,7 @@ export function MLAnalysisDashboard() {
                 series={[{
                   name: `Annual mean (${selectedVar})`,
                   data: Object.values(e.annual_trend),
-                  color: "#fbbf24",
+                  color: "var(--c4)",
                 }]}
                 height={110}
                 xTicks={Object.keys(e.annual_trend)}
@@ -1002,11 +999,11 @@ export function MLAnalysisDashboard() {
                 const varLabels = { rainfall: "Monthly Rainfall", temperature: "Monthly Avg Temperature", humidity: "Monthly Avg Humidity", wind_speed: "Monthly Avg Wind Speed" };
                 return (
                   <div className="space-y-2">
-                    <p className="text-white/40 text-[10px] font-medium uppercase tracking-wide">STL Decomposition — {varLabels[selectedVar] || selectedVar}</p>
+                    <p className="text-muted text-xs font-medium">STL Decomposition: {varLabels[selectedVar] || selectedVar}</p>
                     <LineChart
                       series={[
-                        { name: "Observed", data: stl.observed, color: "#60a5fa" },
-                        { name: "Trend",    data: stl.trend,    color: "#f472b6" },
+                        { name: "Observed", data: stl.observed, color: "var(--c1)" },
+                        { name: "Trend",    data: stl.trend,    color: "var(--c3)" },
                       ]}
                       height={110}
                       xTicks={stlTicks}
@@ -1014,13 +1011,13 @@ export function MLAnalysisDashboard() {
                       yLabel="mm" xLabel="Year"
                     />
                     <LineChart
-                      series={[{ name: "Residual", data: stl.residual, color: "#fbbf24" }]}
+                      series={[{ name: "Residual", data: stl.residual, color: "var(--c4)" }]}
                       height={70}
                       xTicks={stlTicks}
                       xTickIndices={stlTickIndices}
                       yLabel="Residual" xLabel="Year"
                     />
-                    <p className="text-white/30 text-[10px]">{stl.note}</p>
+                    <p className="text-muted text-xs">{stl.note}</p>
                   </div>
                 );
               })()}
@@ -1029,12 +1026,12 @@ export function MLAnalysisDashboard() {
               {data.stationarity?.[selectedVar] && (() => {
                 const s = data.stationarity[selectedVar];
                 return (
-                  <div className="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-3 bg-surface-2 rounded-card px-3 py-2">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
-                      s.is_stationary ? "bg-emerald-400" : "bg-amber-400"
+                      s.is_stationary ? "bg-good" : "bg-warn"
                     }`} />
-                    <span className="text-white/70 text-xs">
-                      ADF test: p={s.p_value} — {s.is_stationary ? "Stationary ✓" : "Non-stationary (consider differencing)"}
+                    <span className="text-ink text-xs">
+                      ADF test: p={s.p_value}: {s.is_stationary ? "Stationary" : "Non-stationary (consider differencing)"}
                     </span>
                   </div>
                 );
@@ -1049,12 +1046,12 @@ export function MLAnalysisDashboard() {
                   const varLabels = { rainfall: "rainfall (mm/hr)", temperature: "temperature (°C)", humidity: "relative humidity (%)", wind_speed: "wind speed (km/h)" };
                   const label = varLabels[selectedVar] || selectedVar;
                   const pts = [];
-                  pts.push(`Mean = ${e.mean} means the average hourly ${label} across all 8,760+ hours of data. Std = ${e.std} is how much values typically vary around that mean — higher = more volatile.`);
+                  pts.push(`Mean = ${e.mean} means the average hourly ${label} across all 8,760+ hours of data. Std = ${e.std} is how much values typically vary around that mean: higher = more volatile.`);
                   pts.push(`Skewness = ${e.skewness}: A value close to 0 means a symmetric distribution. ${parseFloat(e.skewness) > 1 ? `Positive skewness (${e.skewness}) means most hours are low but a few extreme highs (like a heavy downpour) pull the average up.` : parseFloat(e.skewness) < -1 ? `Negative skewness means most values are high but occasional very low readings exist.` : "Near-zero skewness means the data is roughly bell-shaped and symmetric."}`);
-                  pts.push(`P50 = ${e.p50} means half of all hourly readings are below this value. P99 = ${e.p99} is the 99th percentile — only 1% of hours exceed this, representing extreme events.`);
+                  pts.push(`P50 = ${e.p50} means half of all hourly readings are below this value. P99 = ${e.p99} is the 99th percentile, only 1% of hours exceed this, representing extreme events.`);
                   pts.push(`The "Distribution" histogram shows how often each value occurs. A peak on the left with a long tail to the right means: mostly no/low ${selectedVar} with rare extreme spikes.`);
-                  pts.push(`The hourly pattern chart (blue) shows the typical daily cycle — X-axis is hour of day (0=midnight, 12=noon). ${selectedVar === "temperature" ? "Temperature peaks at ~2pm and is lowest at ~6am — the classic day/night cycle." : selectedVar === "rainfall" ? "Rainfall peaks in the afternoon (convective storms forming from daytime heating) and again after midnight." : selectedVar === "humidity" ? "Humidity is highest at night/early morning and lowest in the afternoon when temperature peaks." : "Wind speed typically peaks in the afternoon when thermal heating drives sea breezes inland."}`);
-                  pts.push(`The monthly pattern (green) shows seasonal variation. ${selectedVar === "rainfall" ? "Singapore has two monsoon seasons — NE Monsoon (Nov–Jan, wetter) and SW Monsoon (Jun–Aug, drier)." : selectedVar === "temperature" ? "Temperature is remarkably stable year-round (equatorial climate) — variation between months is only 1–2°C." : "Seasonal differences reflect Singapore's monsoon cycle."}`);
+                  pts.push(`The hourly pattern chart (blue) shows the typical daily cycle: X-axis is hour of day (0=midnight, 12=noon). ${selectedVar === "temperature" ? "Temperature peaks at ~2pm and is lowest at ~6am: the classic day/night cycle." : selectedVar === "rainfall" ? "Rainfall peaks in the afternoon (convective storms forming from daytime heating) and again after midnight." : selectedVar === "humidity" ? "Humidity is highest at night/early morning and lowest in the afternoon when temperature peaks." : "Wind speed typically peaks in the afternoon when thermal heating drives sea breezes inland."}`);
+                  pts.push(`The monthly pattern (green) shows seasonal variation. ${selectedVar === "rainfall" ? "Singapore has two monsoon seasons: NE Monsoon (Nov–Jan, wetter) and SW Monsoon (Jun–Aug, drier)." : selectedVar === "temperature" ? "Temperature is remarkably stable year-round (equatorial climate): variation between months is only 1–2°C." : "Seasonal differences reflect Singapore's monsoon cycle."}`);
                   pts.push(`ADF (Augmented Dickey-Fuller) stationarity test: "Stationary" means the data has consistent statistical properties over time (no systematic drift), which is ideal for machine learning. "Non-stationary" means trends or changing variance exist.`);
                   return pts;
                 })()}
@@ -1066,11 +1063,11 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 2. ACF / PACF */}
-      <Section icon={Activity} title="ACF / PACF (Autocorrelation)" forceOpen={allOpen}>
+      <Section icon={Activity} title="How long rain lingers (autocorrelation)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
-              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-accent border-accent/40 text-ink" : "bg-surface-2 border-line text-muted hover:text-ink hover:bg-surface-2"}`}>
               {v}
             </button>
           ))}
@@ -1079,7 +1076,7 @@ export function MLAnalysisDashboard() {
           const ap = data.acf_pacf[selectedVar];
           return (
             <div className="space-y-4">
-              <div className="text-white/50 text-xs">
+              <div className="text-muted text-xs">
                 N={ap.n_samples} · Sparsity={ap.sparsity_pct}% ·{" "}
                 Sig ACF lags: {ap.significant_acf_lags?.slice(0, 6).join(", ")}
               </div>
@@ -1088,7 +1085,7 @@ export function MLAnalysisDashboard() {
                 values={ap.acf}
                 ci={ap.ci_bound}
                 height={80}
-                color="#60a5fa"
+                color="var(--c1)"
                 title="ACF"
               />
               <StemChart
@@ -1096,10 +1093,10 @@ export function MLAnalysisDashboard() {
                 values={ap.pacf}
                 ci={ap.ci_bound}
                 height={80}
-                color="#a78bfa"
+                color="var(--c5)"
                 title="PACF"
               />
-              <p className="text-white/30 text-[10px]">
+              <p className="text-muted text-xs">
                 Dashed lines = 95% CI. Lags outside bounds indicate significant autocorrelation.
               </p>
               <CommentaryBox
@@ -1107,23 +1104,23 @@ export function MLAnalysisDashboard() {
                 title="What to look for"
                 points={(() => {
                   const base = [
-                    "ACF shows correlation with values X hours ago. PACF removes indirect effects — a tall bar at lag 2 means direct 2-hour memory. Bars exceeding the dashed confidence lines are statistically significant.",
+                    "ACF shows correlation with values X hours ago. PACF removes indirect effects, a tall bar at lag 2 means direct 2-hour memory. Bars exceeding the dashed confidence lines are statistically significant.",
                   ];
                   if (selectedVar === "rainfall") return [...base,
-                    `Rainfall correlation drops to near-zero by lag 6–8 — that's the "memory" of Singapore rain. After ~6 hours, current rain tells you almost nothing about the future.`,
-                    `Sparsity is ${ap.sparsity_pct}% (most hours are dry). PACF cuts off after lag 2 — an AR(2) pattern. Only the last 1–2 hours of rain matter directly.`,
+                    `Rainfall correlation drops to near-zero by lag 6–8: that's the "memory" of Singapore rain. After ~6 hours, current rain tells you almost nothing about the future.`,
+                    `Sparsity is ${ap.sparsity_pct}% (most hours are dry). PACF cuts off after lag 2, an AR(2) pattern. Only the last 1–2 hours of rain matter directly.`,
                   ];
                   if (selectedVar === "temperature") return [...base,
-                    "Strong periodicity at lag 24 (one full day cycle) — the classic diurnal pattern. PACF cuts off after lag 2, meaning direct memory is short but the daily cycle cascades through each lag.",
-                    "This 24h periodicity is why hour_sin/hour_cos cyclical features matter — the model learns that time-of-day predicts temperature.",
+                    "Strong periodicity at lag 24 (one full day cycle): the classic diurnal pattern. PACF cuts off after lag 2, meaning direct memory is short but the daily cycle cascades through each lag.",
+                    "This 24h periodicity is why hour_sin/hour_cos cyclical features matter: the model learns that time-of-day predicts temperature.",
                   ];
                   if (selectedVar === "humidity") return [...base,
-                    "24-hour diurnal cycle mirrors temperature (peaks at lags 24, 48) — humidity inverts temperature almost perfectly. Hotter → drier air, cooler mornings → higher humidity.",
-                    "PACF shows a notable negative spike at lag 2 — humidity 'corrects' itself. High humidity + rising temperature is a key thunderstorm precursor.",
+                    "24-hour diurnal cycle mirrors temperature (peaks at lags 24, 48): humidity inverts temperature almost perfectly. Hotter → drier air, cooler mornings → higher humidity.",
+                    "PACF shows a notable negative spike at lag 2: humidity 'corrects' itself. High humidity + rising temperature is a key thunderstorm precursor.",
                   ];
                   if (selectedVar === "wind_speed") return [...base,
-                    "Wind ACF decays faster than temperature or humidity — wind changes more erratically, making it harder to forecast. The 24h cycle is weaker.",
-                    "PACF cuts off after lag 2. Despite lower persistence, wind acceleration (wind_accel_3h) is useful for thunderstorm detection — spatial rainfall features tend to dominate overall SHAP importance.",
+                    "Wind ACF decays faster than temperature or humidity: wind changes more erratically, making it harder to forecast. The 24h cycle is weaker.",
+                    "PACF cuts off after lag 2. Despite lower persistence, wind acceleration (wind_accel_3h) is useful for thunderstorm detection: spatial rainfall features tend to dominate overall SHAP importance.",
                   ];
                   return base;
                 })()}
@@ -1135,11 +1132,11 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 3. Spectral / FFT */}
-      <Section icon={Waves} title="Frequency Analysis (FFT Periodogram)" forceOpen={allOpen}>
+      <Section icon={Waves} title="Daily and seasonal cycles (frequency analysis)" forceOpen={allOpen}>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {varNames.map((v) => (
             <button key={v} onClick={() => setSelectedVar(v)}
-              className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-blue-500 border-blue-400 text-white" : "bg-white/5 border-white/15 text-white/40 hover:text-white hover:bg-white/10"}`}>
+              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${selectedVar === v ? "bg-accent border-accent/40 text-ink" : "bg-surface-2 border-line text-muted hover:text-ink hover:bg-surface-2"}`}>
               {v}
             </button>
           ))}
@@ -1156,7 +1153,7 @@ export function MLAnalysisDashboard() {
           });
           return (
             <div className="space-y-3">
-              <div className="text-white/50 text-xs">
+              <div className="text-muted text-xs">
                 Top dominant periods:{" "}
                 {sp.top_dominant_periods?.slice(0, 5).map((p) => `${p.period_h}h`).join(", ")}
               </div>
@@ -1164,7 +1161,7 @@ export function MLAnalysisDashboard() {
                 series={[{
                   name: "Power spectral density",
                   data: chartData.map((d) => d.power),
-                  color: "#34d399",
+                  color: "var(--c2)",
                 }]}
                 height={80}
                 xTicks={fftTicks}
@@ -1174,25 +1171,25 @@ export function MLAnalysisDashboard() {
               {/* Top periods table */}
               <div className="grid grid-cols-2 gap-1">
                 {sp.top_dominant_periods?.slice(0, 6).map((p, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 text-xs">
-                    <span className="text-white/60">{p.period_h}h period</span>
-                    <span className="text-emerald-400 font-mono text-[10px]">
+                  <div key={i} className="flex items-center justify-between bg-surface-2 rounded-lg px-3 py-1.5 text-xs">
+                    <span className="text-muted">{p.period_h}h period</span>
+                    <span className="text-good font-mono text-xs">
                       {p.power.toExponential(2)}
                     </span>
                   </div>
                 ))}
               </div>
-              <p className="text-white/30 text-[10px]">
+              <p className="text-muted text-xs">
                 Peaks near 24h and 12h confirm diurnal and semi-diurnal cycles. Broader peaks at 72h+ reflect multi-day weather systems.
               </p>
               <CommentaryBox
                 variant="indigo"
                 title="What to look for"
                 points={[
-                  "FFT converts time-series into frequency components — each spike is a repeating cycle. Tall spike = strong, consistent pattern.",
+                  "FFT converts time-series into frequency components, each spike is a repeating cycle. Tall spike = strong, consistent pattern.",
                   `The tallest peak at ~24h confirms the diurnal cycle. The ~12h peak is the semi-diurnal harmonic. Broader peaks at 72h+ reflect multi-day weather systems.`,
                   `A secondary peak near ~180 days would capture monsoon season transitions (NE → SW). Each peak is a "frequency" the model can learn from.`,
-                  "These cycles become features via hour_sin/hour_cos and month encoding — the model 'knows' what time of day and season it is.",
+                  "These cycles become features via hour_sin/hour_cos and month encoding: the model 'knows' what time of day and season it is.",
                 ]}
                 tip="The same FFT technique powers JPEG compression and noise cancellation."
               />
@@ -1202,19 +1199,19 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 4. Spurious Correlations */}
-      <Section icon={GitCompare} title="Spurious Correlation Analysis" forceOpen={allOpen}>
+      <Section icon={GitCompare} title="Checking for misleading correlations" forceOpen={allOpen}>
         <div className="space-y-4">
           {/* Cross-correlations */}
           {Object.entries(data.spurious_correlations?.cross_correlation || {}).map(([key, cc]) => (
             <div key={key} className="space-y-1">
               <div className="flex items-center gap-2">
-                <p className="text-white/70 text-xs font-medium">{key.replace("_vs_", " vs ")}</p>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                <p className="text-ink text-xs font-medium">{key.replace("_vs_", " vs ")}</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
                   cc.potentially_spurious
-                    ? "bg-red-500/20 text-red-300"
-                    : "bg-emerald-500/20 text-emerald-300"
+                    ? "bg-bad/10 text-bad"
+                    : "bg-good/10 text-good"
                 }`}>
-                  {cc.potentially_spurious ? "⚠ Possibly spurious" : "r=" + cc.pearson_r}
+                  {cc.potentially_spurious ? "Note: Possibly spurious" : "r=" + cc.pearson_r}
                 </span>
               </div>
               <StemChart
@@ -1222,22 +1219,22 @@ export function MLAnalysisDashboard() {
                 values={cc.cross_correlation}
                 ci={cc.ci_bound}
                 height={60}
-                color="#f472b6"
+                color="var(--c3)"
               />
             </div>
           ))}
 
           {/* Granger causality */}
           <div>
-            <p className="text-white/60 text-xs font-medium mb-2">Granger Causality → rainfall</p>
+            <p className="text-muted text-xs font-medium mb-2">Granger Causality → rainfall</p>
             <div className="space-y-1">
               {Object.entries(data.spurious_correlations?.granger_causality || {}).map(([key, gc]) => (
-                <div key={key} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 text-xs">
-                  <span className="text-white/70">{key.replace("_causes_rainfall", "")}</span>
+                <div key={key} className="flex items-center justify-between bg-surface-2 rounded-lg px-3 py-1.5 text-xs">
+                  <span className="text-ink">{key.replace("_causes_rainfall", "")}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-white/50 font-mono">p={gc.min_p}</span>
-                    <span className={`${gc.significant ? "text-emerald-400" : "text-white/30"}`}>
-                      {gc.significant ? "✓ significant" : "✗ not significant"}
+                    <span className="text-muted font-mono">p={gc.min_p}</span>
+                    <span className={`${gc.significant ? "text-good" : "text-muted"}`}>
+                      {gc.significant ? "Significant" : "Not significant"}
                     </span>
                   </div>
                 </div>
@@ -1248,9 +1245,9 @@ export function MLAnalysisDashboard() {
             variant="amber"
             title="What to look for"
             points={[
-              `Temperature vs humidity: r=${data.spurious_correlations?.cross_correlation?.temperature_vs_humidity?.pearson_r ?? "−0.90"} — extremely strong negative link. As temperature rises, relative humidity drops. This makes physical sense and is NOT spurious.`,
-              `Rainfall vs humidity: r=${data.spurious_correlations?.cross_correlation?.rainfall_vs_humidity?.pearson_r ?? "0.17"} — weak positive link. Correlation ≠ causation: both are driven by the same weather system.`,
-              "Granger Causality tests whether past values of one variable help predict the future of another. All three variables Granger-cause rainfall at p≈0 — confirming they are legitimate predictive features.",
+              `Temperature vs humidity: r=${data.spurious_correlations?.cross_correlation?.temperature_vs_humidity?.pearson_r ?? "−0.90"}: extremely strong negative link. As temperature rises, relative humidity drops. This makes physical sense and is NOT spurious.`,
+              `Rainfall vs humidity: r=${data.spurious_correlations?.cross_correlation?.rainfall_vs_humidity?.pearson_r ?? "0.17"}: weak positive link. Correlation ≠ causation: both are driven by the same weather system.`,
+              "Granger Causality tests whether past values of one variable help predict the future of another. All three variables Granger-cause rainfall at p≈0: confirming they are legitimate predictive features.",
               "Spurious correlation warning: two variables can appear correlated because a THIRD hidden variable (e.g. monsoon cycle) drives both. Granger tests help separate real predictive signal from coincidence.",
             ]}
             tip="Pearson r ranges from -1 (perfect inverse) to +1 (perfect positive). Near 0 = no linear relationship."
@@ -1259,7 +1256,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 5. Model Results */}
-      <Section icon={TrendingUp} title="Model Performance by Horizon" forceOpen={allOpen}>
+      <Section icon={TrendingUp} title="Accuracy by hours ahead" forceOpen={allOpen}>
         {/* Horizon tabs */}
         <div className="flex gap-2 mb-4 flex-wrap">
           {horizons.map((h, i) => (
@@ -1268,8 +1265,8 @@ export function MLAnalysisDashboard() {
               onClick={() => setSelectedHorizon(i)}
               className={`text-xs px-3 py-1 rounded-full border transition-colors ${
                 selectedHorizon === i
-                  ? "bg-blue-500/30 border-blue-400/60 text-blue-200"
-                  : "bg-white/8 border-white/15 text-white/60 hover:text-white"
+                  ? "bg-accent/10 border-accent/40 text-accent"
+                  : "bg-surface-2 border-line text-muted hover:text-ink"
               }`}
             >
               {h.horizon_h}h ahead
@@ -1285,9 +1282,9 @@ export function MLAnalysisDashboard() {
               ["Train samples", hr.n_train?.toLocaleString()],
               ["Test samples", hr.n_test?.toLocaleString()],
             ].map(([label, val]) => (
-              <div key={label} className="bg-white/5 rounded-xl p-3 text-center">
-                <p className="text-white/40 text-[10px]">{label}</p>
-                <p className="text-white font-semibold text-sm">{val}</p>
+              <div key={label} className="bg-surface-2 rounded-card p-3 text-center">
+                <p className="text-muted text-xs">{label}</p>
+                <p className="text-ink font-semibold text-sm">{val}</p>
               </div>
             ))}
           </div>
@@ -1307,17 +1304,17 @@ export function MLAnalysisDashboard() {
             <div className="space-y-3 mb-4">
               {/* Summary row */}
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white/5 rounded-xl p-2.5 text-center">
-                  <p className="text-white/40 text-[10px]">Accuracy</p>
-                  <p className="text-emerald-400 font-bold text-base">{(cls.accuracy * 100).toFixed(1)}%</p>
+                <div className="bg-surface-2 rounded-card p-2.5 text-center">
+                  <p className="text-muted text-xs">Accuracy</p>
+                  <p className="text-good font-bold text-base">{(cls.accuracy * 100).toFixed(1)}%</p>
                 </div>
-                <div className="bg-white/5 rounded-xl p-2.5 text-center">
-                  <p className="text-white/40 text-[10px]">Macro F1</p>
-                  <p className="text-blue-300 font-bold text-base">{macroF1 ? (macroF1 * 100).toFixed(1) + "%" : "—"}</p>
+                <div className="bg-surface-2 rounded-card p-2.5 text-center">
+                  <p className="text-muted text-xs">Macro F1</p>
+                  <p className="text-accent font-bold text-base">{macroF1 ? (macroF1 * 100).toFixed(1) + "%" : "n/a"}</p>
                 </div>
-                <div className="bg-white/5 rounded-xl p-2.5 text-center">
-                  <p className="text-white/40 text-[10px]">Min Rain Recall</p>
-                  <p className={`font-bold text-base ${minRainRecall < 0.3 ? "text-red-400" : minRainRecall < 0.5 ? "text-amber-400" : "text-emerald-400"}`}>
+                <div className="bg-surface-2 rounded-card p-2.5 text-center">
+                  <p className="text-muted text-xs">Min Rain Recall</p>
+                  <p className={`font-bold text-base ${minRainRecall < 0.3 ? "text-bad" : minRainRecall < 0.5 ? "text-warn" : "text-good"}`}>
                     {(minRainRecall * 100).toFixed(1)}%
                   </p>
                 </div>
@@ -1325,11 +1322,11 @@ export function MLAnalysisDashboard() {
 
               {/* Per-class table */}
               <div>
-                <p className="text-white/50 text-[10px] font-medium mb-1.5">Per-class metrics — recall is most important (missing rain = wet user)</p>
+                <p className="text-muted text-xs font-medium mb-1.5">Per-class metrics: recall is most important (missing rain = wet user)</p>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[10px] border-collapse">
+                  <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="text-white/40">
+                      <tr className="text-muted">
                         <th className="text-left py-1 pr-2">Class</th>
                         <th className="text-right px-2">Precision</th>
                         <th className="text-right px-2">Recall</th>
@@ -1342,24 +1339,24 @@ export function MLAnalysisDashboard() {
                         const row = report[name] || {};
                         const recall = row.recall ?? null;
                         const isRain = ci > 0;
-                        const recallColor = recall == null ? "text-white/30"
-                          : isRain && recall < 0.3 ? "text-red-400"
-                          : isRain && recall < 0.5 ? "text-amber-400"
-                          : "text-emerald-400";
+                        const recallColor = recall == null ? "text-muted"
+                          : isRain && recall < 0.3 ? "text-bad"
+                          : isRain && recall < 0.5 ? "text-warn"
+                          : "text-good";
                         return (
-                          <tr key={name} className="border-t border-white/5">
-                            <td className="py-1.5 pr-2 text-white/70 font-medium">{name}</td>
-                            <td className="text-right px-2 text-white/60 font-mono">
-                              {row.precision != null ? (row.precision * 100).toFixed(1) + "%" : "—"}
+                          <tr key={name} className="border-t border-line">
+                            <td className="py-1.5 pr-2 text-ink font-medium">{name}</td>
+                            <td className="text-right px-2 text-muted font-mono">
+                              {row.precision != null ? (row.precision * 100).toFixed(1) + "%" : "n/a"}
                             </td>
                             <td className={`text-right px-2 font-mono font-semibold ${recallColor}`}>
-                              {recall != null ? (recall * 100).toFixed(1) + "%" : "—"}
+                              {recall != null ? (recall * 100).toFixed(1) + "%" : "n/a"}
                             </td>
-                            <td className="text-right px-2 text-white/60 font-mono">
-                              {row["f1-score"] != null ? (row["f1-score"] * 100).toFixed(1) + "%" : "—"}
+                            <td className="text-right px-2 text-muted font-mono">
+                              {row["f1-score"] != null ? (row["f1-score"] * 100).toFixed(1) + "%" : "n/a"}
                             </td>
-                            <td className="text-right pl-2 text-white/40 font-mono">
-                              {row.support?.toLocaleString() ?? "—"}
+                            <td className="text-right pl-2 text-muted font-mono">
+                              {row.support?.toLocaleString() ?? "n/a"}
                             </td>
                           </tr>
                         );
@@ -1372,14 +1369,14 @@ export function MLAnalysisDashboard() {
               {/* Confusion matrix */}
               {cls.confusion_matrix && (
                 <div>
-                  <p className="text-white/50 text-[10px] font-medium mb-1.5">
-                    Confusion matrix — rows=actual, cols=predicted
+                  <p className="text-muted text-xs font-medium mb-1.5">
+                    Confusion matrix: rows=actual, cols=predicted
                   </p>
                   <ConfusionMatrix
                     matrix={cls.confusion_matrix}
                     labels={categories}
                   />
-                  <p className="text-white/30 text-[10px] mt-1.5">
+                  <p className="text-muted text-xs mt-1.5">
                     Green diagonal = correct. Red off-diagonal = errors. Top-right cells = rain missed as dry (costly).
                   </p>
                 </div>
@@ -1391,35 +1388,35 @@ export function MLAnalysisDashboard() {
                 const binCm = bin.confusion_matrix; // [[TN, FP], [FN, TP]]
                 return (
                   <div className="space-y-2">
-                    <p className="text-white/60 text-xs font-medium">Binary: Rain vs No-Rain</p>
+                    <p className="text-muted text-xs font-medium">Binary: Rain vs No-Rain</p>
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        { label: "Accuracy", val: bin.accuracy, color: "text-white" },
-                        { label: "Rain Precision", val: bin.rain_precision, color: "text-sky-300" },
-                        { label: "Rain Recall", val: bin.rain_recall, color: bin.rain_recall < 0.5 ? "text-red-400" : bin.rain_recall < 0.7 ? "text-amber-400" : "text-emerald-400" },
-                        { label: "Rain F1", val: bin.rain_f1, color: "text-blue-300" },
+                        { label: "Accuracy", val: bin.accuracy, color: "text-ink" },
+                        { label: "Rain Precision", val: bin.rain_precision, color: "text-accent" },
+                        { label: "Rain Recall", val: bin.rain_recall, color: bin.rain_recall < 0.5 ? "text-bad" : bin.rain_recall < 0.7 ? "text-warn" : "text-good" },
+                        { label: "Rain F1", val: bin.rain_f1, color: "text-accent" },
                       ].map(({ label, val, color }) => (
-                        <div key={label} className="bg-white/5 rounded-xl p-2 text-center">
-                          <p className="text-white/40 text-[10px]">{label}</p>
-                          <p className={`font-bold text-sm ${color}`}>{val != null ? (val * 100).toFixed(1) + "%" : "—"}</p>
+                        <div key={label} className="bg-surface-2 rounded-card p-2 text-center">
+                          <p className="text-muted text-xs">{label}</p>
+                          <p className={`font-bold text-sm ${color}`}>{val != null ? (val * 100).toFixed(1) + "%" : "n/a"}</p>
                         </div>
                       ))}
                     </div>
                     {binCm && (
-                      <div className="text-[10px] text-white/50 space-y-1">
-                        <p className="font-medium text-white/60">Confusion matrix</p>
+                      <div className="text-xs text-muted space-y-1">
+                        <p className="font-medium text-muted">Confusion matrix</p>
                         <div className="grid grid-cols-3 gap-px text-center">
                           <div />
-                          <div className="bg-white/5 rounded px-1 py-0.5">Pred No Rain</div>
-                          <div className="bg-white/5 rounded px-1 py-0.5">Pred Rain</div>
-                          <div className="bg-white/5 rounded px-1 py-0.5 text-left">True No Rain</div>
-                          <div className="bg-emerald-500/20 rounded px-1 py-0.5 text-emerald-300 font-bold">{binCm[0]?.[0]}</div>
-                          <div className="bg-red-500/10 rounded px-1 py-0.5 text-red-300">{binCm[0]?.[1]}</div>
-                          <div className="bg-white/5 rounded px-1 py-0.5 text-left">True Rain</div>
-                          <div className="bg-red-500/20 rounded px-1 py-0.5 text-red-400 font-bold">{binCm[1]?.[0]}</div>
-                          <div className="bg-emerald-500/20 rounded px-1 py-0.5 text-emerald-300 font-bold">{binCm[1]?.[1]}</div>
+                          <div className="bg-surface-2 rounded px-1 py-0.5">Pred No Rain</div>
+                          <div className="bg-surface-2 rounded px-1 py-0.5">Pred Rain</div>
+                          <div className="bg-surface-2 rounded px-1 py-0.5 text-left">True No Rain</div>
+                          <div className="bg-good/10 rounded px-1 py-0.5 text-good font-bold">{binCm[0]?.[0]}</div>
+                          <div className="bg-bad/10 rounded px-1 py-0.5 text-bad">{binCm[0]?.[1]}</div>
+                          <div className="bg-surface-2 rounded px-1 py-0.5 text-left">True Rain</div>
+                          <div className="bg-bad/10 rounded px-1 py-0.5 text-bad font-bold">{binCm[1]?.[0]}</div>
+                          <div className="bg-good/10 rounded px-1 py-0.5 text-good font-bold">{binCm[1]?.[1]}</div>
                         </div>
-                        <p className="text-white/30">Bold red = missed rain (false negatives) — the costly errors.</p>
+                        <p className="text-muted">Bold red = missed rain (false negatives): the costly errors.</p>
                       </div>
                     )}
                   </div>
@@ -1427,10 +1424,10 @@ export function MLAnalysisDashboard() {
               })()}
 
               {/* Cost-weighting note */}
-              <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
-                <p className="text-amber-200/80 text-[10px]">
+              <div className="bg-warn/10 border border-warn/40 rounded-card px-3 py-2">
+                <p className="text-warn/80 text-xs">
                   Cost-weighted training: Thundery Showers 6× · Heavy Rain 4× · Light Rain 2× · No Rain 1×.
-                  The model is biased toward predicting rain when uncertain — false alarms are acceptable,
+                  The model is biased toward predicting rain when uncertain: false alarms are acceptable,
                   missed rain is not.
                 </p>
               </div>
@@ -1438,11 +1435,11 @@ export function MLAnalysisDashboard() {
                 variant="blue"
                 title="What to look for"
                 points={[
-                  "Strong diagonal values in the confusion matrix = correct predictions. Off-diagonal = errors. The model gets more 'confused' at longer horizons — the diagonal weakens and off-diagonal spreads.",
+                  "Strong diagonal values in the confusion matrix = correct predictions. Off-diagonal = errors. The model gets more 'confused' at longer horizons: the diagonal weakens and off-diagonal spreads.",
                   "Recall matters most for weather: 'of all actual rain events, how many did the model catch?' Missing rain (false negative) is worse than a false alarm.",
                   "The model is conservative: it rarely predicts heavy rain when there's none, but sometimes misses light rain.",
                   `Heavy Rain recall is low because heavy rain hours are rare (${report["Heavy Rain"]?.support?.toLocaleString() ?? "~500"} out of ${hr.n_test?.toLocaleString() ?? "~8,700"}). Cost-weighting (4×) helps but heavy rain remains hardest to forecast.`,
-                  `Binary (Rain vs No-Rain) is simpler — ${hr.binary_classification ? (hr.binary_classification.accuracy * 100).toFixed(0) + "% accuracy, " + (hr.binary_classification.rain_recall * 100).toFixed(0) + "% rain recall" : "higher accuracy"} — but loses granularity.`,
+                  `Binary (Rain vs No-Rain) is simpler: ${hr.binary_classification ? (hr.binary_classification.accuracy * 100).toFixed(0) + "% accuracy, " + (hr.binary_classification.rain_recall * 100).toFixed(0) + "% rain recall" : "higher accuracy"}, but loses granularity.`,
                 ]}
                 tip={`At ${hr.horizon_h}h ahead, the model warns about rain ${hr.binary_classification ? (hr.binary_classification.rain_recall * 100).toFixed(0) + "%" : "most"} of the time. Longer horizons drop further.`}
               />
@@ -1453,12 +1450,12 @@ export function MLAnalysisDashboard() {
         {/* Feature importance */}
         {hr.feature_importance?.length > 0 && (
           <div>
-            <p className="text-white/60 text-xs font-medium mb-2">Feature Importance (LightGBM gain)</p>
+            <p className="text-muted text-xs font-medium mb-2">Feature Importance (LightGBM gain)</p>
             <HorizontalBar
               items={hr.feature_importance}
               nameKey="feature"
               valueKey="gain"
-              color="#fbbf24"
+              color="var(--c4)"
             />
           </div>
         )}
@@ -1504,59 +1501,59 @@ export function MLAnalysisDashboard() {
         const bestF2_2h  = Math.max(paNea.rain_f2 ?? 0, paMl.rain_f2 ?? 0, paEns.rain_f2 ?? 0, iwNea2.rain_f2 ?? 0, iwMl2.rain_f2 ?? 0);
 
         return (
-          <Section icon={Trophy} title="NEA Benchmark Comparison" forceOpen={allOpen}>
+          <Section icon={Trophy} title="Compared with NEA's own forecast" forceOpen={allOpen}>
             <div className="space-y-4">
 
               {/* Why F2 */}
-              <div className="bg-violet-500/8 border border-violet-400/20 rounded-xl p-3 space-y-1.5">
-                <p className="text-violet-300/80 text-[10px] font-semibold uppercase tracking-wide">Primary metric: Rain F2 score (β = 2)</p>
-                <p className="text-[11px] text-white/55 leading-relaxed">
-                  F2 weighs <strong className="text-white/70">recall twice as much as precision</strong> — because missing a rain event (user gets soaked) is worse than a false alarm (user carries umbrella). Accuracy is shown for context, but F2 is the decision metric. F2 is computed only on rain classes (Light Rain + Heavy/Thundery), macro-averaged.
+              <div className="bg-accent/5 border border-accent/40 rounded-card p-3 space-y-1.5">
+                <p className="text-accent/80 text-xs font-semibold">Primary metric: Rain F2 score (β = 2)</p>
+                <p className="text-xs text-muted leading-relaxed">
+                  F2 weighs <strong className="text-ink">recall twice as much as precision</strong>: because missing a rain event (user gets soaked) is worse than a false alarm (user carries umbrella). Accuracy is shown for context, but F2 is the decision metric. F2 is computed only on rain classes (Light Rain + Heavy/Thundery), macro-averaged.
                 </p>
               </div>
 
               {/* Methodology */}
-              <div className="bg-amber-500/8 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
-                <p className="text-amber-300/80 text-[10px] font-semibold uppercase tracking-wide">Granularity-matched comparison</p>
-                <div className="space-y-1 text-[11px] text-white/55 leading-relaxed">
+              <div className="bg-warn/5 border border-warn/40 rounded-card p-3 space-y-1.5">
+                <p className="text-warn/80 text-xs font-semibold">Granularity-matched comparison</p>
+                <div className="space-y-1 text-xs text-muted leading-relaxed">
                   <p>NEA publishes at two levels. We compare at each level separately:</p>
                   <ul className="space-y-0.5 ml-2">
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">6-hour by region</strong> (5 regions) — compared at per-region level, then also aggregated to island-wide via majority vote</li>
-                    <li><span className="text-amber-300/60">›</span> <strong className="text-white/70">2-hour by area</strong> ({c3_2h.n_areas || nb2?.overall?.class3?.n_areas || 47} areas) — compared at native per-area level; ML island-wide prediction applied uniformly to all areas</li>
+                    <li><span className="text-warn/60">›</span> <strong className="text-ink">6-hour by region</strong> (5 regions): compared at per-region level, then also aggregated to island-wide via majority vote</li>
+                    <li><span className="text-warn/60">›</span> <strong className="text-ink">2-hour by area</strong> ({c3_2h.n_areas || nb2?.overall?.class3?.n_areas || 47} areas): compared at native per-area level; ML island-wide prediction applied uniformly to all areas</li>
                   </ul>
                 </div>
               </div>
 
               {/* 6h benchmark */}
               <div>
-                <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                <p className="text-muted text-xs font-semibold mb-2">
                   6-hour forecast benchmark · {nSamples6h?.toLocaleString()} periods · 2024 holdout
                 </p>
                 {(hasPR || hasIW) ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
-                        <tr className="text-white/40 text-[10px]">
+                        <tr className="text-muted text-xs">
                           <th className="text-left py-1.5 pr-3">Granularity · Model</th>
                           <th className="text-right px-2">Accuracy</th>
-                          <th className="text-right px-2 text-violet-300/70">Rain F2 ↑</th>
+                          <th className="text-right px-2 text-accent/70">Rain F2 ↑</th>
                           <th className="text-right pl-2"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {[
-                          hasPR && { key:"prNea", data:prNea, label:"Per-region · NEA 6h forecast",      lc:"text-white/70",      ac:"text-white/60",    fc:"text-violet-300",    badge: prNea.accuracy===bestAcc_PR_6h && prNea.rain_f2!==bestF2_PR_6h ? <span className="text-emerald-400 font-semibold">Best Acc</span> : null },
-                          hasPR && { key:"prMl",  data:prMl,  label:"Per-region · ML (island-wide applied)", lc:"text-blue-300",    ac:"text-blue-300/70", fc:"text-blue-300",      badge: prMl.rain_f2===bestF2_PR_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-region</span></span> : null },
-                          hasIW && { key:"iwNea", data:iwNea, label:"Island-wide · NEA → majority vote",  lc:"text-white/50 italic", ac:"text-white/45", fc:"text-violet-300/60", badge: <span className="text-[10px] text-white/25 italic">fair vs ML</span> },
-                          hasIW && { key:"iwMl",  data:iwMl,  label:"Island-wide · ML model",             lc:"text-blue-200/70 italic", ac:"text-blue-200/60", fc:"text-blue-200/80", badge: iwMl.rain_f2===bestF2_6h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">overall</span></span> : null },
+                          hasPR && { key:"prNea", data:prNea, label:"Per-region · NEA 6h forecast",      lc:"text-ink",      ac:"text-muted",    fc:"text-accent",    badge: prNea.accuracy===bestAcc_PR_6h && prNea.rain_f2!==bestF2_PR_6h ? <span className="text-good font-semibold">Best Acc</span> : null },
+                          hasPR && { key:"prMl",  data:prMl,  label:"Per-region · ML (island-wide applied)", lc:"text-accent",    ac:"text-accent/70", fc:"text-accent",      badge: prMl.rain_f2===bestF2_PR_6h ? <span className="text-good text-xs font-semibold">Best F2<br/><span className="text-muted">per-region</span></span> : null },
+                          hasIW && { key:"iwNea", data:iwNea, label:"Island-wide · NEA → majority vote",  lc:"text-muted italic", ac:"text-muted", fc:"text-accent/60", badge: <span className="text-xs text-muted italic">fair vs ML</span> },
+                          hasIW && { key:"iwMl",  data:iwMl,  label:"Island-wide · ML model",             lc:"text-accent/70 italic", ac:"text-accent/60", fc:"text-accent/80", badge: iwMl.rain_f2===bestF2_6h ? <span className="text-good text-xs font-semibold">Best F2<br/><span className="text-muted">overall</span></span> : null },
                         ]
                           .filter(Boolean)
                           .sort((a, b) => (b.data.rain_f2 ?? -1) - (a.data.rain_f2 ?? -1))
                           .map(r => (
-                            <tr key={r.key} className="border-t border-white/5">
-                              <td className={`py-1.5 pr-3 font-medium text-[11px] ${r.lc}`}>{r.label}</td>
-                              <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                              <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                            <tr key={r.key} className="border-t border-line">
+                              <td className={`py-1.5 pr-3 font-medium text-xs ${r.lc}`}>{r.label}</td>
+                              <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "n/a"}</td>
+                              <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "n/a"}</td>
                               <td className="text-right pl-2 leading-tight">{r.badge}</td>
                             </tr>
                           ))
@@ -1565,50 +1562,50 @@ export function MLAnalysisDashboard() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-white/40 text-sm text-center py-4">Retraining in progress...</p>
+                  <p className="text-muted text-sm text-center py-4">Retraining in progress...</p>
                 )}
               </div>
 
               {/* 2h area benchmark */}
               <div>
-                <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-2">
+                <p className="text-muted text-xs font-semibold mb-2">
                   2-hour per-area forecast · {c3_2h.n_area_period_samples?.toLocaleString()} area-period samples · 2024 holdout
                 </p>
                 {hasPerArea ? (
                   <>
-                    <p className="text-white/35 text-[10px] mb-1.5">
+                    <p className="text-muted text-xs mb-1.5">
                       {c3_2h.n_areas || 47} areas matched to nearest rain gauge (≤10 km) · ML prediction applied uniformly island-wide
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs border-collapse">
                         <thead>
-                          <tr className="text-white/40 text-[10px]">
+                          <tr className="text-muted text-xs">
                             <th className="text-left py-1.5 pr-3">Model</th>
                             <th className="text-right px-2">Accuracy</th>
-                            <th className="text-right px-2 text-violet-300/70">Rain F2 ↑</th>
+                            <th className="text-right px-2 text-accent/70">Rain F2 ↑</th>
                             <th className="text-right pl-2"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {[
-                            { key:"paNea", data:paNea, show:true,                  label:"NEA 2h per-area (native)",          lc:"text-white/70",        ac:"text-white/60",      fc:"text-violet-300",
-                              badge: paNea.rain_f2===bestF2_PA_2h && paNea.accuracy===bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/>+F2</span> : paNea.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best F2<br/><span className="text-white/30">per-area</span></span> : paNea.accuracy===bestAcc_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold">Best Acc<br/><span className="text-white/30">per-area</span></span> : null },
-                            { key:"paMl",  data:paMl,  show:paMl.accuracy!=null,   label:"ML island-wide → per-area",         lc:"text-blue-300",        ac:"text-blue-300/70",   fc:"text-blue-300",
-                              badge: paMl.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null },
-                            { key:"paEns", data:paEns, show:paEns.accuracy!=null,  label:"Ensemble (60% ML + 40% NEA)",       lc:"text-emerald-300",     ac:"text-emerald-300/70",fc:"text-emerald-300",
-                              badge: paEns.rain_f2===bestF2_PA_2h ? <span className="text-emerald-400 text-[10px] font-semibold leading-tight">Best F2<br/><span className="text-white/30">per-area</span></span> : null },
-                            has2hIW && { key:"iwNea2",data:iwNea2,show:true,        label:"Island-wide · NEA → majority vote", lc:"text-white/40 italic", ac:"text-white/35",      fc:(iwNea2.rain_f2??0)===bestF2_2h&&iwNea2.rain_f2!=null?"text-yellow-300 font-semibold":"text-white/35",
-                              badge: <span className="text-[10px] text-white/20 italic">fair vs ML</span> },
-                            has2hIW && { key:"iwMl2", data:iwMl2, show:true,        label:"Island-wide · ML model",            lc:"text-blue-200/50 italic",ac:"text-blue-200/45", fc:(iwMl2.rain_f2??0)===bestF2_2h&&iwMl2.rain_f2!=null?"text-yellow-300 font-semibold":"text-blue-200/45",
+                            { key:"paNea", data:paNea, show:true,                  label:"NEA 2h per-area (native)",          lc:"text-ink",        ac:"text-muted",      fc:"text-accent",
+                              badge: paNea.rain_f2===bestF2_PA_2h && paNea.accuracy===bestAcc_PA_2h ? <span className="text-good text-xs font-semibold">Best Acc<br/>+F2</span> : paNea.rain_f2===bestF2_PA_2h ? <span className="text-good text-xs font-semibold">Best F2<br/><span className="text-muted">per-area</span></span> : paNea.accuracy===bestAcc_PA_2h ? <span className="text-good text-xs font-semibold">Best Acc<br/><span className="text-muted">per-area</span></span> : null },
+                            { key:"paMl",  data:paMl,  show:paMl.accuracy!=null,   label:"ML island-wide → per-area",         lc:"text-accent",        ac:"text-accent/70",   fc:"text-accent",
+                              badge: paMl.rain_f2===bestF2_PA_2h ? <span className="text-good text-xs font-semibold leading-tight">Best F2<br/><span className="text-muted">per-area</span></span> : null },
+                            { key:"paEns", data:paEns, show:paEns.accuracy!=null,  label:"Ensemble (60% ML + 40% NEA)",       lc:"text-good",     ac:"text-good/70",fc:"text-good",
+                              badge: paEns.rain_f2===bestF2_PA_2h ? <span className="text-good text-xs font-semibold leading-tight">Best F2<br/><span className="text-muted">per-area</span></span> : null },
+                            has2hIW && { key:"iwNea2",data:iwNea2,show:true,        label:"Island-wide · NEA → majority vote", lc:"text-muted italic", ac:"text-muted",      fc:(iwNea2.rain_f2??0)===bestF2_2h&&iwNea2.rain_f2!=null?"text-warn font-semibold":"text-muted",
+                              badge: <span className="text-xs text-muted italic">fair vs ML</span> },
+                            has2hIW && { key:"iwMl2", data:iwMl2, show:true,        label:"Island-wide · ML model",            lc:"text-accent/50 italic",ac:"text-accent/45", fc:(iwMl2.rain_f2??0)===bestF2_2h&&iwMl2.rain_f2!=null?"text-warn font-semibold":"text-accent/45",
                               badge: null },
                           ]
                             .filter(r => r && r.show)
                             .sort((a, b) => (b.data.rain_f2 ?? -1) - (a.data.rain_f2 ?? -1))
                             .map(r => (
-                              <tr key={r.key} className="border-t border-white/5">
-                                <td className={`py-1.5 pr-3 font-medium text-[11px] ${r.lc}`}>{r.label}</td>
-                                <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "—"}</td>
-                                <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "—"}</td>
+                              <tr key={r.key} className="border-t border-line">
+                                <td className={`py-1.5 pr-3 font-medium text-xs ${r.lc}`}>{r.label}</td>
+                                <td className={`text-right px-2 font-mono ${r.ac}`}>{r.data.accuracy != null ? (r.data.accuracy * 100).toFixed(1) + "%" : "n/a"}</td>
+                                <td className={`text-right px-2 font-mono ${r.fc}`}>{r.data.rain_f2 != null ? (r.data.rain_f2 * 100).toFixed(1) + "%" : "n/a"}</td>
                                 <td className="text-right pl-2 leading-tight">{r.badge}</td>
                               </tr>
                             ))
@@ -1616,12 +1613,12 @@ export function MLAnalysisDashboard() {
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-white/25 text-[10px] mt-1.5 italic">
-                      ML island-wide label applied to all {c3_2h.n_areas || 47} areas — this reveals the "local knowledge gap" vs NEA's area-specific forecasts.
+                    <p className="text-muted text-xs mt-1.5 italic">
+                      ML island-wide label applied to all {c3_2h.n_areas || 47} areas: this reveals the "local knowledge gap" vs NEA's area-specific forecasts.
                     </p>
                   </>
                 ) : (
-                  <p className="text-white/30 text-[10px] text-center py-2">2h area benchmark computing during retrain...</p>
+                  <p className="text-muted text-xs text-center py-2">2h area benchmark computing during retrain...</p>
                 )}
               </div>
 
@@ -1631,12 +1628,12 @@ export function MLAnalysisDashboard() {
                   variant="indigo"
                   title="What to look for"
                   points={[
-                    `6h island-wide: ML Rain F2 ${iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "—"} vs NEA ${iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "—"} — ML catches significantly more rain events despite similar accuracy. NEA is conservative; ML has higher recall.`,
-                    `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "—"}) because it has local area knowledge — our ML applies one island-wide label to all ${c3_2h.n_areas || 47} areas. Ensemble blends both, trading some accuracy for better rain recall.`,
-                    "Accuracy is misleading here — Singapore is dry ~70% of the time, so predicting 'No Rain' always gives high accuracy. F2 penalises models that miss rain events.",
-                    "Next step: per-area ML using each station's local sensor readings + spatial neighbour features — this should close the accuracy gap with NEA.",
+                    `6h island-wide: ML Rain F2 ${iwMl.rain_f2 != null ? (iwMl.rain_f2 * 100).toFixed(1) + "%" : "n/a"} vs NEA ${iwNea.rain_f2 != null ? (iwNea.rain_f2 * 100).toFixed(1) + "%" : "n/a"}: ML catches significantly more rain events despite similar accuracy. NEA is conservative; ML has higher recall.`,
+                    `2h per-area: NEA leads accuracy (${paNea.accuracy != null ? (paNea.accuracy * 100).toFixed(1) + "%" : "n/a"}) because it has local area knowledge: our ML applies one island-wide label to all ${c3_2h.n_areas || 47} areas. Ensemble blends both, trading some accuracy for better rain recall.`,
+                    "Accuracy is misleading here: Singapore is dry ~70% of the time, so predicting 'No Rain' always gives high accuracy. F2 penalises models that miss rain events.",
+                    "Next step: per-area ML using each station's local sensor readings + spatial neighbour features: this should close the accuracy gap with NEA.",
                   ]}
-                  tip="F2 = 5×precision×recall / (4×precision + recall). β=2 means recall counts twice as much — reflecting that missing rain is more costly than a false alarm."
+                  tip="F2 = 5×precision×recall / (4×precision + recall). β=2 means recall counts twice as much: reflecting that missing rain is more costly than a false alarm."
                 />
               )}
             </div>
@@ -1645,9 +1642,9 @@ export function MLAnalysisDashboard() {
       })()}
 
       {/* 5c. How we improved */}
-      <Section icon={TrendingUp} title="How Accuracy Was Improved" forceOpen={allOpen}>
+      <Section icon={TrendingUp} title="How accuracy was improved" forceOpen={allOpen}>
         <div className="space-y-3">
-          <p className="text-white/60 text-xs leading-relaxed">
+          <p className="text-muted text-xs leading-relaxed">
             The model went through several iterations of feature engineering and training improvements:
           </p>
           <div className="space-y-3">
@@ -1655,55 +1652,55 @@ export function MLAnalysisDashboard() {
               {
                 step: "1. Baseline (station lag features only)",
                 detail: "Initial model used only historical station observations: rain_lag_1h, temp_lag_1h, hum_lag_1h, wind_lag_1h. Reasonable baseline, but limited by lack of engineered features.",
-                color: "border-white/20",
+                color: "border-line",
               },
               {
                 step: "2. Engineered meteorological features",
                 detail: "Added dry_spell_hours, rain_streak_hours, hum_deficit (gap to saturation), wind_accel_3h, time-of-day sine/cosine encoding, month encoding. These capture physical processes (atmospheric instability, storm persistence) and noticeably improved rain recall.",
-                color: "border-blue-400/30",
+                color: "border-accent/40",
               },
               {
                 step: "3. Extended lags and rolling windows",
                 detail: "Added 3h, 6h, 12h lags plus 3h/6h rolling means and standard deviations for each variable. This gives the model 'memory' of how conditions evolved, not just the current snapshot.",
-                color: "border-blue-400/40",
+                color: "border-accent/40",
               },
               {
                 step: "4. External features: cloud cover, solar radiation, wind direction",
                 detail: "Open-Meteo archive data (2016–2024) added hourly cloud cover, shortwave radiation (daytime heating driver), and surface wind direction encoded cyclically (sin/cos). Cloud cover is one of the more direct convective signals available from surface observations.",
-                color: "border-blue-400/50",
+                color: "border-accent/40",
               },
               {
                 step: "5. MJO (Madden-Julian Oscillation) phase",
                 detail: "Added daily MJO RMM indices from BOM (Bureau of Meteorology), interpolated to hourly. The MJO is a planetary-scale wave that modulates Singapore's wet/dry cycles on a 30–60 day period. Phase encoded cyclically.",
-                color: "border-emerald-400/40",
+                color: "border-good/40",
               },
               {
                 step: "6. Cost-weighted training",
                 detail: "Thundery Showers penalised 6×, Heavy Rain 4×, Light Rain 2× vs No Rain 1× during training. This forces the model to prioritise catching rain events over simply predicting 'no rain' (which would achieve 60% accuracy by ignoring all rain).",
-                color: "border-amber-400/40",
+                color: "border-warn/40",
               },
               {
                 step: "7. 8-year training set (2016–2023), 2024 holdout",
                 detail: "Tripling the training data from earlier versions. More years = more examples of rare events (heavy storms, La Niña, El Niño). The model saw 48,000+ training samples vs earlier ~15,000.",
-                color: "border-emerald-400/50",
+                color: "border-good/40",
               },
             ].map(({ step, detail, color }) => (
               <div key={step} className={`border-l-2 ${color} pl-3 space-y-0.5`}>
-                <p className="text-white/80 text-xs font-medium">{step}</p>
-                <p className="text-white/45 text-[11px] leading-relaxed">{detail}</p>
+                <p className="text-ink text-xs font-medium">{step}</p>
+                <p className="text-muted text-xs leading-relaxed">{detail}</p>
               </div>
             ))}
           </div>
-          <div className="bg-emerald-500/8 border border-emerald-400/15 rounded-xl p-3 mt-2">
-            <p className="text-emerald-300/80 text-[10px] font-semibold uppercase tracking-wide mb-1.5">Next improvements (planned)</p>
+          <div className="bg-good/5 border border-good/40 rounded-card p-3 mt-2">
+            <p className="text-good/80 text-xs font-semibold mb-1.5">Next improvements (planned)</p>
             <ul className="space-y-1">
               {[
-                "ERA5 CAPE/CIN data from Copernicus CDS — direct convective instability index, expected to be a high-impact feature for thunderstorm prediction.",
+                "ERA5 CAPE/CIN data from Copernicus CDS: direct convective instability index, expected to be a high-impact feature for thunderstorm prediction.",
                 "Walk-forward cross-validation across all years (2016–2024) for more robust performance estimates.",
                 "Separate model per region (East/West/Central) rather than island-wide average.",
               ].map((p, i) => (
-                <li key={i} className="flex gap-2 text-white/50 text-[10px]">
-                  <span className="text-emerald-400/60 shrink-0">›</span>
+                <li key={i} className="flex gap-2 text-muted text-xs">
+                  <span className="text-good/60 shrink-0">›</span>
                   <span>{p}</span>
                 </li>
               ))}
@@ -1713,7 +1710,7 @@ export function MLAnalysisDashboard() {
       </Section>
 
       {/* 6. Loss Curves */}
-      <Section icon={Activity} title="Training Loss Curves" forceOpen={allOpen}>
+      <Section icon={Activity} title="Training progress" forceOpen={allOpen}>
         {data.loss_curves?.length > 0 ? (
           <div className="space-y-4">
             {data.loss_curves.slice(0, 4).map((lc, i) => {
@@ -1733,13 +1730,13 @@ export function MLAnalysisDashboard() {
                 : null;
               return (
               <div key={i}>
-                <p className="text-white/65 text-xs mb-1">
-                  {lc.task} — {lc.horizon_h}h ahead · best iter={lc.best_iteration}
+                <p className="text-muted text-xs mb-1">
+                  {lc.task}: {lc.horizon_h}h ahead · best iter={lc.best_iteration}
                 </p>
                 <LineChart
                   series={[
-                    { name: "Train", data: _decimate(lc.train, 100), color: "#60a5fa" },
-                    { name: "Val",   data: _decimate(lc.val,   100), color: "#f472b6" },
+                    { name: "Train", data: _decimate(lc.train, 100), color: "var(--c1)" },
+                    { name: "Val",   data: _decimate(lc.val,   100), color: "var(--c3)" },
                   ]}
                   height={65}
                   xTicks={xTicks}
@@ -1747,14 +1744,14 @@ export function MLAnalysisDashboard() {
                   yLabel={lc.metric}
                 />
                 {/* Inline health note per curve */}
-                <p className="text-white/35 text-[10px] mt-0.5 italic">
+                <p className="text-muted text-xs mt-0.5 italic">
                   {earlyStop != null && earlyStop < 0.65
-                    ? `Early stopping at iter ${lc.best_iteration} — model converged quickly, further rounds would overfit.`
+                    ? `Early stopping at iter ${lc.best_iteration}: model converged quickly, further rounds would overfit.`
                     : gap != null && gap > 0.3 && lc.task === "classification"
-                    ? `Train/Val gap ~${gap.toFixed(2)}: expected for classification — the model memorises training patterns; Val loss measures real-world accuracy.`
+                    ? `Train/Val gap ~${gap.toFixed(2)}: expected for classification: the model memorises training patterns; Val loss measures real-world accuracy.`
                     : gap != null && gap > 5 && lc.task === "regression"
-                    ? `Train/Val gap ~${gap.toFixed(0)} — model fits training data tightly; Val score reflects generalisation on unseen hours.`
-                    : `Train and Val curves track closely — low overfitting risk.`
+                    ? `Train/Val gap ~${gap.toFixed(0)}: model fits training data tightly; Val score reflects generalisation on unseen hours.`
+                    : `Train and Val curves track closely: low overfitting risk.`
                   }
                 </p>
               </div>
@@ -1762,7 +1759,7 @@ export function MLAnalysisDashboard() {
             })}
           </div>
         ) : (
-          <p className="text-white/40 text-sm text-center py-4">No loss curves available yet</p>
+          <p className="text-muted text-sm text-center py-4">No loss curves available yet</p>
         )}
         <CommentaryBox
           variant="blue"
@@ -1770,30 +1767,30 @@ export function MLAnalysisDashboard() {
           points={[
             "The gap between train and validation curves indicates overfitting. A small, stable gap is healthy. If the val curve diverges upward while train keeps dropping, the model is memorising noise.",
             "Early stopping prevents overfitting: training halts when validation loss stops improving. The 'best iter' tells you when the model peaked.",
-            "multi_logloss (classification): lower = better probability estimates. l1 (regression): lower = tighter mm predictions. The gap is normal — 2024 holdout is genuinely harder than training data.",
+            "multi_logloss (classification): lower = better probability estimates. l1 (regression): lower = tighter mm predictions. The gap is normal: 2024 holdout is genuinely harder than training data.",
           ]}
-          tip="3h-ahead models show a larger gap than 1h — forecasting further into the future is inherently harder."
+          tip="3h-ahead models show a larger gap than 1h: forecasting further into the future is inherently harder."
         />
       </Section>
 
       {/* 7. SHAP */}
-      <Section icon={Brain} title="SHAP Feature Importance" forceOpen={allOpen}>
+      <Section icon={BarChart3} title="Which inputs matter most" forceOpen={allOpen}>
         {Object.keys(data.shap || {}).length > 0 ? (
           <div className="space-y-5">
             {Object.entries(data.shap).map(([key, sv]) => (
               sv?.global_importance?.length > 0 && (
                 <div key={key}>
-                  <p className="text-white/60 text-xs font-medium mb-2">
-                    {key.replace("_", " — ")}
+                  <p className="text-muted text-xs font-medium mb-2">
+                    {key.replace("_", ": ")}
                   </p>
                   <HorizontalBar
                     items={sv.global_importance}
                     nameKey="feature"
                     valueKey="mean_abs_shap"
-                    color="#a78bfa"
+                    color="var(--c5)"
                     maxItems={10}
                   />
-                  <p className="text-white/30 text-[10px] mt-2">
+                  <p className="text-muted text-xs mt-2">
                     Mean |SHAP| across {sv.n_samples_used} test samples.
                     Longer bar = more impact on model output.
                   </p>
@@ -1802,13 +1799,13 @@ export function MLAnalysisDashboard() {
                       variant="indigo"
                       title="What to look for"
                       points={[
-                        "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction — unlike feature importance which only measures average effect, SHAP explains individual predictions.",
-                        "Spatial rainfall features (rain_spatial_std, rain_max_station, rain_west, etc.) typically dominate: these capture how rainfall varies across Singapore's station network — high spatial variability signals active convective cells.",
+                        "SHAP (SHapley Additive exPlanations) measures HOW MUCH each input feature contributes to each prediction: unlike feature importance which only measures average effect, SHAP explains individual predictions.",
+                        "Spatial rainfall features (rain_spatial_std, rain_max_station, rain_west, etc.) typically dominate: these capture how rainfall varies across Singapore's station network: high spatial variability signals active convective cells.",
                         "rain_max_station / rain_region_max: The wettest single station reading. When one station sees heavy rain, nearby areas often follow within 1–2 hours as the storm cell moves.",
                         "rain_station_frac_wet: Fraction of stations reporting rain. A high fraction means island-wide rain (monsoon); a low fraction means localised convective showers.",
-                        "dry_spell_hours: Consecutive dry hours before this reading. A long dry spell lets heat and instability build up — the longer the drought, the more energetic the next rain event tends to be.",
+                        "dry_spell_hours: Consecutive dry hours before this reading. A long dry spell lets heat and instability build up: the longer the drought, the more energetic the next rain event tends to be.",
                         "wind_lag_1h: Wind speed 1 hour ago. Sudden changes in wind speed signal approaching fronts or convective systems.",
-                        "Other physically important features include hum_deficit (gap to saturation), wind_accel_3h (squall line detection), and time-of-day encoding — their SHAP ranking varies by model version.",
+                        "Other physically important features include hum_deficit (gap to saturation), wind_accel_3h (squall line detection), and time-of-day encoding: their SHAP ranking varies by model version.",
                         "The longer the bar, the more that feature moves individual predictions. Features not listed have negligible impact and were excluded to prevent overfitting.",
                       ]}
                       tip="SHAP tells a story per prediction: 'High spatial rain variability + wet station fraction rising + dry spell ending → model assigns high probability of rain in 1h.'"
@@ -1819,7 +1816,7 @@ export function MLAnalysisDashboard() {
             ))}
           </div>
         ) : (
-          <p className="text-white/40 text-sm text-center py-4">No SHAP values available yet</p>
+          <p className="text-muted text-sm text-center py-4">No SHAP values available yet</p>
         )}
       </Section>
     </div>

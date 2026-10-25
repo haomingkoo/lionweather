@@ -3,7 +3,7 @@ import { Wind } from "lucide-react";
 import { getAirQualityHistory, getAirQualityLatest } from "../api/airQuality";
 import {
   BAND_STROKE,
-  BAND_STYLES,
+  BAND_TEXT,
   formatSgtTime,
   nearestRegion,
   psiSeries,
@@ -18,7 +18,7 @@ function capitalise(s) {
 function BandBadge({ band }) {
   if (!band) return null;
   return (
-    <span className={`px-2 py-0.5 rounded-full border text-[11px] font-medium ${BAND_STYLES[band.key] || ""}`}>
+    <span className={`text-sm font-semibold ${BAND_TEXT[band.key] || "text-ink"}`}>
       {band.label}
     </span>
   );
@@ -70,31 +70,31 @@ export function AirQualityCard({ location = null }) {
     };
   }, []);
 
-  const shell = "rounded-2xl bg-white/5 border border-white/10 p-4 text-sm";
+  const shell = "rounded-panel border border-line bg-surface p-4 text-sm";
   const header = (
-    <div className="flex items-center gap-1.5 text-white/70 text-xs font-medium mb-2">
-      <Wind className="w-3.5 h-3.5" aria-hidden="true" />
-      <h2>Air quality / Haze</h2>
-    </div>
+    <h2 className="mb-2 flex items-center gap-1.5 text-base font-semibold">
+      <Wind className="h-4 w-4 text-muted" aria-hidden="true" />
+      Air quality
+    </h2>
   );
 
   if (!latest) {
     return (
       <section className={shell} aria-label="Air quality">
         {header}
-        <p className="text-white/50 text-xs">{failed ? "Air quality unavailable right now." : "Loading air quality…"}</p>
+        <p className="text-sm text-muted">{failed ? "Air quality is not available right now." : "Loading air quality..."}</p>
       </section>
     );
   }
 
   const links = (
-    <p className="text-white/40 text-[11px] mt-2">
-      NEA data.{" "}
-      <a href={latest.links?.haze} target="_blank" rel="noopener noreferrer" className="underline hover:text-white/70">
+    <p className="mt-3 flex flex-wrap items-center gap-x-1 text-xs text-muted">
+      From NEA.
+      <a href={latest.links?.haze} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-ink">
         haze.gov.sg
-      </a>{" "}
-      ·{" "}
-      <a href={latest.links?.nea} target="_blank" rel="noopener noreferrer" className="underline hover:text-white/70">
+      </a>
+      <span aria-hidden="true">·</span>
+      <a href={latest.links?.nea} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-ink">
         NEA advisories
       </a>
     </p>
@@ -105,7 +105,7 @@ export function AirQualityCard({ location = null }) {
     return (
       <section className={shell} aria-label="Air quality">
         {header}
-        <p className="text-amber-200 text-xs" role="status">
+        <p className="text-sm text-warn" role="status">
           Air quality unavailable from NEA right now.
           {last ? ` Last good reading: ${last}.` : ""}
         </p>
@@ -131,33 +131,33 @@ export function AirQualityCard({ location = null }) {
   return (
     <section className={shell} aria-label="Air quality">
       {header}
-      <p className="text-white/50 text-[11px] mb-2">{areaLabel}</p>
+      <p className="mb-2 text-sm text-muted">{areaLabel}</p>
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div className="text-white/50 text-[11px]">24-hr PSI</div>
-          <div className="text-white text-2xl font-light leading-tight" data-testid="psi-value">{psiText}</div>
+          <div className="text-sm text-muted">24-hour PSI</div>
+          <div className="text-2xl font-medium leading-tight tabular-nums" data-testid="psi-value">{psiText}</div>
         </div>
         <BandBadge band={psiBand} />
       </div>
       <div className="flex items-center justify-between gap-2 mt-2">
-        <div className="text-white/80 text-xs">
-          1-hr PM2.5 <span className="text-white font-medium" data-testid="pm25-value">{pm25}</span> µg/m³
+        <div className="text-sm text-muted">
+          1-hour PM2.5 <span className="font-medium tabular-nums text-ink" data-testid="pm25-value">{pm25}</span> µg/m³
         </div>
         <BandBadge band={pm25Band} />
       </div>
-      {psiBand && <p className="text-white/70 text-xs mt-2">{psiBand.advice}.</p>}
+      {psiBand && <p className="mt-2 text-sm">{psiBand.advice}.</p>}
       {pm25Band && pm25Band.key !== "normal" && (
-        <p className="text-white/70 text-xs mt-1">Next hour: {pm25Band.advice.replace(/ for the next hour$/, "")}.</p>
+        <p className="mt-1 text-sm">Next hour: {pm25Band.advice.replace(/ for the next hour$/, "")}.</p>
       )}
       <div className="mt-2">
-        {series.length > 1 && <div className="text-white/40 text-[10px]">PSI, last 24 h</div>}
+        {series.length > 1 && <div className="text-xs text-muted">PSI over the last 24 hours</div>}
         <Sparkline
           values={series}
-          stroke={BAND_STROKE[psiBand?.key] || "#94a3b8"}
+          stroke={BAND_STROKE[psiBand?.key] || "rgb(var(--muted))"}
           label={series.length ? `24-hr PSI over the last 24 hours, from ${series[0]} to ${series[series.length - 1]}` : ""}
         />
       </div>
-      <p className={`text-[11px] mt-1 ${latest.status === "stale" ? "text-amber-200" : "text-white/50"}`} role={latest.status === "stale" ? "status" : undefined}>
+      <p className={`mt-1 text-xs ${latest.status === "stale" ? "text-warn" : "text-muted"}`} role={latest.status === "stale" ? "status" : undefined}>
         {latest.status === "stale" ? `Delayed: last NEA reading ${updated}` : `Updated ${updated}`}
       </p>
       {links}

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Terms | LionWeather</title>
+    <meta name="description" content="The terms for using LionWeather." />
+    <script>
+      // Same rule as the app: light between roughly 7 am and 7 pm Singapore time, dark otherwise.
+      (function () {
+        var h = Number(new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "numeric", hour12: false }).format(new Date()));
+        if (h < 7 || h >= 19) document.documentElement.classList.add("dark");
+      })();
+    </script>
+    <style>
+      @font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+      @font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+      :root { color-scheme: light; --bg: #f4f6f9; --surface: #ffffff; --line: #d5dde7; --ink: #111827; --muted: #4b5563; --accent: #0369a1; }
+      :root.dark { color-scheme: dark; --bg: #0b1220; --surface: #131c2e; --line: #2b384c; --ink: #e8eef6; --muted: #9fb0c4; --accent: #7dd3fc; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.65; }
+      header, footer { background: var(--surface); border: 0 solid var(--line); }
+      header { border-bottom-width: 1px; }
+      footer { border-top-width: 1px; margin-top: 48px; }
+      .bar { max-width: 72rem; margin: 0 auto; padding: 0 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 24px; }
+      .logo { color: var(--ink); font-weight: 600; font-size: 18px; text-decoration: none; min-height: 56px; display: inline-flex; align-items: center; }
+      nav.sections a { color: var(--muted); text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; min-height: 48px; padding: 0 12px; }
+      nav.sections a:hover { color: var(--ink); }
+      main { max-width: 44rem; margin: 32px auto 0; padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+      a { color: var(--accent); text-underline-offset: 2px; }
+      a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+      h1 { font-size: 24px; line-height: 1.25; margin: 0 0 4px; }
+      h2 { font-size: 16px; margin: 32px 0 8px; }
+      p, li { font-size: 16px; }
+      li { margin: 4px 0; }
+      .muted { color: var(--muted); font-size: 14px; }
+      code { font-size: 14px; background: var(--bg); border: 1px solid var(--line); padding: 0 4px; border-radius: 4px; }
+      footer .bar { justify-content: flex-start; gap: 4px 8px; padding-top: 20px; padding-bottom: 20px; color: var(--muted); font-size: 14px; }
+      footer a { color: var(--muted); display: inline-flex; align-items: center; min-height: 24px; }
+      footer a:hover { color: var(--ink); }
+      @media (max-width: 720px) {
+        main { margin: 0; border: 0; border-radius: 0; padding: 24px 16px; }
+        .bar { padding: 0 16px; }
+        nav.sections { width: 100%; margin: 0 -12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <a class="logo" href="/">LionWeather</a>
+        <nav class="sections" aria-label="Sections">
+          <a href="/">Now</a>
+          <a href="/#map">Rain map</a>
+          <a href="/#model">Forecast model</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <h1>Terms</h1>
+      <p class="muted">Last updated 26 October 2026</p>
+
+      <p>
+        LionWeather is a free Singapore weather app run by Koo Haoming (individual, Singapore).
+        By using it you agree to these terms and to the <a href="/privacy.html">privacy notice</a>.
+      </p>
+
+      <h2>What the app is for</h2>
+      <p>
+        LionWeather shows weather readings and forecasts for general information. It is not an official warning service.
+        For weather warnings, flood alerts and haze advisories, follow NEA and PUB directly.
+      </p>
+
+      <h2>Where the data comes from</h2>
+      <p>
+        Readings and forecasts come from NEA through data.gov.sg and from Open-Meteo. The rain forecast model is our own and is often wrong.
+        Readings can be delayed, missing or inaccurate, and the app can be unavailable without notice.
+      </p>
+
+      <h2>No guarantee</h2>
+      <p>
+        The app is provided as it is. We are not responsible for decisions you make based on it, to the extent the law allows.
+      </p>
+
+      <h2>Fair use</h2>
+      <p>
+        Do not overload the service, scrape it at scale or try to get around its rate limits.
+      </p>
+
+      <h2>Changes and contact</h2>
+      <p>
+        We may update these terms and will change the date above when we do. Questions go to
+        <a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a>.
+      </p>
+    </main>
+
+    <footer>
+      <nav class="bar" aria-label="Site">
+        <span>© 2026 Haoming Koo</span><span aria-hidden="true">·</span>
+        <a href="/privacy.html">Privacy</a><span aria-hidden="true">·</span>
+        <a href="/terms.html">Terms</a><span aria-hidden="true">·</span>
+        <span>Contact (<a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a>)</span><span aria-hidden="true">·</span>
+        <span>More projects → <a href="https://kooexperience.com/">kooexperience.com</a></span>
+      </nav>
+    </footer>
+  </body>
+</html>
