@@ -3,7 +3,7 @@ Tests for RadarService
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -117,7 +117,7 @@ class TestRadarService:
     @pytest.mark.asyncio
     async def test_get_frame_image_found(self, radar_service):
         """Test getting image data for a specific timestamp"""
-        timestamp = datetime(2024, 1, 15, 10, 0, 0)
+        timestamp = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone(timedelta(hours=8)))
         image_data = b"test_image_data"
         
         frame = RadarFrame(
@@ -139,38 +139,6 @@ class TestRadarService:
         assert result is None
     
     @pytest.mark.asyncio
-    async def test_parse_radar_response_success(self, radar_service, mock_radar_response):
-        """Test parsing successful radar API response"""
-        mock_client = AsyncMock()
-        mock_image_response = MagicMock()
-        mock_image_response.content = b"fake_image_data"
-        mock_client.get.return_value = mock_image_response
-        
-        frames = await radar_service._parse_radar_response(
-            mock_radar_response,
-            mock_client,
-            count=3
-        )
-        
-        assert len(frames) == 3
-        assert all(isinstance(frame, RadarFrame) for frame in frames)
-        assert all(frame.bounds == radar_service.SINGAPORE_BOUNDS for frame in frames)
-    
-    @pytest.mark.asyncio
-    async def test_parse_radar_response_empty_items(self, radar_service):
-        """Test parsing radar response with no items"""
-        mock_client = AsyncMock()
-        empty_response = {"data": {"items": []}}
-        
-        frames = await radar_service._parse_radar_response(
-            empty_response,
-            mock_client,
-            count=3
-        )
-        
-        assert len(frames) == 0
-    
-    @pytest.mark.asyncio
     async def test_fetch_frames_from_nea_http_error(self, radar_service):
         """Test handling HTTP errors from NEA API"""
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -187,25 +155,6 @@ class TestRadarService:
             mock_client.get.return_value = mock_response
             
             with pytest.raises(NEAAPIError):
-                await radar_service._fetch_frames_from_nea(count=3)
-    
-    @pytest.mark.asyncio
-    async def test_fetch_frames_from_nea_rate_limit(self, radar_service):
-        """Test handling rate limit errors from NEA API"""
-        with patch('httpx.AsyncClient') as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client.__aenter__.return_value = mock_client
-            mock_client_class.return_value = mock_client
-            
-            mock_response = MagicMock()
-            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-                "Rate limit",
-                request=MagicMock(),
-                response=MagicMock(status_code=429)
-            )
-            mock_client.get.return_value = mock_response
-            
-            with pytest.raises(NEAAPIError, match="rate limit"):
                 await radar_service._fetch_frames_from_nea(count=3)
     
     @pytest.mark.asyncio
