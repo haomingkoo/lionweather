@@ -1,26 +1,26 @@
 import os
-import sqlite3
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+
+from app.db.database import get_engine
 
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
-DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
-
-
-def get_db():
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    return con
+def _fetch_location(conn, location_id: int):
+    return conn.execute(
+        text("SELECT * FROM locations WHERE id = :id"), {"id": location_id}
+    ).fetchone()
 
 
 def row_to_dict(row):
     if row is None:
         return None
-    d = dict(row)
+    d = dict(row._mapping)
     weather = {
         "condition": d.pop("weather_condition", None),
         "observed_at": d.pop("weather_observed_at", None),
@@ -35,11 +35,10 @@ def row_to_dict(row):
 
 @router.get("")
 def list_locations():
-    con = get_db()
-    rows = con.execute(
-        "SELECT * FROM locations ORDER BY created_at DESC, id DESC"
-    ).fetchall()
-    con.close()
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM locations ORDER BY created_at DESC, id DESC")
+        ).fetchall()
     return {"locations": [row_to_dict(row) for row in rows]}
 
 
@@ -79,27 +78,24 @@ def create_location(payload: dict):
         )
 
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
-    con = get_db()
     try:
-        cursor = con.execute(
-            """INSERT INTO locations (latitude, longitude, created_at, weather_condition, weather_source)
-               VALUES (?, ?, ?, 'Not refreshed', 'not-refreshed')""",
-            (latitude, longitude, now),
-        )
-        con.commit()
-        row = con.execute("SELECT * FROM locations WHERE id = ?", (cursor.lastrowid,)).fetchone()
-    except sqlite3.IntegrityError:
-        con.close()
+        with get_engine().begin() as conn:
+            new_id = conn.execute(
+                text("""INSERT INTO locations (latitude, longitude, created_at, weather_condition, weather_source)
+                        VALUES (:lat, :lng, :now, 'Not refreshed', 'not-refreshed')
+                        RETURNING id"""),
+                {"lat": latitude, "lng": longitude, "now": now},
+            ).scalar_one()
+            row = _fetch_location(conn, new_id)
+    except IntegrityError:
         raise HTTPException(status_code=409, detail="Location already exists") from None
-    con.close()
     return row_to_dict(row)
 
 
 @router.get("/{location_id}")
 def get_location(location_id: int):
-    con = get_db()
-    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
-    con.close()
+    with get_engine().connect() as conn:
+        row = _fetch_location(conn, location_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Location not found")
     return row_to_dict(row)
@@ -107,24 +103,20 @@ def get_location(location_id: int):
 
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_location(location_id: int):
-    con = get_db()
-    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
-    if row is None:
-        con.close()
+    with get_engine().begin() as conn:
+        deleted = conn.execute(
+            text("DELETE FROM locations WHERE id = :id"), {"id": location_id}
+        ).rowcount
+    if not deleted:
         raise HTTPException(status_code=404, detail="Location not found")
-    
-    con.execute("DELETE FROM locations WHERE id = ?", (location_id,))
-    con.commit()
-    con.close()
     return None
 
 
 @router.post("/{location_id}/refresh")
 def refresh_location(location_id: int):
-    con = get_db()
-    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
+    with get_engine().connect() as conn:
+        row = _fetch_location(conn, location_id)
     if row is None:
-        con.close()
         raise HTTPException(status_code=404, detail="Location not found")
 
     api_key = os.getenv("WEATHERAPI_KEY")  # Fixed: was WEATHER_API_KEY
@@ -132,30 +124,29 @@ def refresh_location(location_id: int):
 
     try:
         snapshot = client.get_current_weather(
-            latitude=row["latitude"],
-            longitude=row["longitude"],
+            latitude=row.latitude,
+            longitude=row.longitude,
         )
     except WeatherProviderError as exc:
-        con.close()
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
-    con.execute(
-        """UPDATE locations
-           SET weather_condition = ?, weather_observed_at = ?, weather_source = ?,
-               weather_area = ?, weather_valid_period_text = ?, weather_refreshed_at = ?
-           WHERE id = ?""",
-        (
-            snapshot["condition"],
-            snapshot["observed_at"],
-            snapshot["source"],
-            snapshot["area"],
-            snapshot["valid_period_text"],
-            now,
-            location_id,
-        ),
-    )
-    con.commit()
-    row = con.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
-    con.close()
+    with get_engine().begin() as conn:
+        conn.execute(
+            text("""UPDATE locations
+                    SET weather_condition = :condition, weather_observed_at = :observed_at,
+                        weather_source = :source, weather_area = :area,
+                        weather_valid_period_text = :valid_period_text, weather_refreshed_at = :now
+                    WHERE id = :id"""),
+            {
+                "condition": snapshot["condition"],
+                "observed_at": snapshot["observed_at"],
+                "source": snapshot["source"],
+                "area": snapshot["area"],
+                "valid_period_text": snapshot["valid_period_text"],
+                "now": now,
+                "id": location_id,
+            },
+        )
+        row = _fetch_location(conn, location_id)
     return row_to_dict(row)
