@@ -15,6 +15,17 @@ from datetime import datetime
 from app.services.forecast_collector import ForecastCollector
 from app.services.forecast_store import ForecastStore
 from app.db.database import fetch_all, execute_sql
+from app.db import database
+from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
+
+
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Run each test against a fresh SQLite database with the real schema."""
+    monkeypatch.setattr(database, "_database_url", f"sqlite:///{tmp_path / 'test.db'}")
+    monkeypatch.setattr(database, "_engine", None)
+    migrate_ml_tables()
+    migrate_forecast_tables()
 
 
 class TestForecastDataTableSchema:
