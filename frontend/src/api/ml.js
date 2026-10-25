@@ -24,46 +24,6 @@ async function requestML(url, options = {}) {
   }
 }
 
-// New ML endpoints
-export async function get24HourPredictions(
-  country,
-  location = null,
-  parameter = "temperature",
-) {
-  const params = new URLSearchParams({ country, parameter });
-  if (location) params.append("location", location);
-  return requestML(`/ml/predictions/24h?${params}`);
-}
-
-export async function get7DayPredictions(
-  country,
-  location = null,
-  parameter = "temperature",
-) {
-  const params = new URLSearchParams({ country, parameter });
-  if (location) params.append("location", location);
-  return requestML(`/ml/predictions/7d?${params}`);
-}
-
-export async function getCurrentWeather(country, location = null) {
-  const params = new URLSearchParams({ country });
-  if (location) params.append("location", location);
-  return requestML(`/ml/predictions/current?${params}`);
-}
-
-export async function getAccuracyMetrics(parameter = "temperature") {
-  return requestML(`/ml/metrics/accuracy?parameter=${parameter}`);
-}
-
-export async function getModelComparison(
-  parameter = "temperature",
-  windowDays = 30,
-) {
-  return requestML(
-    `/ml/metrics/comparison?parameter=${parameter}&window_days=${windowDays}`,
-  );
-}
-
 export async function getTrainingStatus() {
   return requestML("/ml/training/status");
 }
