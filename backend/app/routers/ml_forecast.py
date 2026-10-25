@@ -96,18 +96,6 @@ def get_benchmark_results():
     }
 
 
-@router.post("/record-actual")
-def record_actual_weather(actual_data: dict):
-    """
-    Record actual weather for benchmarking
-    
-    This endpoint receives actual weather data and compares it
-    against both our predictions and official forecasts
-    """
-    # TODO: Implement actual weather recording and comparison
-    return {"status": "recorded", "message": "Actual weather data recorded for benchmarking"}
-
-
 @router.get("/compare/{location_id}")
 def compare_forecasts(location_id: int):
     """

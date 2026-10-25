@@ -305,6 +305,8 @@ app = FastAPI(
     description="AI-powered weather forecasting for Singapore, Malaysia, and Indonesia",
     version="1.0.0",
     lifespan=lifespan,
+    # Hide the interactive API docs on Railway; keep them for local dev.
+    **({"docs_url": None, "redoc_url": None, "openapi_url": None} if os.getenv("RAILWAY_ENVIRONMENT") else {}),
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -412,9 +414,9 @@ def status_check(request: Request):
             total_records += row._mapping["total"] or 0
             records_last_hour += row._mapping["last_1h"] or 0
             records_last_24h += row._mapping["last_24h"] or 0
-    except Exception as e:
-        logger.error(f"Status check failed querying weather_records: {e}")
-        sources = [{"error": str(e)}]
+    except Exception:
+        logger.exception("Status check failed querying weather_records")
+        sources = [{"error": "query failed"}]
 
     try:
         frows = fetch_all("""
@@ -435,9 +437,9 @@ def status_check(request: Request):
                 "latest_collected": row._mapping["latest"],
             })
             forecast_total += row._mapping["total"] or 0
-    except Exception as e:
-        logger.error(f"Status check failed querying forecast_data: {e}")
-        forecast_sources = [{"error": str(e)}]
+    except Exception:
+        logger.exception("Status check failed querying forecast_data")
+        forecast_sources = [{"error": "query failed"}]
 
     return {
         "status": "healthy",

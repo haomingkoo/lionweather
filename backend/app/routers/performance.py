@@ -1,8 +1,10 @@
 import os
 import sqlite3
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict
+
+from app.admin_auth import admin_header
 
 router = APIRouter(prefix="/performance", tags=["performance"])
 
@@ -15,7 +17,7 @@ def get_db():
     return con
 
 
-@router.post("/record-prediction")
+@router.post("/record-prediction", dependencies=[Depends(admin_header)])
 def record_prediction(prediction_data: dict):
     """
     Record a prediction for future benchmarking
@@ -57,7 +59,7 @@ def record_prediction(prediction_data: dict):
     return {"id": prediction_id, "status": "recorded"}
 
 
-@router.post("/record-actual")
+@router.post("/record-actual", dependencies=[Depends(admin_header)])
 def record_actual_weather(actual_data: dict):
     """
     Record actual weather and calculate performance metrics

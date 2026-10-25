@@ -5,11 +5,12 @@ Provides real-time rainfall predictions using trained Prophet models.
 NO MOCK DATA - only returns predictions from real trained models.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Optional
 from datetime import datetime
 import logging
 
+from app.admin_auth import admin_header
 from app.services.ml_prediction_service import get_ml_prediction_service
 
 router = APIRouter(prefix="/api/ml-predictions", tags=["ml-predictions"])
@@ -33,7 +34,7 @@ async def get_ml_status() -> Dict:
     }
 
 
-@router.post("/predict")
+@router.post("/predict", dependencies=[Depends(admin_header)])
 async def predict_rainfall(
     current_data: Dict,
     horizon: int = 3
@@ -84,7 +85,7 @@ async def predict_rainfall(
     return prediction
 
 
-@router.post("/predict-all")
+@router.post("/predict-all", dependencies=[Depends(admin_header)])
 async def predict_all_horizons(current_data: Dict) -> Dict:
     """
     Predict rainfall for all available horizons (1h, 3h, 6h, 12h, 24h).

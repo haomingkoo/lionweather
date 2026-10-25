@@ -135,7 +135,7 @@ async def get_data_health_status():
         }
     except Exception as e:
         logger.error(f"Failed to get data health status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/gaps")
@@ -145,7 +145,7 @@ async def get_data_gaps():
         return {"total_gaps": len(gaps), "gaps": gaps}
     except Exception as e:
         logger.error(f"Failed to detect data gaps: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/quality")
@@ -211,7 +211,7 @@ async def get_data_quality():
         }
     except Exception as e:
         logger.error(f"Failed to analyze data quality: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/timeline")
@@ -243,7 +243,7 @@ async def get_data_timeline():
         }
     except Exception as e:
         logger.error(f"Failed to get data timeline: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def detect_data_gaps() -> list[dict[str, Any]]:

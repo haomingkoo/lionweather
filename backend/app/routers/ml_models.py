@@ -7,14 +7,15 @@ Provides web-hosted access to:
 - Model comparison
 - Version activation
 
-All endpoints are publicly accessible (read-only, no auth required).
+Read endpoints are public; version activation requires X-Admin-Secret.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, List, Optional
 import json
 import logging
 
+from app.admin_auth import admin_header
 from app.db.database import fetch_all, fetch_one, execute_sql
 
 router = APIRouter(prefix="/api/ml", tags=["ml-models"])
@@ -272,7 +273,7 @@ async def get_current_model(model_name: str) -> Dict:
     }
 
 
-@router.post("/versions/{version}/activate")
+@router.post("/versions/{version}/activate", dependencies=[Depends(admin_header)])
 async def activate_model(version: str, model_name: str) -> Dict:
     """
     Set a model version as the active production model.
@@ -403,7 +404,8 @@ async def get_forecast_benchmark() -> Dict:
             data = json.load(f)
         return {"status": "ok", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read benchmark: {e}")
+        logger.exception("Failed to read benchmark")
+        raise HTTPException(status_code=500, detail="Failed to read benchmark")
 
 
 @router.get("/full-analysis")
@@ -432,7 +434,8 @@ async def get_full_analysis() -> Dict:
             data = json.load(f)
         return {"status": "ok", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read full analysis: {e}")
+        logger.exception("Failed to read full analysis")
+        raise HTTPException(status_code=500, detail="Failed to read full analysis")
 
 
 @router.get("/historical-benchmark")
@@ -459,7 +462,8 @@ async def get_historical_benchmark() -> Dict:
             data = json.load(f)
         return {"status": "ok", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read historical benchmark: {e}")
+        logger.exception("Failed to read historical benchmark")
+        raise HTTPException(status_code=500, detail="Failed to read historical benchmark")
 
 
 @router.get("/data-sanity")
@@ -518,7 +522,8 @@ async def get_data_sanity_check() -> Dict:
         return result
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sanity check failed: {e}")
+        logger.exception("Sanity check failed")
+        raise HTTPException(status_code=500, detail="Sanity check failed")
 
 
 # ---------------------------------------------------------------------------
@@ -773,4 +778,5 @@ async def get_nea_benchmark() -> Dict:
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"NEA benchmark failed: {e}")
+        logger.exception("NEA benchmark failed")
+        raise HTTPException(status_code=500, detail="NEA benchmark failed")
