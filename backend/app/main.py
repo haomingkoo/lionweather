@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import hmac
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -288,7 +289,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 def _require_admin(secret: str | None) -> None:
     """Raise 403 if the provided secret does not match ADMIN_SECRET env var."""
     expected = os.getenv("ADMIN_SECRET")
-    if not expected or secret != expected:
+    if not expected or not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
 
 
@@ -451,9 +452,7 @@ async def export_data(
     country: str = None,
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
     """
     Export raw database records as CSV or JSON for inspection.
 
@@ -510,9 +509,7 @@ async def export_data(
 async def trigger_forecast_collection(
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
     """
     Manually trigger forecast collection (for testing/debugging).
     
@@ -573,9 +570,7 @@ async def trigger_forecast_collection(
 async def trigger_collection(
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
     """
     Manually trigger data collection (for testing/debugging).
     
@@ -643,9 +638,7 @@ async def remove_duplicates(
     dry_run: bool = True,
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
     """
     Remove duplicate weather records from the database.
     
@@ -774,9 +767,7 @@ async def trigger_retrain(
 
     Poll GET /admin/retrain-status to check progress.
     """
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
 
     if _retrain_state["status"] == "running":
         return {
@@ -832,9 +823,7 @@ async def retrain_status(
     x_admin_secret: str = Header(default=None, alias="X-Admin-Secret"),
 ):
     """Check the status of the most recent retrain job."""
-    expected = os.getenv("ADMIN_SECRET")
-    if not expected or x_admin_secret != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Secret header")
+    _require_admin(x_admin_secret)
 
     return {
         "status": _retrain_state["status"],
