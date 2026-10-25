@@ -24,6 +24,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { getFullAnalysis } from "../api/ml";
+import { climateBullets } from "../utils/climateSummary";
 
 // ---------------------------------------------------------------------------
 // Colour palette for chart lines
@@ -465,69 +466,7 @@ function StackedBarChart({ years, stacks, height = 70 }) {
 
 function AnalysisSummary({ ct }) {
   const years = ct.years_covered || [];
-  const annual = ct.annual || {};
-  const trends = ct.long_term_trends || {};
-  const rec = ct.all_time_records || {};
-
-  if (years.length < 2) return null;
-
-  // Wettest and driest year
-  const byRain = years
-    .map((y) => ({ year: y, total: annual[y]?.rainfall?.total_mm ?? 0 }))
-    .sort((a, b) => b.total - a.total);
-  const wettest = byRain[0];
-  const driest  = byRain[byRain.length - 1];
-
-  // Hottest year
-  const byTemp = years
-    .map((y) => ({ year: y, mean: annual[y]?.temperature?.mean_c ?? 0 }))
-    .sort((a, b) => b.mean - a.mean);
-  const hottestYear = byTemp[0];
-
-  // Thundery trend
-  const thundery2016 = annual["2016"]?.rainfall?.thundery_events ?? null;
-  const thundery2024 = annual["2024"]?.rainfall?.thundery_events ?? null;
-  const thunderyChange = (thundery2016 != null && thundery2024 != null)
-    ? thundery2024 - thundery2016 : null;
-
-  const tTrend = trends.temperature_mean;
-  const rTrend = trends.rainfall_total;
-
-  const bullets = [];
-
-  // Rainfall
-  if (wettest && driest) {
-    bullets.push(`${wettest.year} was the wettest year on record (${wettest.total.toLocaleString()} mm island-wide), while ${driest.year} was the driest (${driest.total.toLocaleString()} mm), a ${((wettest.total / driest.total - 1) * 100).toFixed(0)}% swing.`);
-  }
-
-  // Temperature trend
-  if (tTrend?.significant) {
-    bullets.push(`Temperatures are rising at +${tTrend.slope_per_year.toFixed(3)}°C per year (p=${tTrend.p_value}, R²=${tTrend.r_squared}), consistent with Singapore's urban heat island effect and broader regional warming.`);
-  } else if (tTrend) {
-    bullets.push(`No statistically significant warming trend detected over the study period (p=${tTrend.p_value}), though year-to-year variability exists. Longer time series are needed to confirm.`);
-  }
-
-  // Hottest year
-  if (hottestYear) {
-    bullets.push(`${hottestYear.year} was the warmest on average (${hottestYear.mean.toFixed(1)}°C mean). The all-time record was ${rec.hottest_hour?.value_c}°C on ${rec.hottest_hour?.date}.`);
-  }
-
-  // Thundery events
-  if (thunderyChange != null) {
-    const dir = thunderyChange > 0 ? "increased" : "decreased";
-    bullets.push(`Thundery shower hours ${dir} from ${thundery2016} in 2016 to ${thundery2024} in 2024, suggesting ${thunderyChange > 0 ? "more intense convective activity" : "fewer but potentially more intense storm episodes"}.`);
-  }
-
-  // Rainfall trend
-  if (rTrend?.significant) {
-    bullets.push(`Annual rainfall shows a statistically significant ${rTrend.trend} trend (${rTrend.slope_per_year > 0 ? "+" : ""}${rTrend.slope_per_year.toFixed(0)} mm/yr).`);
-  }
-
-  // All-time records
-  if (rec.wettest_hour) {
-    bullets.push(`The single wettest hour recorded was ${rec.wettest_hour.value_mm} mm on ${rec.wettest_hour.date}, likely a severe convective storm. The windiest hour hit ${rec.windiest_hour?.value_kmh} km/h on ${rec.windiest_hour?.date}.`);
-  }
-
+  const bullets = climateBullets(ct);
   if (bullets.length === 0) return null;
 
   return (
@@ -542,7 +481,7 @@ function AnalysisSummary({ ct }) {
         ))}
       </ul>
       <p className="text-muted text-xs">
-        Based on NEA station data 2016–2024 · island-wide aggregate · {years.length} years
+        NEA rain gauge data, {years.length} full years from {years[0]} to {years[years.length - 1]}. Rainfall is the average across gauges.
       </p>
     </div>
   );
@@ -574,10 +513,10 @@ function ClimateTrendsSection({ ct }) {
   const rTrend = trends.rainfall_total;
 
   const records = [
-    { icon: Droplets, label: "Wettest Hour",    value: rec.wettest_hour  ? `${rec.wettest_hour.value_mm} mm`  : "n/a", date: rec.wettest_hour?.date,  color: "text-accent" },
-    { icon: Thermometer, label: "Hottest Hour", value: rec.hottest_hour  ? `${rec.hottest_hour.value_c}°C`   : "n/a", date: rec.hottest_hour?.date,  color: "text-warn" },
-    { icon: Thermometer, label: "Coolest Hour", value: rec.coolest_hour  ? `${rec.coolest_hour.value_c}°C`   : "n/a", date: rec.coolest_hour?.date,  color: "text-accent" },
-    { icon: Wind,        label: "Windiest Hour",value: rec.windiest_hour ? `${rec.windiest_hour.value_kmh} km/h` : "n/a", date: rec.windiest_hour?.date, color: "text-accent" },
+    { icon: Droplets,    label: "Wettest hour at one gauge",        value: rec.wettest_station_hour ? `${rec.wettest_station_hour.value_mm} mm` : "n/a", date: rec.wettest_station_hour?.date, color: "text-accent" },
+    { icon: Thermometer, label: "Hottest hour, island average",     value: rec.hottest_hour  ? `${rec.hottest_hour.value_c}°C`      : "n/a", date: rec.hottest_hour?.date,  color: "text-warn" },
+    { icon: Thermometer, label: "Coolest hour, island average",     value: rec.coolest_hour  ? `${rec.coolest_hour.value_c}°C`      : "n/a", date: rec.coolest_hour?.date,  color: "text-accent" },
+    { icon: Wind,        label: "Windiest hour, island average",    value: rec.windiest_hour ? `${rec.windiest_hour.value_kmh} km/h` : "n/a", date: rec.windiest_hour?.date, color: "text-accent" },
   ];
 
   return (
@@ -585,7 +524,7 @@ function ClimateTrendsSection({ ct }) {
       {/* All-time records */}
       <div>
         <p className="text-muted text-xs font-medium mb-2 flex items-center gap-1">
-          <Trophy className="w-3 h-3" /> All-time records (2016–2024)
+          <Trophy className="w-3 h-3" /> Records
         </p>
         <div className="grid grid-cols-2 gap-2">
           {records.map((r) => (
@@ -603,10 +542,12 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Annual rainfall totals */}
       <div>
-        <p className="text-muted text-xs mb-2">Annual Rainfall Total (mm), each bar = one year</p>
-        <p className="text-muted text-xs mb-1.5 italic">
-          Note: Island-wide station aggregate: sum of all NEA rain gauge readings, not depth at a single point. Values are proportional; relative differences between years are meaningful.
-        </p>
+        <p className="text-muted text-xs mb-2">Rainfall per year, averaged across rain gauges (mm)</p>
+        {ct.partial_years_excluded?.length > 0 && (
+          <p className="text-muted text-xs mb-1.5">
+            Left out because readings are missing for more than a tenth of the year: {ct.partial_years_excluded.join(", ")}.
+          </p>
+        )}
         <MiniBarChart
           data={displayRainfallTotals}
           height={120}
@@ -623,7 +564,7 @@ function ClimateTrendsSection({ ct }) {
           variant="blue"
           title="What to look for"
           points={[
-            `Each bar = total rainfall for one year (all NEA rain stations aggregated). Singapore averages ~2,300 mm/year. Year-to-year swings are driven by El Niño (drier) and La Niña (wetter).`,
+            "Each bar is one full year of rain, averaged across NEA rain gauges. Year-to-year swings are driven by El Niño (drier) and La Niña (wetter).",
             rTrend?.significant
               ? `Rainfall is ${rTrend.trend} by ~${Math.abs(rTrend.slope_per_year).toFixed(0)} mm/year (p=${rTrend.p_value}). Singapore is getting wetter.`
               : "No strong long-term trend: rainfall varies year to year but isn't systematically changing yet.",
@@ -634,7 +575,7 @@ function ClimateTrendsSection({ ct }) {
 
       {/* Rain category breakdown */}
       <div>
-        <p className="text-muted text-xs mb-2">Rain Category Breakdown (% of hours)</p>
+        <p className="text-muted text-xs mb-2">Share of gauge-hours in each rain category (%)</p>
         <StackedBarChart years={displayYears} stacks={rainCatStacks} height={110} />
         <div className="flex flex-wrap gap-3 mt-2">
           {rainCatStacks.map((s) => (
@@ -648,12 +589,9 @@ function ClimateTrendsSection({ ct }) {
           variant="blue"
           title="What to look for"
           points={[
-            "Each bar represents one year, split into the percentage of hours that fell into each rain category. Most hours (70–80%) in Singapore are dry: rain is intense but short-lived.",
-            "Light Rain (green) makes up the bulk of rainy hours. Heavy Rain (yellow) and Thundery (pink) are small slices, but contribute disproportionately to total rainfall volume.",
-            "Thundery showers have been increasing visibly from 2020 onwards, consistent with Singapore's wetter inter-monsoon seasons. Heavy Rain also shows a slight upward trend.",
-            "No Rain dominating the chart is normal: Singapore averages ~160 rainy days per year, but rain typically lasts only 1–2 hours per event.",
+            "Each bar is one year. Every hour at every gauge counts once, and is sorted by how much rain that gauge caught: under 0.1 mm is no rain, under 7.6 mm light, under 30 mm heavy, 30 mm or more thundery.",
+            "Most gauge-hours are dry. Light rain makes up most of the rest; heavy and thundery hours are small slices but bring a large share of the total rain.",
           ]}
-          tip="Tip: A growing pink (Thundery) slice year-over-year suggests more convective activity, important for flood risk planning."
         />
       </div>
 
@@ -710,8 +648,7 @@ function ClimateTrendsSection({ ct }) {
         const stlTicks = [];
         for (let i = 0; i < nMonths; i += 12) {
           stlTickIndices.push(i);
-          const yearIdx = Math.floor(i / 12);
-          stlTicks.push(years[yearIdx] ? String(years[yearIdx]) : "");
+          stlTicks.push(stl.dates?.[i]?.slice(0, 4) ?? "");
         }
         return (
         <div>
@@ -754,6 +691,9 @@ function ClimateTrendsSection({ ct }) {
     </div>
   );
 }
+
+// Hourly values; rainfall is the average across gauges.
+const EDA_UNITS = { rainfall: "mm/h", temperature: "°C", humidity: "%", wind_speed: "km/h" };
 
 // ---------------------------------------------------------------------------
 // Section wrapper
@@ -885,17 +825,19 @@ export function MLAnalysisDashboard() {
         </div>
         {data.eda?.[selectedVar] && (() => {
           const e = data.eda[selectedVar];
+          const unit = EDA_UNITS[selectedVar];
+          const u = (label) => (unit ? `${label} (${unit})` : label);
           return (
             <div className="space-y-4">
               {/* Stats grid */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  ["Mean",     e.mean],
-                  ["Std",      e.std],
+                  [u("Mean"),   e.mean],
+                  [u("Std"),    e.std],
                   ["Skewness", e.skewness],
                   ["Kurtosis", e.kurtosis],
-                  ["P50",      e.p50],
-                  ["P99",      e.p99],
+                  [u("P50"),    e.p50],
+                  [u("P99"),    e.p99],
                 ].map(([label, val]) => {
                   const num = parseFloat(val);
                   const display = Number.isFinite(num)
@@ -1277,8 +1219,8 @@ export function MLAnalysisDashboard() {
         {hr.regression && (
           <div className="grid grid-cols-2 gap-2 mb-4">
             {[
-              ["MAE (mm)", hr.regression.mae],
-              ["RMSE (mm)", hr.regression.rmse],
+              ["MAE (mm, all gauges added together)", hr.regression.mae],
+              ["RMSE (mm, all gauges added together)", hr.regression.rmse],
               ["Train samples", hr.n_train?.toLocaleString()],
               ["Test samples", hr.n_test?.toLocaleString()],
             ].map(([label, val]) => (
