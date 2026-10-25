@@ -12,6 +12,7 @@ import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 import numpy as np
+from scipy import stats
 
 from app.ml.alerting_service import (
     AlertingService,
@@ -327,11 +328,15 @@ def test_check_prediction_drift_no_drift(alerting_service, temp_db):
         cursor = con.cursor()
         
         now = datetime.now()
+        # Evenly spaced quantiles of N(28, 2): same distribution, no sampling noise
+        def quantiles(n):
+            return stats.norm.ppf((np.arange(n) + 0.5) / n, loc=28.0, scale=2.0)
+        baseline_values = quantiles(144)
+        recent_values = quantiles(24)
         
         # Baseline predictions (7 days ago to 1 day ago)
-        for i in range(168, 24, -1):  # 168 hours = 7 days
+        for i, predicted_value in zip(range(168, 24, -1), baseline_values):  # 168 hours = 7 days
             timestamp = (now - timedelta(hours=i)).isoformat()
-            predicted_value = np.random.normal(28.0, 2.0)  # Mean=28, std=2
             cursor.execute("""
                 INSERT INTO predictions (
                     model_id, prediction_timestamp, target_timestamp,
@@ -345,9 +350,8 @@ def test_check_prediction_drift_no_drift(alerting_service, temp_db):
             ))
         
         # Recent predictions (last 24 hours) - similar distribution
-        for i in range(24, 0, -1):
+        for i, predicted_value in zip(range(24, 0, -1), recent_values):
             timestamp = (now - timedelta(hours=i)).isoformat()
-            predicted_value = np.random.normal(28.0, 2.0)  # Same distribution
             cursor.execute("""
                 INSERT INTO predictions (
                     model_id, prediction_timestamp, target_timestamp,
@@ -517,7 +521,7 @@ def test_check_data_quality_missing_data(alerting_service, temp_db):
         
         assert alert is not None
         assert alert.alert_type == 'data_quality'
-        assert 'missing' in alert.message.lower() or 'insufficient' in alert.message.lower()
+        assert sorted(alert.details['missing_locations']) == ['Jurong', 'Woodlands']
         assert 'country' in alert.details
         assert alert.details['country'] == 'singapore'
 
