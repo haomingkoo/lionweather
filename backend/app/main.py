@@ -45,6 +45,7 @@ from app.routers.historical_data import router as historical_data_router
 from app.routers.ml_predictions import router as ml_predictions_router
 from app.routers.ml_models import router as ml_models_router
 from app.routers.air_quality import router as air_quality_router
+from app.routers.haze import router as haze_router
 from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
 from app.db.database import execute_sql, get_database_url, get_safe_database_url
 from app.services.radar_service import get_radar_service
@@ -350,6 +351,7 @@ app.include_router(historical_data_router)
 app.include_router(ml_predictions_router)
 app.include_router(ml_models_router)
 app.include_router(air_quality_router, prefix="/api")
+app.include_router(haze_router, prefix="/api")
 
 
 @app.get("/health")
