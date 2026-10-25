@@ -232,5 +232,5 @@ async def reverse_geocode(lat: float, lng: float) -> str:
         return area
     
     except Exception as e:
-        print(f"Reverse geocoding failed: {e}")
+        print(f"Reverse geocoding failed: {type(e).__name__}")  # httpx errors carry the URL with coordinates
         return "Unknown Area"
