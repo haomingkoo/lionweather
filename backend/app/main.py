@@ -44,13 +44,13 @@ from app.routers.historical_data import router as historical_data_router
 from app.routers.ml_predictions import router as ml_predictions_router
 from app.routers.ml_models import router as ml_models_router
 from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
-from app.db.database import execute_sql, get_database_url
+from app.db.database import execute_sql, get_database_url, get_safe_database_url
 from app.services.radar_service import get_radar_service
 
 
 def init_db():
     """Initialize database tables (works with both SQLite and PostgreSQL)"""
-    logger.info(f"Initializing database: {get_database_url()}")
+    logger.info(f"Initializing database: {get_safe_database_url()}")  # never log the password
     
     # Use SERIAL for PostgreSQL, INTEGER PRIMARY KEY AUTOINCREMENT for SQLite
     # SQLAlchemy handles this automatically
