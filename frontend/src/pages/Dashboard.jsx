@@ -6,7 +6,7 @@ import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { MLLiveForecast } from "../components/MLLiveForecast";
 import { AnimatedBackground } from "../components/AnimatedBackground";
 import { useLocations } from "../hooks/useLocations";
-import { Github, Bell, BellOff } from "lucide-react";
+import { Github, Bell, BellOff, MapPin, MapPinOff } from "lucide-react";
 
 export function Dashboard() {
   const [view, setView] = useState("list");
@@ -17,6 +17,8 @@ export function Dashboard() {
     addLocationFromGeolocation,
     rainNotifyEnabled,
     setRainNotifyEnabled,
+    liveLocationEnabled,
+    setLiveLocationEnabled,
   } = useLocations();
 
   // Check if user has a current location (from geolocation)
@@ -163,8 +165,32 @@ export function Dashboard() {
                     {geoError ? (
                       <p className="text-red-400 text-[11px] mt-1 text-center">{geoError}</p>
                     ) : (
-                      <p className="text-slate-500 text-[11px] mt-1 text-center">Your location stays in your browser — never sent to our servers.</p>
+                      <p className="text-slate-500 text-[11px] mt-1 text-center">
+                        Your coordinates go to our server, Open-Meteo and OpenStreetMap to get weather. Our app does not save them.{" "}
+                        <a href="/privacy.html" className="underline hover:text-slate-300">Privacy</a>
+                      </p>
                     )}
+                  </div>
+                )}
+                {hasCurrentLocation && (
+                  <div>
+                    <button
+                      onClick={() => setLiveLocationEnabled(!liveLocationEnabled)}
+                      aria-pressed={liveLocationEnabled}
+                      className={`w-full px-4 py-2 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                        liveLocationEnabled
+                          ? "bg-blue-600/20 border-blue-500/30 text-blue-300 hover:bg-blue-600/30"
+                          : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                      }`}
+                    >
+                      {liveLocationEnabled ? <MapPin className="w-3.5 h-3.5" /> : <MapPinOff className="w-3.5 h-3.5" />}
+                      {liveLocationEnabled ? "Live location on" : "Live location off"}
+                    </button>
+                    <p className="text-slate-500 text-[11px] mt-1 text-center">
+                      {liveLocationEnabled
+                        ? "Re-reads your GPS every 15 minutes while this tab is open. Tap to turn off."
+                        : "Your location card keeps its last reading. Tap to update it every 15 minutes."}
+                    </p>
                   </div>
                 )}
                 {/* Rain notification toggle */}
@@ -198,6 +224,16 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      <footer className="border-t border-slate-800 relative">
+        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+          <span>LionWeather Lab by Koo Haoming</span>
+          <nav className="flex items-center gap-4">
+            <a href="/privacy.html" className="hover:text-white transition-colors">Privacy</a>
+            <a href="https://github.com/haomingkoo/lionweather" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

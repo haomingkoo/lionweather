@@ -1,10 +1,11 @@
 import os
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from app.admin_auth import admin_header
 from app.db.database import get_engine
 
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
@@ -33,7 +34,7 @@ def row_to_dict(row):
     return d
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(admin_header)])
 def list_locations():
     with get_engine().connect() as conn:
         rows = conn.execute(
@@ -64,7 +65,7 @@ def nearest_area(lat: float, lng: float):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(admin_header)])
 def create_location(payload: dict):
     latitude = payload.get("latitude")
     longitude = payload.get("longitude")
@@ -92,7 +93,7 @@ def create_location(payload: dict):
     return row_to_dict(row)
 
 
-@router.get("/{location_id}")
+@router.get("/{location_id}", dependencies=[Depends(admin_header)])
 def get_location(location_id: int):
     with get_engine().connect() as conn:
         row = _fetch_location(conn, location_id)
@@ -101,7 +102,7 @@ def get_location(location_id: int):
     return row_to_dict(row)
 
 
-@router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(admin_header)])
 def delete_location(location_id: int):
     with get_engine().begin() as conn:
         deleted = conn.execute(
@@ -112,7 +113,7 @@ def delete_location(location_id: int):
     return None
 
 
-@router.post("/{location_id}/refresh")
+@router.post("/{location_id}/refresh", dependencies=[Depends(admin_header)])
 def refresh_location(location_id: int):
     with get_engine().connect() as conn:
         row = _fetch_location(conn, location_id)

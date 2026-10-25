@@ -49,7 +49,7 @@ export function GeolocationPrompt({ onLocationDetected, onDismiss }) {
               {error ? (
                 <p className="text-xs text-red-400 truncate">{error}</p>
               ) : (
-                <p className="text-xs text-slate-400">For local weather — stays in your browser.</p>
+                <p className="text-xs text-slate-400">Sent to our server, Open-Meteo and OpenStreetMap to get local weather. Not stored.</p>
               )}
             </div>
           </div>

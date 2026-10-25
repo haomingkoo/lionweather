@@ -283,8 +283,23 @@ export function LocationsProvider({ children }) {
     return localStorage.getItem("geolocation_permission");
   }, []);
 
+  const [liveLocationEnabled, setLiveLocationEnabledState] = useState(
+    () => localStorage.getItem("geolocation_permission") === "granted",
+  );
+
   const setGeolocationPermissionState = useCallback((state) => {
     localStorage.setItem("geolocation_permission", state);
+    setLiveLocationEnabledState(state === "granted");
+  }, []);
+
+  // Turning live location off stops the 15-minute GPS re-reads; the card keeps its last reading
+  const setLiveLocationEnabled = useCallback((enabled) => {
+    if (enabled) {
+      localStorage.setItem("geolocation_permission", "granted");
+    } else {
+      localStorage.removeItem("geolocation_permission");
+    }
+    setLiveLocationEnabledState(enabled);
   }, []);
 
   const addLocationFromGeolocation = useCallback(
@@ -335,8 +350,7 @@ export function LocationsProvider({ children }) {
 
   // Auto-add/refresh current location if geolocation permission was previously granted
   useEffect(() => {
-    const permState = localStorage.getItem("geolocation_permission");
-    if (permState !== "granted") return;
+    if (!liveLocationEnabled) return;
     if (!navigator.geolocation) return;
 
     const updateCurrentLocation = () => {
@@ -387,7 +401,7 @@ export function LocationsProvider({ children }) {
     updateCurrentLocation();
     const interval = setInterval(updateCurrentLocation, CACHE_DURATION);
     return () => clearInterval(interval);
-  }, []);
+  }, [liveLocationEnabled]);
 
   // Rain forecast notifications (opt-in)
   const [rainNotifyEnabled, setRainNotifyEnabledState] = useState(
@@ -429,6 +443,8 @@ export function LocationsProvider({ children }) {
         reorderLocations,
         getGeolocationPermissionState,
         setGeolocationPermissionState,
+        liveLocationEnabled,
+        setLiveLocationEnabled,
         addLocationFromGeolocation,
         rainNotifyEnabled,
         setRainNotifyEnabled,
@@ -549,7 +565,7 @@ export function useRefreshLocation() {
 }
 
 export function useDeleteLocation() {
-  const { reload } = useContext(LocationsContext);
+  const { reload, setLiveLocationEnabled } = useContext(LocationsContext);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState(null);
 
@@ -563,7 +579,7 @@ export function useDeleteLocation() {
       saveLocations(updated);
       // If user explicitly removes their geolocation card, revoke auto-add permission
       if (toDelete?.source === "geolocation") {
-        localStorage.removeItem("geolocation_permission");
+        setLiveLocationEnabled(false);
       }
       await reload();
     } catch (err) {
