@@ -110,10 +110,10 @@ export function Dashboard() {
         </p>
 
         {/* View Toggle Tabs */}
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-8">
           <button
             onClick={() => setView("list")}
-            className={`px-6 py-2 rounded-full border transition-all ${
+            className={`px-4 sm:px-6 py-2 rounded-full border transition-all ${
               view === "list"
                 ? "bg-blue-600 border-blue-600 text-white"
                 : "border-slate-700 text-slate-400 hover:border-slate-600"
@@ -123,7 +123,7 @@ export function Dashboard() {
           </button>
           <button
             onClick={() => setView("map")}
-            className={`px-6 py-2 rounded-full border transition-all ${
+            className={`px-4 sm:px-6 py-2 rounded-full border transition-all ${
               view === "map"
                 ? "bg-blue-600 border-blue-600 text-white"
                 : "border-slate-700 text-slate-400 hover:border-slate-600"
@@ -133,7 +133,7 @@ export function Dashboard() {
           </button>
           <button
             onClick={() => setView("ml")}
-            className={`px-6 py-2 rounded-full border transition-all ${
+            className={`px-4 sm:px-6 py-2 rounded-full border transition-all ${
               view === "ml"
                 ? "bg-blue-600 border-blue-600 text-white"
                 : "border-slate-700 text-slate-400 hover:border-slate-600"

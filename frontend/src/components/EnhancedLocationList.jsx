@@ -333,7 +333,7 @@ export function EnhancedLocationList({ isDark = false, sidebarHeader = null }) {
               </div>
 
               {/* Footer: last updated + delete */}
-              <div className="px-5 pb-4 pt-2 border-t border-white/10 flex items-center justify-between">
+              <div className="px-5 pb-4 pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-white/50 text-xs">
                     Updated {getRelativeTime(selectedLocation.lastFetched)}

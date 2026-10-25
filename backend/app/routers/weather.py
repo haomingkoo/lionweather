@@ -4,9 +4,14 @@ Weather API endpoint - serves cached weather data from database
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import httpx
-from app.db.database import fetch_one
+from app.db.database import fetch_all
+from app.services.current_conditions import (
+    describe_condition,
+    is_daytime_sgt,
+    pick_current_reading,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +39,12 @@ async def get_weather(
         - source: Data source identifier
     """
     try:
-        cutoff = (datetime.utcnow() - timedelta(hours=2)).isoformat()
+        now = datetime.now(timezone.utc)
+        # Loose text prefilter: NEA stores +08:00 strings, Open-Meteo naive UTC.
+        # Exact freshness is checked in pick_current_reading.
+        cutoff = (now - timedelta(hours=2)).replace(tzinfo=None).isoformat()
 
-        # Find nearest weather station with recent data (within last 2 hours)
+        # Find nearest weather station with recent data
         # Simple bounding-box + Manhattan distance — works in SQLite and PostgreSQL
         # Singapore fits within ±0.5° of lat 1.35, lng 103.82
         sql = """
@@ -55,42 +63,36 @@ async def get_weather(
             WHERE CAST(timestamp AS TEXT) > :cutoff
               AND latitude  BETWEEN :lat - 0.5 AND :lat + 0.5
               AND longitude BETWEEN :lng - 0.5 AND :lng + 0.5
-            ORDER BY approx_dist ASC
-            LIMIT 1
+            ORDER BY approx_dist ASC, timestamp DESC
+            LIMIT 300
         """
 
-        result = fetch_one(sql, {"lat": lat, "lng": lng, "cutoff": cutoff})
+        rows = [r._mapping for r in fetch_all(sql, {"lat": lat, "lng": lng, "cutoff": cutoff})]
+        row = pick_current_reading(rows, now)
 
-        if result:
-            # Access via _mapping for SQLAlchemy 2.x Row compatibility
-            row = result._mapping
+        if row:
             temperature = row["temperature"]
             rainfall = row["rainfall"] or 0
 
-            if rainfall > 5:
-                condition = "Rainy"
-            elif rainfall > 0:
-                condition = "Light Rain"
-            elif temperature and temperature > 30:
-                condition = "Sunny"
-            elif temperature and temperature > 25:
-                condition = "Partly Cloudy"
-            else:
-                condition = "Cloudy"
-
             ts = row["timestamp"]
-            # NEA station data lacks visibility/pressure — fetch from Open-Meteo
+            # NEA station data lacks sky state, visibility and pressure: take them from Open-Meteo
             pressure_val = row["pressure"]
             visibility_val = None
             uv_val = None
-            if pressure_val is None:
-                try:
-                    om = await fetch_from_open_meteo(lat, lng)
+            sky = None
+            is_day = is_daytime_sgt(now)
+            try:
+                om = await fetch_from_open_meteo(lat, lng)
+                if pressure_val is None:
                     pressure_val = om.get("pressure")
-                    visibility_val = om.get("visibility")
-                    uv_val = om.get("uv_index")
-                except Exception:
-                    pass
+                visibility_val = om.get("visibility")
+                uv_val = om.get("uv_index")
+                sky = om.get("condition")
+                if om.get("is_day") is not None:
+                    is_day = bool(om["is_day"])
+            except Exception:
+                pass
+            condition = describe_condition(rainfall, sky, is_day)
             return {
                 "condition": condition,
                 "temperature": temperature,
@@ -103,6 +105,7 @@ async def get_weather(
                 "source": f"Cached ({row['source_api']})",
                 "timestamp": ts if isinstance(ts, str) else str(ts) if ts else None,
                 "distance_km": round(row["approx_dist"], 4) if row["approx_dist"] else None,
+                "is_day": is_day,
             }
         
         # Fallback: No cached data available, fetch from Open-Meteo
@@ -128,7 +131,7 @@ async def fetch_from_open_meteo(lat: float, lng: float) -> dict:
             params={
                 "latitude": lat,
                 "longitude": lng,
-                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,surface_pressure,visibility,uv_index",
+                "current": "temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,surface_pressure,visibility,uv_index,is_day",
                 "timezone": "auto",
             },
             timeout=10.0,
@@ -164,6 +167,7 @@ async def fetch_from_open_meteo(lat: float, lng: float) -> dict:
         "uv_index": uv_index,
         "area": area,
         "source": "Open-Meteo (Live)",
+        "is_day": current.get("is_day"),
     }
 
 

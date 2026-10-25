@@ -218,7 +218,7 @@ export function LocationForm({ isDark = false, compact = false }) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`flex-1 rounded-xl ${inputBg} backdrop-blur-sm border ${inputPad} focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
+            className={`flex-1 min-w-0 rounded-xl ${inputBg} backdrop-blur-sm border ${inputPad} focus:outline-none focus:ring-2 focus:ring-white/60 focus:border-white/60 transition-all`}
             placeholder={compact ? "Postal code or place…" : "e.g. 018956, Orchard Road"}
           />
           <button

@@ -10,7 +10,7 @@
  * Test Cases:
  * 1. "Feels Like" card uses comprehensiveData?.temperature
  * 2. Humidity displays comprehensiveData?.humidity with 75% fallback
- * 3. Wind speed displays comprehensiveData?.wind_speed with 12 km/h fallback
+ * 3. Wind speed displays comprehensiveData?.wind_speed, or a dash when missing
  * 4. Wind direction displays comprehensiveData?.wind_direction with direction indicator
  * 5. Rainfall displays comprehensiveData?.rainfall with 0 mm fallback
  * 6. Weather icons use getWeatherIcon(condition) correctly
@@ -223,7 +223,7 @@ describe("Preservation Property Tests - Existing Real Data Functionality", () =>
       );
     });
 
-    it("should display 12 km/h fallback when wind speed data is missing", async () => {
+    it("should display a dash, not an invented speed, when wind speed data is missing", async () => {
       vi.spyOn(apiClient, "request").mockResolvedValue({
         temperature: 28,
         humidity: 75,
@@ -254,9 +254,8 @@ describe("Preservation Property Tests - Existing Real Data Functionality", () =>
         ?.closest(".rounded-3xl");
       const windValue = windCard?.textContent;
 
-      expect(windValue).toContain("12");
-      expect(windValue).toContain("km/h");
-      // **Validates: Requirement 3.3** - Fallback to 12 km/h when data missing
+      expect(windValue).toContain("—");
+      expect(windValue).not.toContain("12");
     });
   });
 
