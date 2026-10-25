@@ -14,7 +14,7 @@ Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecas
 - **ML rain forecast** - LightGBM 3-class classifier (No Rain / Light / Heavy+Thundery), 1-12h ahead
 - **ML analysis dashboard** - EDA, ACF/PACF, SHAP feature importance, confusion matrix, NEA benchmark
 - **Multi-location** - save locations by search or map pin, NEA area name snapping
-- **Privacy** - geolocation stays in browser, never sent to server
+- **Privacy** - coordinates go to the server only to find the nearest station and are not stored (see `/privacy`)
 
 ## Stack
 
