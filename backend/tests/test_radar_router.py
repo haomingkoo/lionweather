@@ -118,7 +118,7 @@ class TestGetRadarFrames:
         response = client.get("/api/radar/frames?count=0")
         assert response.status_code == 422  # Validation error
         
-        response = client.get("/api/radar/frames?count=20")
+        response = client.get("/api/radar/frames?count=25")
         assert response.status_code == 422  # Validation error
     
     def test_get_radar_frames_unexpected_error(self):

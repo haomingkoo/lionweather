@@ -102,10 +102,13 @@ class TestRegionalWeatherIntegration:
         assert data["count"] == 1
         assert all("kuala" in city["name"].lower() for city in data["cities"])
     
-    def test_endpoint_exists(self, client):
+    @patch('app.routers.regional.get_regional_weather_service')
+    def test_endpoint_exists(self, mock_get_service, client):
         """Test that the endpoint is registered and accessible"""
-        # This will fail if the endpoint doesn't exist
-        # We expect either 200 (success) or 503 (service unavailable)
-        # but not 404 (not found)
+        mock_service = MagicMock()
+        mock_service.get_regional_cities = AsyncMock(return_value=[])
+        mock_service.cache_timestamp = None
+        mock_get_service.return_value = mock_service
+
         response = client.get("/api/regional/cities")
-        assert response.status_code in [200, 503, 500]  # Not 404
+        assert response.status_code == 200

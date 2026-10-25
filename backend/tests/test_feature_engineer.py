@@ -348,21 +348,22 @@ class TestFeatureEngineerRollingFeatures:
         assert 'temperature_rolling_min_3' in result.columns
         assert 'temperature_rolling_max_3' in result.columns
 
-        # Verify rolling mean values (window=3)
-        # Index 0: mean([20]) = 20
-        assert result.iloc[0]['temperature_rolling_mean_3'] == 20.0
-        # Index 1: mean([20, 22]) = 21
-        assert result.iloc[1]['temperature_rolling_mean_3'] == 21.0
-        # Index 2: mean([20, 22, 24]) = 22
-        assert result.iloc[2]['temperature_rolling_mean_3'] == 22.0
-        # Index 3: mean([22, 24, 26]) = 24
-        assert result.iloc[3]['temperature_rolling_mean_3'] == 24.0
+        # Rolling stats are shifted by one row so row t only sees rows < t
+        assert pd.isna(result.iloc[0]['temperature_rolling_mean_3'])
+        # Index 1: mean([20]) = 20
+        assert result.iloc[1]['temperature_rolling_mean_3'] == 20.0
+        # Index 2: mean([20, 22]) = 21
+        assert result.iloc[2]['temperature_rolling_mean_3'] == 21.0
+        # Index 3: mean([20, 22, 24]) = 22
+        assert result.iloc[3]['temperature_rolling_mean_3'] == 22.0
+        # Index 4: mean([22, 24, 26]) = 24
+        assert result.iloc[4]['temperature_rolling_mean_3'] == 24.0
 
         # Verify rolling min/max
-        assert result.iloc[2]['temperature_rolling_min_3'] == 20.0
-        assert result.iloc[2]['temperature_rolling_max_3'] == 24.0
-        assert result.iloc[3]['temperature_rolling_min_3'] == 22.0
-        assert result.iloc[3]['temperature_rolling_max_3'] == 26.0
+        assert result.iloc[3]['temperature_rolling_min_3'] == 20.0
+        assert result.iloc[3]['temperature_rolling_max_3'] == 24.0
+        assert result.iloc[4]['temperature_rolling_min_3'] == 22.0
+        assert result.iloc[4]['temperature_rolling_max_3'] == 26.0
 
     def test_create_rolling_features_multiple_windows(self):
         """Test rolling features with multiple window sizes."""

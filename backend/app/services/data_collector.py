@@ -495,11 +495,16 @@ class DataCollector:
         Returns:
             Combined list of WeatherRecord objects from all sources
         """
-        sg, my, id_ = await asyncio.gather(
+        results = await asyncio.gather(
             self.fetch_singapore_data(),
             self.fetch_malaysia_data(),
             self.fetch_indonesia_data(),
+            return_exceptions=True,
         )
+        for name, result in zip(("Singapore", "Malaysia", "Indonesia"), results):
+            if isinstance(result, Exception):
+                logger.error(f"{name} collection failed: {result}")
+        sg, my, id_ = ([] if isinstance(r, Exception) else r for r in results)
         all_records = sg + my + id_
         logger.info(f"Collected {len(all_records)} total records (SG={len(sg)}, MY={len(my)}, ID={len(id_)})")
         return all_records

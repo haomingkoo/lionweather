@@ -15,6 +15,17 @@ from datetime import datetime
 from app.services.forecast_collector import ForecastCollector
 from app.services.forecast_store import ForecastStore
 from app.db.database import fetch_all, execute_sql
+from app.db import database
+from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
+
+
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Run each test against a fresh SQLite database with the real schema."""
+    monkeypatch.setattr(database, "_database_url", f"sqlite:///{tmp_path / 'test.db'}")
+    monkeypatch.setattr(database, "_engine", None)
+    migrate_ml_tables()
+    migrate_forecast_tables()
 
 
 class TestForecastDataTableSchema:
@@ -87,6 +98,7 @@ class TestForecastCollector:
         assert collector is not None
         assert collector.timeout_seconds == 10.0
     
+    @pytest.mark.live
     @pytest.mark.asyncio
     async def test_collect_all_forecasts(self):
         """Verify collect_all_forecasts returns forecast data."""
@@ -109,6 +121,7 @@ class TestForecastCollector:
             for field in required_fields:
                 assert field in sample, f"Forecast should have {field} field"
     
+    @pytest.mark.live
     @pytest.mark.asyncio
     async def test_singapore_forecast_method_exists(self):
         """Verify Singapore forecast collection method exists."""
@@ -123,6 +136,7 @@ class TestForecastCollector:
             # API may fail, but method should exist
             pass
     
+    @pytest.mark.live
     @pytest.mark.asyncio
     async def test_malaysia_forecast_method_exists(self):
         """Verify Malaysia forecast collection method exists (all 7 periods)."""
@@ -137,6 +151,7 @@ class TestForecastCollector:
             # API may fail, but method should exist
             pass
     
+    @pytest.mark.live
     @pytest.mark.asyncio
     async def test_indonesia_forecast_method_exists(self):
         """Verify Indonesia forecast collection method exists (Open-Meteo)."""
