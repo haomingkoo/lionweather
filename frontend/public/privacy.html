@@ -29,12 +29,7 @@
       h1 { color: #fff; font-size: 2.25rem; margin: 2rem 0 0.25rem; }
       h2 { color: #e2e8f0; font-size: 1.2rem; margin: 2.25rem 0 0.5rem; }
       .muted { color: #64748b; font-size: 0.9rem; }
-      table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-      th, td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem; border-bottom: 1px solid #1e293b; }
-      th { color: #e2e8f0; font-weight: 600; }
-      .table-scroll { overflow-x: auto; }
       code { color: #e2e8f0; background: #111827; padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.88em; }
-      .review { color: #fbbf24; font-weight: 600; font-size: 0.85em; }
       li { margin: 0.3rem 0; }
     </style>
   </head>
@@ -54,117 +49,71 @@
       <p class="muted">Last updated 25 October 2026</p>
 
       <p>
-        LionWeather is a free Singapore weather dashboard. It is run by Koo Haoming (individual, Singapore).
-        This page explains what the app does with your data. It is written to the standard of Singapore's
-        Personal Data Protection Act (PDPA).
-      </p>
-      <p>
-        There are no accounts, sign-ups or cookies. The main personal data the app handles is your location
-        and the address of your device on the internet (your IP address).
+        LionWeather is a free Singapore weather app run by Koo Haoming (individual, Singapore).
+        There are no accounts and no cookies.
       </p>
 
-      <h2>Your location</h2>
-      <p>
-        When you press <strong>Use my location</strong>, your browser asks for permission. If you allow it,
-        the app reads your GPS coordinates and uses them only to show weather for where you are. The coordinates go to:
-      </p>
+      <h2>What we collect</h2>
       <ul>
-        <li><strong>Our server</strong> (hosted on Railway). It looks up the nearest weather station and forecast area.
-          The app does not write your coordinates to its database. Request logging is switched off on our server.</li>
-        <li><strong>Open-Meteo</strong> (open-meteo.com). Our server asks it for weather at your coordinates when no
-          nearby station reading is available. Open-Meteo sees our server's address, not yours.</li>
-        <li><strong>OpenStreetMap Nominatim</strong> (nominatim.openstreetmap.org). Our server asks it for the name of your
-          area. If that fails, your browser asks Nominatim directly. In that case Nominatim also sees your IP address.</li>
-      </ul>
-      <p>
-        <strong>Live location.</strong> Once you have added your location, the app re-reads your GPS every 15 minutes
-        while the tab is open, and again on each visit. Each reading is sent as described above.
-        You can turn this off with the <strong>Live location</strong> button under the search box.
-        Deleting your location card also turns it off. Your browser's site settings can revoke location permission completely.
-      </p>
-
-      <h2>Places and postal codes you search for</h2>
-      <p>
-        When you type a place name or postal code, your browser sends that text directly to
-        <strong>OneMap</strong> (onemap.gov.sg, run by the Singapore Land Authority) and to
-        <strong>OpenStreetMap Nominatim</strong>. Both see your IP address and what you typed. A postal code can be
-        a home address, so search for a nearby landmark if you prefer.
-      </p>
-
-      <h2>Other services that see your IP address</h2>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr><th>Service</th><th>Why</th><th>Where</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Railway</td><td>Hosts the website and our server. Sees every request.</td><td>Overseas (United States and other regions) <span class="review">[LAWYER REVIEW]</span></td></tr>
-            <tr><td>Cloudflare</td><td>Delivers the site and protects it from abuse. Sees every request.</td><td>Global network</td></tr>
-            <tr><td>Cloudflare Web Analytics</td><td>Cloudflare Web Analytics: cookieless, aggregate page views, no input capture.</td><td>Global network</td></tr>
-            <tr><td>OpenStreetMap tile servers</td><td>Draw the map. Your browser loads map images of Singapore from tile.openstreetmap.org.</td><td>Overseas (OpenStreetMap Foundation, UK)</td></tr>
-            <tr><td>OpenStreetMap Nominatim</td><td>Place search and area names, as described above.</td><td>Overseas (OpenStreetMap Foundation, UK)</td></tr>
-            <tr><td>OneMap</td><td>Postal code search.</td><td>Singapore</td></tr>
-            <tr><td>Open-Meteo</td><td>Weather data. Receives coordinates from our server only.</td><td>Overseas (Switzerland/EU)</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p>
-        These providers have their own privacy policies and keep their own logs. We pick providers that are widely used
-        and we send them only what each request needs. <span class="review">[LAWYER REVIEW: whether this meets the PDPA
-        transfer limitation obligation for overseas recipients]</span>
-      </p>
-      <p>
-        Our server also keeps your IP address in memory for about a minute to limit how many requests one device can make.
-        It is not written to disk.
-      </p>
-
-      <h2>Stored on your device</h2>
-      <p>The app saves these items in your browser's local storage. They never leave your device unless noted above.</p>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Key</th><th>What it holds</th></tr></thead>
-          <tbody>
-            <tr><td><code>lionweather_locations</code></td><td>Your saved location cards, including coordinates and the last weather reading.</td></tr>
-            <tr><td><code>geolocation_permission</code></td><td>Whether live location is on.</td></tr>
-            <tr><td><code>lionweather_rain_notify</code></td><td>Whether rain alerts are on.</td></tr>
-            <tr><td><code>lionweather_rain_notify_last</code></td><td>When the last rain alert was shown, so you are not alerted more than once an hour.</td></tr>
-            <tr><td><code>weather-app-theme</code></td><td>Your light or dark theme choice.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p>
-        Rain alerts are notifications shown by your own browser. We do not collect an email address or phone number.
-        To remove everything, delete your location cards or clear this site's data in your browser.
-      </p>
-
-      <h2>How long data is kept</h2>
-      <ul>
-        <li>Your coordinates and searches are not stored by our app after each request finishes.</li>
-        <li>Rate-limit entries are held in memory for about a minute.</li>
-        <li>Railway and Cloudflare keep their own operational logs under their retention policies.
-          <span class="review">[LAWYER REVIEW: confirm provider log retention periods]</span></li>
-        <li>Local storage stays on your device until you delete it.</li>
+        <li>Your GPS coordinates, if you press <strong>Use my location</strong> and your browser allows it.</li>
+        <li>Place names or postal codes you type into the search box.</li>
+        <li>Your IP address, which every website sees when you load it.</li>
       </ul>
 
-      <h2>Your rights</h2>
+      <h2>Why</h2>
       <p>
-        Under the PDPA you can ask what personal data we hold about you and how it has been used. You can ask us to correct it.
-        You can also withdraw consent at any time. To withdraw consent for location, turn off live location, delete your
-        location card and revoke the permission in your browser. Because the app does not keep your data on its server,
-        most requests can be handled on your own device. If you still have a question, email us and we will reply within 30 days.
-        <span class="review">[LAWYER REVIEW]</span>
+        We use your location only to show weather for where you are. We use your IP address to stop one device
+        from flooding the server with requests.
       </p>
 
-      <h2>Children</h2>
-      <p>The app is a general weather tool and is not aimed at children.</p>
+      <h2>Who sees it</h2>
+      <ul>
+        <li><strong>Our server</strong> on Railway gets your coordinates to find the nearest weather station.
+          It does not save them, and its request logging is off.</li>
+        <li><strong>Open-Meteo</strong> gets your coordinates from our server when no nearby station has data.
+          It never sees your IP address.</li>
+        <li><strong>OpenStreetMap Nominatim</strong> turns coordinates and searches into place names.
+          Sometimes your browser asks it directly, so it also sees your IP address.</li>
+        <li><strong>OneMap</strong> (Singapore Land Authority) gets the postal codes you search for, straight from your browser.</li>
+        <li><strong>OpenStreetMap tile servers</strong> send the map images, so they see your IP address.</li>
+        <li><strong>Cloudflare</strong> delivers the site and blocks abuse.</li>
+        <li>Cloudflare Web Analytics: cookieless, aggregate page views, no input capture.</li>
+      </ul>
+      <p>
+        Railway, Cloudflare and OpenStreetMap run servers outside Singapore, so your data may be handled overseas.
+        Each provider has its own privacy policy.
+      </p>
 
-      <h2>Changes</h2>
-      <p>If this page changes, the date at the top will change too.</p>
+      <h2>How long</h2>
+      <ul>
+        <li>Our server forgets your coordinates once it has answered.</li>
+        <li>It keeps your IP address in memory for about a minute for rate limiting.</li>
+        <li>Railway and Cloudflare keep their own request logs under their own policies.</li>
+        <li>Your saved locations and settings stay in your browser until you delete them.</li>
+      </ul>
+
+      <h2>Your choices</h2>
+      <ul>
+        <li>Once you add your location, the app re-reads your GPS every 15 minutes while the tab is open.
+          Use the <strong>Live location</strong> button to turn that off.</li>
+        <li>Delete a location card to remove it. Deleting your GPS card also turns off live location.</li>
+        <li>Clear this site's data in your browser to remove everything it stored. That is five local storage keys:
+          <ul>
+            <li><code>lionweather_locations</code>: your location cards and their last weather</li>
+            <li><code>geolocation_permission</code>: whether live location is on</li>
+            <li><code>lionweather_rain_notify</code>: whether rain alerts are on</li>
+            <li><code>lionweather_rain_notify_last</code>: when the last rain alert fired</li>
+            <li><code>weather-app-theme</code>: light or dark theme</li>
+          </ul>
+        </li>
+        <li>Rain alerts are notifications from your own browser. We never ask for your email or phone number.</li>
+        <li>You can ask what data we hold about you, ask us to correct it, or withdraw consent. Email us and we will reply within 30 days.</li>
+      </ul>
 
       <h2>Contact</h2>
       <p>
-        Privacy questions and requests: <a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a><br />
-        Operator: Koo Haoming (individual, Singapore)
+        <a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a><br />
+        Koo Haoming (individual, Singapore)
       </p>
     </main>
 
