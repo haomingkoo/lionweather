@@ -38,15 +38,15 @@ async def list_model_versions(
         List of model versions with metadata
     """
     query = "SELECT * FROM model_metadata WHERE 1=1"
-    params = []
+    params = {}
     
     if model_name:
-        query += " AND model_name = ?"
-        params.append(model_name)
+        query += " AND model_name = :model_name"
+        params["model_name"] = model_name
     
     if status:
-        query += " AND status = ?"
-        params.append(status)
+        query += " AND status = :status"
+        params["status"] = status
     
     query += " ORDER BY created_at DESC"
     
@@ -86,12 +86,12 @@ async def get_model_version(version: str, model_name: Optional[str] = None) -> D
     Returns:
         Full model metadata including config, metrics, and features
     """
-    query = "SELECT * FROM model_metadata WHERE semantic_version = ?"
-    params = [version]
+    query = "SELECT * FROM model_metadata WHERE semantic_version = :version"
+    params = {"version": version}
     
     if model_name:
-        query += " AND model_name = ?"
-        params.append(model_name)
+        query += " AND model_name = :model_name"
+        params["model_name"] = model_name
     
     row = fetch_one(query, params)
     
@@ -134,13 +134,13 @@ async def get_version_metrics(version: str, model_name: Optional[str] = None) ->
         SELECT horizon_hours, mae, rmse, f1_score, accuracy, precision, recall,
                n_samples, rain_events, evaluation_date
         FROM model_performance_log
-        WHERE model_version = ?
+        WHERE model_version = :version
     """
-    params = [version]
+    params = {"version": version}
     
     if model_name:
-        query += " AND model_name = ?"
-        params.append(model_name)
+        query += " AND model_name = :model_name"
+        params["model_name"] = model_name
     
     query += " ORDER BY horizon_hours, evaluation_date DESC"
     
@@ -202,20 +202,19 @@ async def get_performance_history(
         FROM model_performance_log
         WHERE 1=1
     """
-    params = []
+    params = {"limit": limit}
     
     if model_name:
-        query += " AND model_name = ?"
-        params.append(model_name)
+        query += " AND model_name = :model_name"
+        params["model_name"] = model_name
     
     if horizon_hours:
-        query += " AND horizon_hours = ?"
-        params.append(horizon_hours)
+        query += " AND horizon_hours = :horizon_hours"
+        params["horizon_hours"] = horizon_hours
     
-    query += " ORDER BY evaluation_date DESC LIMIT ?"
-    params.append(limit)
+    query += " ORDER BY evaluation_date DESC LIMIT :limit"
     
-    rows = fetch_all(query, params if params else None)
+    rows = fetch_all(query, params)
     
     history = []
     for row in rows:
@@ -248,10 +247,10 @@ async def get_current_model(model_name: str) -> Dict:
     """
     row = fetch_one("""
         SELECT * FROM model_metadata
-        WHERE model_name = ? AND status = 'active'
+        WHERE model_name = :model_name AND status = 'active'
         ORDER BY created_at DESC
         LIMIT 1
-    """, [model_name])
+    """, {"model_name": model_name})
     
     if not row:
         raise HTTPException(
@@ -290,8 +289,8 @@ async def activate_model(version: str, model_name: str) -> Dict:
     # Check if version exists
     row = fetch_one("""
         SELECT id FROM model_metadata
-        WHERE semantic_version = ? AND model_name = ?
-    """, [version, model_name])
+        WHERE semantic_version = :version AND model_name = :model_name
+    """, {"version": version, "model_name": model_name})
     
     if not row:
         raise HTTPException(
@@ -303,15 +302,15 @@ async def activate_model(version: str, model_name: str) -> Dict:
     execute_sql("""
         UPDATE model_metadata
         SET is_production = 0, status = 'archived'
-        WHERE model_name = ?
-    """, [model_name])
+        WHERE model_name = :model_name
+    """, {"model_name": model_name})
     
     # Activate specified version
     execute_sql("""
         UPDATE model_metadata
         SET is_production = 1, status = 'active'
-        WHERE semantic_version = ? AND model_name = ?
-    """, [version, model_name])
+        WHERE semantic_version = :version AND model_name = :model_name
+    """, {"version": version, "model_name": model_name})
     
     logger.info(f"Activated model: {model_name} {version}")
     

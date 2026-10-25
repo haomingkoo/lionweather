@@ -1,20 +1,16 @@
-import os
-import sqlite3
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict
 
+from sqlalchemy import text
+
 from app.admin_auth import admin_header
+from app.db.database import get_engine
 
 router = APIRouter(prefix="/performance", tags=["performance"])
 
-DB_PATH = os.getenv("DATABASE_PATH", "weather.db")
-
-
 def get_db():
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    return con
+    return get_engine().connect()
 
 
 @router.post("/record-prediction", dependencies=[Depends(admin_header)])
@@ -32,28 +28,25 @@ def record_prediction(prediction_data: dict):
     """
     con = get_db()
     
-    cursor = con.execute("""
+    fields = [
+        "location_id", "prediction_timestamp", "target_timestamp", "hours_ahead",
+        "ml_temperature", "ml_condition", "ml_rain_probability", "ml_confidence",
+        "official_temperature", "official_condition",
+    ]
+    params = {f: prediction_data.get(f) for f in fields}
+    params["official_source"] = prediction_data.get("official_source", "data.gov.sg")
+    prediction_id = con.execute(text("""
         INSERT INTO forecast_performance (
             location_id, prediction_timestamp, target_timestamp, hours_ahead,
             ml_temperature, ml_condition, ml_rain_probability, ml_confidence,
             official_temperature, official_condition, official_source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        prediction_data.get("location_id"),
-        prediction_data.get("prediction_timestamp"),
-        prediction_data.get("target_timestamp"),
-        prediction_data.get("hours_ahead"),
-        prediction_data.get("ml_temperature"),
-        prediction_data.get("ml_condition"),
-        prediction_data.get("ml_rain_probability"),
-        prediction_data.get("ml_confidence"),
-        prediction_data.get("official_temperature"),
-        prediction_data.get("official_condition"),
-        prediction_data.get("official_source", "data.gov.sg"),
-    ))
+        ) VALUES (:location_id, :prediction_timestamp, :target_timestamp, :hours_ahead,
+            :ml_temperature, :ml_condition, :ml_rain_probability, :ml_confidence,
+            :official_temperature, :official_condition, :official_source)
+        RETURNING id
+    """), params).scalar()
     
     con.commit()
-    prediction_id = cursor.lastrowid
     con.close()
     
     return {"id": prediction_id, "status": "recorded"}
@@ -79,11 +72,11 @@ def record_actual_weather(actual_data: dict):
     window_start = (target_time - timedelta(minutes=30)).isoformat()
     window_end = (target_time + timedelta(minutes=30)).isoformat()
     
-    predictions = con.execute("""
+    predictions = con.execute(text("""
         SELECT * FROM forecast_performance
-        WHERE target_timestamp BETWEEN ? AND ?
+        WHERE target_timestamp BETWEEN :window_start AND :window_end
         AND actual_temperature IS NULL
-    """, (window_start, window_end)).fetchall()
+    """), {"window_start": window_start, "window_end": window_end}).mappings().all()
     
     updated_count = 0
     
@@ -105,24 +98,26 @@ def record_actual_weather(actual_data: dict):
                 ml_wins = -1
         
         # Update record
-        con.execute("""
+        con.execute(text("""
             UPDATE forecast_performance
-            SET actual_temperature = ?,
-                actual_condition = ?,
-                actual_rainfall = ?,
-                actual_recorded_at = ?,
-                ml_temp_error = ?,
-                official_temp_error = ?,
-                ml_condition_correct = ?,
-                official_condition_correct = ?,
-                ml_wins = ?
-            WHERE id = ?
-        """, (
-            temperature, condition, rainfall, timestamp,
-            ml_temp_error, official_temp_error,
-            ml_condition_correct, official_condition_correct,
-            ml_wins, pred["id"]
-        ))
+            SET actual_temperature = :temperature,
+                actual_condition = :condition,
+                actual_rainfall = :rainfall,
+                actual_recorded_at = :timestamp,
+                ml_temp_error = :ml_temp_error,
+                official_temp_error = :official_temp_error,
+                ml_condition_correct = :ml_condition_correct,
+                official_condition_correct = :official_condition_correct,
+                ml_wins = :ml_wins
+            WHERE id = :id
+        """), {
+            "temperature": temperature, "condition": condition, "rainfall": rainfall,
+            "timestamp": timestamp, "ml_temp_error": ml_temp_error,
+            "official_temp_error": official_temp_error,
+            "ml_condition_correct": ml_condition_correct,
+            "official_condition_correct": official_condition_correct,
+            "ml_wins": ml_wins, "id": pred["id"],
+        })
         
         updated_count += 1
     
@@ -151,7 +146,7 @@ def get_performance_stats():
     con = get_db()
     
     # Get all evaluated predictions
-    stats = con.execute("""
+    stats = con.execute(text("""
         SELECT 
             COUNT(*) as total,
             AVG(ml_temp_error) as ml_avg_error,
@@ -163,7 +158,7 @@ def get_performance_stats():
             SUM(CASE WHEN ml_wins = 0 THEN 1 ELSE 0 END) as ties
         FROM forecast_performance
         WHERE actual_temperature IS NOT NULL
-    """).fetchone()
+    """)).mappings().first()
     
     if not stats or stats["total"] == 0:
         con.close()
@@ -182,7 +177,7 @@ def get_performance_stats():
     
     # Get recent trend (last 7 days)
     seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
-    recent_stats = con.execute("""
+    recent_stats = con.execute(text("""
         SELECT 
             AVG(ml_temp_error) as recent_ml_error,
             AVG(official_temp_error) as recent_official_error,
@@ -190,8 +185,8 @@ def get_performance_stats():
             COUNT(*) as recent_total
         FROM forecast_performance
         WHERE actual_temperature IS NOT NULL
-        AND actual_recorded_at > ?
-    """, (seven_days_ago,)).fetchone()
+        AND actual_recorded_at > :since
+    """), {"since": seven_days_ago}).mappings().first()
     
     con.close()
     
@@ -242,7 +237,7 @@ def get_leaderboard():
     con = get_db()
     
     # Performance by hours ahead
-    by_hours = con.execute("""
+    by_hours = con.execute(text("""
         SELECT 
             hours_ahead,
             COUNT(*) as predictions,
@@ -253,10 +248,10 @@ def get_leaderboard():
         WHERE actual_temperature IS NOT NULL
         GROUP BY hours_ahead
         ORDER BY hours_ahead
-    """).fetchall()
+    """)).mappings().all()
     
     # Performance by condition
-    by_condition = con.execute("""
+    by_condition = con.execute(text("""
         SELECT 
             actual_condition,
             COUNT(*) as predictions,
@@ -266,7 +261,7 @@ def get_leaderboard():
         WHERE actual_temperature IS NOT NULL
         GROUP BY actual_condition
         ORDER BY predictions DESC
-    """).fetchall()
+    """)).mappings().all()
     
     con.close()
     
@@ -283,7 +278,7 @@ def get_prediction_history(limit: int = 100):
     """
     con = get_db()
     
-    history = con.execute("""
+    history = con.execute(text("""
         SELECT 
             id, location_id, prediction_timestamp, target_timestamp, hours_ahead,
             ml_temperature, ml_condition, ml_confidence,
@@ -293,8 +288,8 @@ def get_prediction_history(limit: int = 100):
         FROM forecast_performance
         WHERE actual_temperature IS NOT NULL
         ORDER BY actual_recorded_at DESC
-        LIMIT ?
-    """, (limit,)).fetchall()
+        LIMIT :limit
+    """), {"limit": limit}).mappings().all()
     
     con.close()
     

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
-from app.db.database import fetch_all, get_connection
+from app.db.database import fetch_all
 
 logger = logging.getLogger(__name__)
 
@@ -269,9 +269,6 @@ def get_latest_forecasts(
     Returns:
         List of latest forecasts with prediction and target times
     """
-    con = get_connection()
-    cursor = con.cursor()
-    
     try:
         # Build query with optional filters
         query = """
@@ -297,21 +294,19 @@ def get_latest_forecasts(
             FROM forecast_data
             WHERE 1=1
         """
-        params = []
+        params = {"limit": limit}
         
         if country:
-            query += " AND country = ?"
-            params.append(country.lower())
+            query += " AND country = :country"
+            params["country"] = country.lower()
         
         if location:
-            query += " AND location = ?"
-            params.append(location)
+            query += " AND location = :location"
+            params["location"] = location
         
-        query += " ORDER BY prediction_time DESC, target_time_start ASC LIMIT ?"
-        params.append(limit)
+        query += " ORDER BY prediction_time DESC, target_time_start ASC LIMIT :limit"
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+        rows = [row._mapping for row in fetch_all(query, params)]
         
         # Convert rows to dictionaries
         forecasts = []
@@ -345,8 +340,6 @@ def get_latest_forecasts(
     except Exception as e:
         logger.exception("Failed to fetch forecasts")
         raise HTTPException(status_code=500, detail="Failed to fetch forecasts")
-    finally:
-        con.close()
 
 
 @router.get("/compare")
