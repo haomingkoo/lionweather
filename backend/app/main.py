@@ -44,9 +44,11 @@ from app.routers.data_health import router as data_health_router
 from app.routers.historical_data import router as historical_data_router
 from app.routers.ml_predictions import router as ml_predictions_router
 from app.routers.ml_models import router as ml_models_router
+from app.routers.air_quality import router as air_quality_router
 from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
 from app.db.database import execute_sql, get_database_url, get_safe_database_url
 from app.services.radar_service import get_radar_service
+from app.services.air_quality import get_air_quality_service, init_air_quality_table
 
 
 def init_db():
@@ -161,6 +163,8 @@ migrate_ml_tables()
 # Run forecast table migrations
 migrate_forecast_tables()
 
+init_air_quality_table()
+
 # ---------------------------------------------------------------------------
 # Rate limiter — keyed by client IP
 # ---------------------------------------------------------------------------
@@ -226,6 +230,25 @@ async def _collect_forecasts_loop() -> None:
         await asyncio.sleep(3600)
 
 
+async def _collect_air_quality_loop() -> None:
+    """Background loop: NEA PSI / PM2.5 (hourly upstream) every 15 minutes."""
+    service = get_air_quality_service()
+    first = True
+    while True:
+        try:
+            await service.refresh(force=True)
+        except Exception as e:
+            logger.error(f"[Air quality] Refresh failed: {e}", exc_info=True)
+        if first:
+            first = False
+            try:
+                stored = await service.backfill()
+                logger.info(f"[Air quality] Backfilled {stored} regional readings")
+            except Exception as e:
+                logger.error(f"[Air quality] Backfill failed: {e}", exc_info=True)
+        await asyncio.sleep(900)
+
+
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Manage background services: start on boot, cancel on shutdown."""
@@ -252,6 +275,7 @@ async def lifespan(app_instance: FastAPI):
 
     _background_tasks.append(asyncio.create_task(_collect_data_loop(), name="data_collector"))
     _background_tasks.append(asyncio.create_task(_collect_forecasts_loop(), name="forecast_collector"))
+    _background_tasks.append(asyncio.create_task(_collect_air_quality_loop(), name="air_quality_collector"))
     logger.info("Data collector started (every 10 min)")
     logger.info("Forecast collector started (every 1 hr)")
 
@@ -323,6 +347,7 @@ app.include_router(data_health_router)
 app.include_router(historical_data_router)
 app.include_router(ml_predictions_router)
 app.include_router(ml_models_router)
+app.include_router(air_quality_router, prefix="/api")
 
 
 @app.get("/health")

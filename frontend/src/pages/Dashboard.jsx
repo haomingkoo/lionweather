@@ -5,6 +5,8 @@ import { WeatherMap } from "../components/WeatherMap";
 import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { MLLiveForecast } from "../components/MLLiveForecast";
 import { AnimatedBackground } from "../components/AnimatedBackground";
+import { AirQualityCard } from "../components/AirQualityCard";
+import { pickLocation } from "../utils/airQuality";
 import { useLocations } from "../hooks/useLocations";
 import { Github, Bell, BellOff, MapPin, MapPinOff } from "lucide-react";
 
@@ -210,6 +212,7 @@ export function Dashboard() {
                     You'll be notified when rain is likely in the next 1–2 hours.
                   </p>
                 )}
+                <AirQualityCard location={pickLocation(locations)} />
               </div>
             }
           />

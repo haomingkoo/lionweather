@@ -27,6 +27,9 @@ vi.mock("../components/EnhancedLocationList", () => ({
 vi.mock("../components/WeatherMap", () => ({
   WeatherMap: () => <div data-testid="weather-map">WeatherMap</div>,
 }));
+vi.mock("../components/AirQualityCard", () => ({
+  AirQualityCard: () => <div data-testid="air-quality-card">AirQualityCard</div>,
+}));
 vi.mock("../components/ViewToggle", () => ({
   ViewToggle: () => <div data-testid="view-toggle">ViewToggle</div>,
 }));
