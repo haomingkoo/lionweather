@@ -1,10 +1,14 @@
 """
 Weather API endpoint - serves cached weather data from database
 """
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timedelta
 import httpx
 from app.db.database import fetch_one
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["weather"])
 
@@ -108,11 +112,9 @@ async def get_weather(
         # If database query fails, fallback to Open-Meteo
         try:
             return await fetch_from_open_meteo(lat, lng)
-        except Exception as fallback_error:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to fetch weather data: {str(e)}. Fallback also failed: {str(fallback_error)}"
-            )
+        except Exception:
+            logger.exception(f"Weather lookup failed ({e}) and Open-Meteo fallback also failed")
+            raise HTTPException(status_code=500, detail="Failed to fetch weather data")
 
 
 async def fetch_from_open_meteo(lat: float, lng: float) -> dict:

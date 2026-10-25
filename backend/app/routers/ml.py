@@ -82,8 +82,8 @@ async def get_24h_predictions(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating 24h forecast: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate forecast: {str(e)}")
+        logger.exception(f"Error generating 24h forecast: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate forecast")
 
 
 @router.get("/predictions/7d")
@@ -146,8 +146,8 @@ async def get_7d_predictions(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating 7d forecast: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate forecast: {str(e)}")
+        logger.exception(f"Error generating 7d forecast: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate forecast")
 
 
 @router.get("/predictions/current")
@@ -183,8 +183,8 @@ async def get_current_weather(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting current weather: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get current weather: {str(e)}")
+        logger.exception(f"Error getting current weather: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get current weather")
 
 
 @router.get("/metrics/accuracy")
@@ -207,8 +207,8 @@ async def get_accuracy_metrics(
         }
         
     except Exception as e:
-        logger.error(f"Error getting accuracy metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error getting accuracy metrics: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/metrics/comparison")
@@ -226,24 +226,8 @@ async def get_model_comparison(
         return comparison
         
     except Exception as e:
-        logger.error(f"Error getting model comparison: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/training/trigger")
-async def trigger_training():
-    """
-    Manually trigger model training.
-    
-    Requirements: 11.1
-    """
-    try:
-        # This would trigger the training pipeline
-        return {"status": "Training triggered", "message": "Training job queued"}
-        
-    except Exception as e:
-        logger.error(f"Error triggering training: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error getting model comparison: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/training/status")
@@ -279,8 +263,8 @@ async def list_models():
         return {"models": models}
 
     except Exception as e:
-        logger.error(f"Error listing models: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/comparison")
@@ -411,9 +395,9 @@ async def get_comparison():
                     },
                 })
 
-    except Exception as e:
-        logger.error(f"Comparison query failed: {e}")
-        return {"total_scored": 0, "error": str(e), "by_horizon": [], "recent": [], "head_to_head": None}
+    except Exception:
+        logger.exception("Comparison query failed")
+        return {"total_scored": 0, "error": "Comparison query failed", "by_horizon": [], "recent": [], "head_to_head": None}
 
     return {
         "total_scored": total_scored,

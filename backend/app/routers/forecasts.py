@@ -1,10 +1,10 @@
 import os
 import logging
 from fastapi import APIRouter, HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict
 from app.services.weather_api import SingaporeWeatherClient, WeatherProviderError
-from app.db.database import get_connection
+from app.db.database import fetch_all, get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +129,8 @@ async def get_forecasts(
         return forecasts
 
     except Exception as e:
-        logger.error(f"Failed to fetch forecast: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch forecast: {str(e)}")
+        logger.exception(f"Failed to fetch forecast: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch forecast")
 
 
 
@@ -193,7 +193,8 @@ async def get_hourly_forecast(
         return results
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch hourly forecast: {str(e)}")
+        logger.exception("Failed to fetch hourly forecast")
+        raise HTTPException(status_code=500, detail="Failed to fetch hourly forecast")
 
 
 @router.get("/four-day")
@@ -342,7 +343,8 @@ def get_latest_forecasts(
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch forecasts: {str(e)}")
+        logger.exception("Failed to fetch forecasts")
+        raise HTTPException(status_code=500, detail="Failed to fetch forecasts")
     finally:
         con.close()
 
@@ -367,12 +369,10 @@ def compare_ml_vs_official_forecasts(
     Returns:
         Comparison metrics and data for ML vs official forecasts
     """
-    con = get_connection()
-    cursor = con.cursor()
-    
     try:
         # Get official forecasts from the past N days
-        cursor.execute("""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
+        official_forecasts = fetch_all("""
             SELECT 
                 prediction_time,
                 target_time_start,
@@ -385,12 +385,10 @@ def compare_ml_vs_official_forecasts(
                 wind_speed_low,
                 wind_speed_high
             FROM forecast_data
-            WHERE country = ?
-                AND prediction_time >= datetime('now', '-' || ? || ' days')
+            WHERE country = :country
+                AND prediction_time >= :cutoff
             ORDER BY prediction_time DESC, target_time_start ASC
-        """, (country.lower(), days_back))
-        
-        official_forecasts = cursor.fetchall()
+        """, {"country": country.lower(), "cutoff": cutoff})
         
         # TODO: Get ML predictions for the same time periods
         # This would require querying ML prediction history
@@ -421,13 +419,13 @@ def compare_ml_vs_official_forecasts(
             },
             "official_forecasts": [
                 {
-                    "prediction_time": row["prediction_time"],
-                    "target_time_start": row["target_time_start"],
-                    "target_time_end": row["target_time_end"],
-                    "location": row["location"],
-                    "temperature_range": [row["temperature_low"], row["temperature_high"]],
-                    "humidity_range": [row["humidity_low"], row["humidity_high"]],
-                    "wind_speed_range": [row["wind_speed_low"], row["wind_speed_high"]]
+                    "prediction_time": row.prediction_time,
+                    "target_time_start": row.target_time_start,
+                    "target_time_end": row.target_time_end,
+                    "location": row.location,
+                    "temperature_range": [row.temperature_low, row.temperature_high],
+                    "humidity_range": [row.humidity_low, row.humidity_high],
+                    "wind_speed_range": [row.wind_speed_low, row.wind_speed_high]
                 }
                 for row in official_forecasts[:50]  # Limit to 50 for response size
             ],
@@ -437,7 +435,6 @@ def compare_ml_vs_official_forecasts(
         return comparison_data
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to compare forecasts: {str(e)}")
-    finally:
-        con.close()
+        logger.exception("Failed to compare forecasts")
+        raise HTTPException(status_code=500, detail="Failed to compare forecasts")
 

@@ -64,10 +64,6 @@ export async function getModelComparison(
   );
 }
 
-export async function triggerTraining() {
-  return request("/ml/training/trigger", { method: "POST" });
-}
-
 export async function getTrainingStatus() {
   return requestML("/ml/training/status");
 }
