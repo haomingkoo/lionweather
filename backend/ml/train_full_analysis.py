@@ -29,6 +29,7 @@ Usage:
   python -m ml.train_full_analysis
 """
 
+import calendar
 import json
 import logging
 import sys
@@ -214,6 +215,45 @@ def load_hourly_series(name: str, pattern: str, years: list, bounds: tuple,
     return s
 
 
+RAIN_BIN_EDGES = [-np.inf, 0.1, 7.6, 30.0, np.inf]  # same cut-offs as rainfall_to_category
+
+
+def island_hourly_rainfall(raw: pd.DataFrame) -> pd.DataFrame:
+    """Per-hour island stats from gauge-hour totals (each gauge's 5-min readings summed)."""
+    hour = raw["timestamp"].dt.floor("1h").rename("hour")
+    gauge_h = raw.groupby([hour, raw["station_id"]])["reading_value"].sum()
+    cat = pd.Series(pd.cut(gauge_h, RAIN_BIN_EDGES, right=False, labels=False), index=gauge_h.index)
+    by_hour = gauge_h.groupby(level="hour")
+    out = pd.DataFrame({
+        "island_mean_mm": by_hour.mean(),
+        "station_max_mm": by_hour.max(),
+        "n_stations": by_hour.size(),
+        "n_light": (cat == 1).groupby(level="hour").sum(),
+        "n_heavy": (cat == 2).groupby(level="hour").sum(),
+        "n_thundery": (cat == 3).groupby(level="hour").sum(),
+    })
+    idx = pd.DatetimeIndex(out.index)
+    out.index = (idx.tz_localize("UTC") if idx.tz is None else idx).tz_convert("Asia/Singapore")
+    return out
+
+
+def load_island_hourly_rainfall(years: list) -> pd.DataFrame:
+    """island_hourly_rainfall() over the NEA CSVs, cached as Parquet."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = CACHE_DIR / "island_hourly_rainfall.parquet"
+    if cache_path.exists():
+        df = pd.read_parquet(cache_path)
+        df.index = pd.DatetimeIndex(df.index)
+        return df
+    df = pd.concat(  # one year at a time keeps memory bounded
+        island_hourly_rainfall(raw)
+        for raw in (load_variable("HistoricalRainfallacrossSingapore{year}.csv", [y], BOUNDS["rainfall"]) for y in years)
+        if not raw.empty
+    )
+    df.to_parquet(cache_path)
+    return df
+
+
 # ===========================================================================
 # 2. EDA
 # ===========================================================================
@@ -238,7 +278,7 @@ def compute_eda(series_dict: dict) -> dict:
                 stl_fit = STL(monthly, period=12, robust=True).fit()
                 step = max(1, len(monthly) // 120)
                 idx = list(range(0, len(monthly), step))
-                unit_map = {"rainfall": "mm (monthly total)", "temperature": "°C (monthly mean)",
+                unit_map = {"rainfall": "mm, island average", "temperature": "°C (monthly mean)",
                             "humidity": "% (monthly mean)", "wind_speed": "km/h (monthly mean)"}
                 stl_result = {
                     "dates":    [str(monthly.index[i].date()) for i in idx],
@@ -301,47 +341,62 @@ def _histogram(s: pd.Series, bins: int = 40) -> dict:
 # 2b. Climate trend analysis
 # ===========================================================================
 
-def compute_climate_trends(rain_h: pd.Series, temp_h: pd.Series,
+MIN_YEAR_COVERAGE = 0.9  # a year needs this share of its hours to count as a full year
+
+
+def complete_years(index: pd.DatetimeIndex) -> list:
+    counts = pd.Series(index.year).value_counts()
+    return sorted(int(y) for y, n in counts.items()
+                  if n >= MIN_YEAR_COVERAGE * (8784 if calendar.isleap(y) else 8760))
+
+
+def compute_climate_trends(rain: pd.DataFrame, temp_h: pd.Series,
                            hum_h: pd.Series, wind_h: pd.Series) -> dict:
     """
-    Year-over-year climate statistics for Singapore:
-    - Annual rainfall totals and rainy-day counts
-    - Rain category frequency (% of hours)
-    - Linear trend slope (per variable, per year)
-    - STL seasonal decomposition (trend + residual)
-    - Record extremes per year
+    Year-over-year climate statistics for full years only.
+
+    `rain` comes from island_hourly_rainfall(): rainfall depths are island
+    averages (mean of gauge-hour totals) and category shares count gauge-hours,
+    so no figure is a sum across gauges.
     """
     from scipy.stats import linregress
     from statsmodels.tsa.seasonal import STL
 
-    years = sorted(set(rain_h.index.year) | set(temp_h.index.year))
+    years = complete_years(rain.index)
+    partial_years = sorted(set(int(y) for y in rain.index.year) - set(years))
+    # STL needs an unbroken monthly series, so it keeps any gap years in between.
+    stl_rain = rain["island_mean_mm"][(rain.index.year >= years[0]) & (rain.index.year <= years[-1])]
+    rain = rain[rain.index.year.isin(years)]
+    rain_h = rain["island_mean_mm"]
 
     # ---- Annual stats ----
     annual = {}
     for y in years:
-        r = rain_h[rain_h.index.year == y]
+        rd = rain[rain.index.year == y]
+        r = rd["island_mean_mm"]
         t = temp_h[temp_h.index.year == y]
         h = hum_h[hum_h.index.year == y]
         w = wind_h[wind_h.index.year == y]
 
-        # Rain categories per hour
-        cats = r.apply(rainfall_to_category)
-        n_total = max(1, len(cats))
+        n_gauge_hours = max(1, int(rd["n_stations"].sum()))
+        n_light, n_heavy, n_thundery = (int(rd[c].sum()) for c in ("n_light", "n_heavy", "n_thundery"))
+        n_dry = n_gauge_hours - n_light - n_heavy - n_thundery
 
         annual[str(y)] = {
             "rainfall": {
                 "total_mm": round(float(r.sum()), 1),
                 "mean_hourly_mm": round(float(r.mean()), 4),
                 "max_hourly_mm": round(float(r.max()), 2),
+                "max_station_hourly_mm": round(float(rd["station_max_mm"].max()), 2),
                 "rainy_hours": int((r > 0.1).sum()),
-                "rainy_hours_pct": round(100 * (r > 0.1).sum() / n_total, 1),
+                "rainy_hours_pct": round(100 * (r > 0.1).sum() / max(1, len(r)), 1),
                 "rain_category_pct": {
-                    "no_rain": round(100 * (cats == 0).sum() / n_total, 1),
-                    "light_rain": round(100 * (cats == 1).sum() / n_total, 1),
-                    "heavy_rain": round(100 * (cats == 2).sum() / n_total, 1),
-                    "thundery": round(100 * (cats == 3).sum() / n_total, 1),
+                    "no_rain": round(100 * n_dry / n_gauge_hours, 1),
+                    "light_rain": round(100 * n_light / n_gauge_hours, 1),
+                    "heavy_rain": round(100 * n_heavy / n_gauge_hours, 1),
+                    "thundery": round(100 * n_thundery / n_gauge_hours, 1),
                 },
-                "thundery_events": int((cats == 3).sum()),
+                "thundery_station_hours": n_thundery,
             },
             "temperature": {
                 "mean_c": round(float(t.mean()), 2),
@@ -392,7 +447,7 @@ def compute_climate_trends(rain_h: pd.Series, temp_h: pd.Series,
     # ---- STL decomposition on monthly rainfall totals ----
     stl_result = {}
     try:
-        monthly_rain = rain_h.resample("ME").sum()
+        monthly_rain = stl_rain.resample("ME").sum()
         if len(monthly_rain) >= 24:
             stl = STL(monthly_rain, period=12, robust=True).fit()
             # Downsample to max 120 points for JSON size
@@ -404,14 +459,18 @@ def compute_climate_trends(rain_h: pd.Series, temp_h: pd.Series,
                 "trend": [round(float(stl.trend.iloc[i]), 2) for i in idx],
                 "seasonal": [round(float(stl.seasonal.iloc[i]), 2) for i in idx],
                 "residual": [round(float(stl.resid.iloc[i]), 2) for i in idx],
-                "note": "Monthly rainfall totals (mm). STL period=12 months.",
+                "note": "Monthly rainfall, island average (mm). STL period=12 months.",
             }
     except Exception as e:
         logger.warning(f"  STL decomposition failed: {e}")
 
     # ---- All-time records ----
     records = {
-        "wettest_hour": {
+        "wettest_station_hour": {
+            "value_mm": round(float(rain["station_max_mm"].max()), 2),
+            "date": str(rain["station_max_mm"].idxmax().date()),
+        },
+        "wettest_island_hour": {
             "value_mm": round(float(rain_h.max()), 2),
             "date": str(rain_h.idxmax().date()),
         },
@@ -436,6 +495,8 @@ def compute_climate_trends(rain_h: pd.Series, temp_h: pd.Series,
     logger.info(f"  Climate trends computed for {len(years)} years")
     return {
         "years_covered": years,
+        "partial_years_excluded": partial_years,
+        "rainfall_basis": "Island average: each gauge's readings summed per hour, then averaged across gauges.",
         "annual": annual,
         "long_term_trends": trends,
         "stl_decomposition": stl_result,
@@ -1804,11 +1865,12 @@ def main():
 
     # --- Climate trends ---
     logger.info("\n[3/8] Computing climate trends...")
-    climate_trends = compute_climate_trends(rain_h, temp_h, hum_h, wind_h)
+    island_rain = load_island_hourly_rainfall(all_years)
+    climate_trends = compute_climate_trends(island_rain, temp_h, hum_h, wind_h)
 
     # --- EDA ---
     logger.info("\n[4/8] Computing EDA...")
-    eda = compute_eda(series_dict)
+    eda = compute_eda({**series_dict, "rainfall": island_rain["island_mean_mm"]})
 
     # Stationarity
     stationarity = {}
