@@ -44,6 +44,17 @@ def is_postgres() -> bool:
     """Return True if the configured database is PostgreSQL."""
     return get_engine().url.drivername.startswith("postgresql")
 
+def get_safe_database_url() -> str:
+    """Database URL with the password masked, for logs."""
+    from sqlalchemy.engine import make_url
+
+    url = get_database_url()
+    try:
+        return make_url(url).render_as_string(hide_password=True)
+    except Exception:
+        return "<redacted>"
+
+
 
 def get_engine():
     """Return the singleton SQLAlchemy engine (created on first call)."""
