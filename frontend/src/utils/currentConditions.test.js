@@ -118,3 +118,11 @@ describe("rainOutlook", () => {
     expect(rainOutlook([{ time: at(2), rainChance: null }])).toBeNull();
   });
 });
+
+describe("commentary for fog and haze", () => {
+  it("matches the condition instead of calling it cloudy", () => {
+    expect(generateCommentary({ condition: "Foggy", sunTimes, now: at(2) })[0]).toBe("Foggy tonight. Visibility is low.");
+    expect(generateCommentary({ condition: "Hazy", sunTimes, now: at(12) })[0]).toBe("Hazy. Check the air quality below.");
+    expect(generateCommentary({ condition: "Overcast", sunTimes, now: at(12) })[0]).toBe("Overcast, with little sunshine.");
+  });
+});

@@ -49,7 +49,11 @@ export function generateCommentary({ condition, temperature, humidity, uv_index,
     lines.push("Showers likely. Keep an umbrella handy when heading out.");
   } else if (c.includes("partly")) {
     lines.push(night ? "Partly cloudy tonight." : "Partly cloudy with sunny intervals.");
-  } else if (c.includes("cloudy") || c.includes("overcast") || c.includes("haze") || c.includes("fog")) {
+  } else if (c.includes("fog") || c.includes("mist")) {
+    lines.push(night ? "Foggy tonight. Visibility is low." : "Foggy. Visibility is low.");
+  } else if (c.includes("haze") || c.includes("hazy")) {
+    lines.push("Hazy. Check the air quality below.");
+  } else if (c.includes("cloudy") || c.includes("overcast")) {
     lines.push(night ? "Cloudy tonight." : "Overcast, with little sunshine.");
   } else if (c.includes("sunny") || c.includes("clear") || c.includes("fair")) {
     lines.push(night ? "Clear tonight." : "Clear skies and plenty of sunshine.");
