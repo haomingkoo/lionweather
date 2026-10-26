@@ -45,9 +45,10 @@ export function TourButton({ className = "" }) {
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <video ref={video} controls preload="none" playsInline poster="/media/haze-poster.jpg" className="aspect-video w-full rounded-control bg-black">
-            <source src="/media/haze.webm" type="video/webm" />
-            <source src="/media/haze.mp4" type="video/mp4" />
+          {/* ?v= skips edge copies of the SPA fallback cached before the media shipped. */}
+          <video ref={video} controls preload="none" playsInline poster="/media/haze-poster.jpg?v=1" className="aspect-video w-full rounded-control bg-black">
+            <source src="/media/haze.webm?v=1" type="video/webm" />
+            <source src="/media/haze.mp4?v=1" type="video/mp4" />
           </video>
           <p className="mt-2 text-xs text-muted">Music: Sascha Ende, ende.app (CC BY 4.0)</p>
         </div>
