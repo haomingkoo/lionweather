@@ -37,6 +37,7 @@ describe("site-wide Content-Security-Policy", () => {
     expect(directive("script-src")).toContain("https://static.cloudflareinsights.com");
     expect(connect).toContain("https://cloudflareinsights.com");
     expect(directive("worker-src")).toEqual(expect.arrayContaining(["'self'", "blob:"]));
+    expect(directive("media-src")).toEqual(["'self'"]);
   });
 
   it("covers every host the source code fetches or draws from", () => {

@@ -6,6 +6,7 @@ import { MLAnalysisDashboard } from "../components/MLAnalysisDashboard";
 import { MLLiveForecast } from "../components/MLLiveForecast";
 import { useLocations } from "../hooks/useLocations";
 import { useTheme } from "../contexts/ThemeContext";
+import { TourButton } from "../components/TourButton";
 
 const VIEWS = [
   { id: "now", label: "Now" },
@@ -96,9 +97,10 @@ export function Dashboard() {
       </a>
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 px-4 sm:px-6">
-          <a href="/" onClick={(e) => { e.preventDefault(); go("now"); }} className="flex min-h-14 items-center text-lg font-semibold tracking-[-0.01em]">
+          <a href="/" onClick={(e) => { e.preventDefault(); go("now"); }} className="mr-auto flex min-h-14 items-center text-lg font-semibold tracking-[-0.01em]">
             LionWeather
           </a>
+          <TourButton className="sm:order-last" />
           <nav aria-label="Sections" className="-mx-2 w-full sm:mx-0 sm:w-auto">
             <ul className="flex">
               {VIEWS.map((v) => (
