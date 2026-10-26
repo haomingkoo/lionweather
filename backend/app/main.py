@@ -39,7 +39,7 @@ from app.routers.ml_forecast import router as ml_router
 from app.routers.weather_data import router as weather_data_router
 from app.routers.performance import router as performance_router
 from app.routers.ml import router as ml_api_router
-from app.routers.radar import router as radar_router
+from app.routers.rain import router as rain_router
 from app.routers.regional import router as regional_router
 from app.routers.data_health import router as data_health_router
 from app.routers.historical_data import router as historical_data_router
@@ -49,7 +49,6 @@ from app.routers.air_quality import router as air_quality_router
 from app.routers.haze import router as haze_router
 from app.db.migrations import migrate_ml_tables, migrate_forecast_tables
 from app.db.database import execute_sql, get_database_url, get_safe_database_url
-from app.services.radar_service import get_radar_service
 from app.services.air_quality import get_air_quality_service, init_air_quality_table
 
 
@@ -260,13 +259,6 @@ async def lifespan(app_instance: FastAPI):
     logger.info("STARTING BACKGROUND SERVICES")
     logger.info("=" * 60)
 
-    radar_service = get_radar_service()
-    try:
-        await radar_service.start_background_polling()
-        logger.info("Radar service started")
-    except Exception as e:
-        logger.error(f"Radar service failed to start: {e}", exc_info=True)
-
     training_scheduler = None
     try:
         training_scheduler = TrainingScheduler()
@@ -293,7 +285,6 @@ async def lifespan(app_instance: FastAPI):
     await asyncio.gather(*_background_tasks, return_exceptions=True)
     _background_tasks.clear()
 
-    await radar_service.stop_background_polling()
     if training_scheduler:
         try:
             training_scheduler.shutdown()
@@ -347,7 +338,7 @@ app.include_router(ml_router, prefix="/api")
 app.include_router(weather_data_router, prefix="/api")
 app.include_router(performance_router, prefix="/api")
 app.include_router(ml_api_router)
-app.include_router(radar_router, prefix="/api")
+app.include_router(rain_router, prefix="/api")
 app.include_router(regional_router, prefix="/api")
 app.include_router(data_health_router)
 app.include_router(historical_data_router)
@@ -452,7 +443,7 @@ def status_check(request: Request):
         "background_services": {
             "observations": "every 10 min -- Singapore (NEA), Malaysia (Open-Meteo), Indonesia (Open-Meteo)",
             "forecasts": "every hour -- Singapore (NEA), Malaysia (data.gov.my), Indonesia (Open-Meteo)",
-            "radar": "every 5 min -- Singapore weather.gov.sg",
+            "rain": "on request, cached 4 min -- NEA rain gauges (data.gov.sg)",
             "ml_training": "weekly -- Sundays 2 AM",
         },
         "database": {

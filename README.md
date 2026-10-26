@@ -1,6 +1,6 @@
 # LionWeather
 
-Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecasting, and animated radar.
+Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecasting, a rain map from NEA rain gauges, and a 3D haze map.
 
 **Live:** [lionweather.kooexperience.com](https://lionweather.kooexperience.com)
 
@@ -10,7 +10,8 @@ Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecas
 - **7-day forecast** - NEA 4-day outlook extended with Open-Meteo, labelled by SGT date
 - **Hourly forecast** - next 24 hours with weather icons, precip probability, sunrise/sunset markers
 - **Weather cards** - Feels Like (Steadman heat index), dew point, wind compass, rainfall intensity, UV index
-- **Animated radar** - rain area overlay from weather.gov.sg with scrub slider and intensity legend
+- **Rain map** - the last two hours of NEA rain-gauge readings, interpolated between gauges, in 2D or 3D with drawn rain, with a scrub slider and intensity legend
+- **Haze map** (`/haze`) - PSI and PM2.5 by region in 3D, air paths from Open-Meteo wind, NASA fire detections, peatland, simulated smoke drift and a street-level wind simulation
 - **ML rain forecast** - LightGBM 3-class classifier (No Rain / Light / Heavy+Thundery), 1-12h ahead
 - **ML analysis dashboard** - EDA, ACF/PACF, SHAP feature importance, confusion matrix, NEA benchmark
 - **Multi-location** - save locations by search or map pin, NEA area name snapping
@@ -20,10 +21,10 @@ Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecas
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React 18, Vite, Tailwind CSS, Leaflet (OpenStreetMap tiles) |
+| Frontend | React 18, Vite, Tailwind CSS, Leaflet (OpenStreetMap tiles), MapLibre (OpenFreeMap tiles) |
 | Backend | FastAPI, SQLAlchemy, PostgreSQL (Railway) / SQLite (local) |
 | ML | LightGBM, SHAP, statsmodels |
-| Data sources | Singapore data.gov.sg (NEA), Open-Meteo, weather.gov.sg (radar) |
+| Data sources | Singapore data.gov.sg (NEA, including rain gauges), Open-Meteo, NASA FIRMS, OpenStreetMap, PEATMAP, geoBoundaries |
 | Deployment | Railway (Railpack), two services with watch paths |
 
 ## Project structure
@@ -32,7 +33,7 @@ Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecas
 lionweather/
 ├── frontend/
 │   └── src/
-│       ├── components/           # UI: weather cards, map, radar, ML dashboard
+│       ├── components/           # UI: weather cards, rain map, ML dashboard
 │       ├── hooks/useLocations.jsx # Location state, weather refresh, notifications
 │       ├── api/                  # API clients (unified base URL from base.js)
 │       └── pages/Dashboard.jsx
@@ -40,7 +41,7 @@ lionweather/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app, lifespan, background tasks
 │   │   ├── routers/             # 17 route modules
-│   │   ├── services/            # Data collection, radar scraping, weather API
+│   │   ├── services/            # Data collection, rain gauges, haze scene, weather API
 │   │   ├── db/database.py       # Singleton SQLAlchemy engine (PostgreSQL/SQLite)
 │   │   └── ml/                  # ML scheduler, prediction engine
 │   ├── ml/                      # Training scripts (local only)
