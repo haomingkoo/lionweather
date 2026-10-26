@@ -18,6 +18,7 @@ import { DIRECTION_WORDS, explainHour, pathSummary } from "./explain";
 import { clusterSmoke, fieldHour, outlookText, prepareField, simulateSmoke, smokeOutlook } from "./smoke";
 import { placeCard } from "./placement";
 import { ORBIT_TIP, ORBIT_TIP_TOUCH } from "../map3d/controls";
+import { DISTRICTS, districtInflow } from "../map3d/streets";
 import { PsiChart, Pm25Chart, WindChart } from "./Charts";
 import { Timeline } from "./Timeline";
 import { Map2D } from "./Map2D";
@@ -253,6 +254,35 @@ function ClusterCard({ c, smoke, onClose }) {
   );
 }
 
+function StreetsCard({ inflow, district, status, hour }) {
+  return (
+    <section className="hz-card" aria-label="Wind among the towers">
+      <header className="hz-card-head"><h2>Wind among the towers</h2></header>
+      {status === "unsupported" ? (
+        <p className="hz-muted">This device can&apos;t run the street wind simulation.</p>
+      ) : (
+        <>
+          <p className="hz-advice-main">Simulation of how this hour&apos;s wind moves between buildings.</p>
+          <p className="hz-muted hz-small">Haze readings are measured per region, not per street.</p>
+          {inflow ? (
+            <dl className="hz-rows">
+              <div><dt>Inflow</dt><dd>{inflow.speedKn.toFixed(1)} kn from {compass(inflow.fromDeg)} ({Math.round(inflow.fromDeg)}°)</dd></div>
+              <div><dt>Measured at</dt><dd>{inflow.station ? `NEA ${inflow.station}` : "NEA island average"}, {fmtTime(hour)}</dd></div>
+              <div><dt>Area</dt><dd>{DISTRICTS[district].label}, 2 km square</dd></div>
+            </dl>
+          ) : (
+            <p className="hz-muted">No wind reading this hour, so there is nothing to simulate.</p>
+          )}
+          <p className="hz-muted hz-small">
+            A 2D slice at street level: real air also flows over the roofs. Tracers are illustrative and sped up; their density is
+            not a measurement.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function Overview({ scene, dataEnd, windowFires }) {
   const psiPeak = peak(scene, "psi");
   const pmPeak = peak(scene, "pm25");
@@ -334,6 +364,13 @@ function Tooltip({ hover, scene, index, bounds }) {
 }
 
 function Legend({ view, scene, smokeOn, path925, peat }) {
+  if (view === "streets") {
+    return (
+      <div className="hz-legend" aria-label="Map key">
+        <span className="hz-key"><i className="hz-key-tracer" aria-hidden="true" />Simulated wind among the buildings, sped up</span>
+      </div>
+    );
+  }
   if (view === "region") {
     return (
       <div className="hz-legend" aria-label="Map key">
@@ -418,6 +455,8 @@ function HazeView() {
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [hover, setHover] = useState(null);
   const [clusterId, setClusterId] = useState(null);
+  const [district, setDistrict] = useState("cbd");
+  const [windStatus, setWindStatus] = useState(null);
   const mapBox = useRef(null);
   const mapSize = useSize(mapBox);
 
@@ -479,6 +518,7 @@ function HazeView() {
     if (v !== "region") setClusterId(null);
   };
   const closeCluster = () => setClusterId(null);
+  const inflow = useMemo(() => (scene ? districtInflow(scene, index, DISTRICTS[district]) : null), [scene, index, district]);
 
   const why = useMemo(() => {
     if (!scene) return null;
@@ -543,10 +583,18 @@ function HazeView() {
                   label="Map area"
                   value={view}
                   onChange={changeView}
-                  options={[["sg", "Singapore"], ["region", "Region"]]}
-                  disabledValues={webgl ? [] : ["region"]}
+                  options={[["sg", "Singapore"], ["streets", "Streets"], ["region", "Region"]]}
+                  disabledValues={webgl ? [] : ["region", "streets"]}
                 />
                 {webgl && <Segmented label="Map style" value={dim} onChange={setDim} options={[["2d", "2D"], ["3d", "3D"]]} />}
+                {view === "streets" && (
+                  <label className="hz-select">
+                    <span className="hz-sr">Area</span>
+                    <select value={district} onChange={(e) => setDistrict(e.target.value)}>
+                      {Object.entries(DISTRICTS).map(([k, d]) => <option key={k} value={k}>{d.label}</option>)}
+                    </select>
+                  </label>
+                )}
                 <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} peat={layers.peat} />
               </div>
               {webgl && dim === "3d" && <OrbitTip />}
@@ -567,6 +615,9 @@ function HazeView() {
                         smokeHour={smokeHour}
                         fires={fires}
                         cluster={clusterId}
+                        district={district}
+                        inflow={inflow}
+                        onWindStatus={setWindStatus}
                         onCluster={(id) => {
                           setClusterId(id);
                           setView("region");
@@ -610,6 +661,8 @@ function HazeView() {
 
           <aside className="hz-side">
             <AtCursor scene={scene} index={index} region={region} onRegion={setRegion} why={why} />
+
+            {view === "streets" && <StreetsCard inflow={inflow} district={district} status={windStatus} hour={scene.hours[index]} />}
 
             {cluster && view === "region" && <ClusterCard c={cluster} smoke={clusterDrift} onClose={closeCluster} />}
 
