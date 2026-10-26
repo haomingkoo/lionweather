@@ -1,5 +1,5 @@
 // "Why is one region worse this hour?", built only from what the page has: the
-// regional ranking, wind at 850 hPa and at the surface, the air path, and NASA fire
+// regional ranking, wind at 850 hPa and at the surface, the wind path, and NASA fire
 // detections near that path. It names a cause only when those line up.
 
 import { capitalise, compass } from "./hazeData";
@@ -126,22 +126,22 @@ export function explainHour({ pm25, wind850, surface, path, fires = [], firesKno
 
   let body;
   // Regional wording: the sentence describes the air and the fires, not places.
-  const route = from ? `air came from the ${DIRECTION_WORDS[from]}` : null;
+  const route = from ? `the wind came from the ${DIRECTION_WORDS[from]}` : null;
   const fireCount = plural(detections, "fire");
   if (calm) {
     body = similar ? "No clear source: winds are light." : "Cause unclear: winds are light, so it looks local.";
   } else if (!from) {
     body = "Cause unclear: no wind reading this hour.";
   } else if (!summary) {
-    body = `Cause unclear: ${route}; air path not available.`;
+    body = `Cause unclear: ${route}; wind path not available.`;
   } else if (!firesKnown) {
     body = `Cause unclear: ${route}; fire data not available.`;
   } else if (!detections) {
     body = `Cause unclear: ${route} (no fires on its path).`;
   } else if (similar) {
-    body = `Likely smoke island-wide: air came over ${fireCount} upwind.`;
+    body = `Likely smoke island-wide: the wind reaching Singapore at this hour passed over ${fireCount} a day earlier.`;
   } else if (FIRST_SIDE[from].includes(top.region)) {
-    body = `Likely smoke: air came over ${fireCount} upwind.`;
+    body = `Likely smoke: the wind reaching Singapore at this hour passed over ${fireCount} a day earlier.`;
   } else {
     body = `Cause unclear: ${route} (${fireCount} on its path).`;
   }
