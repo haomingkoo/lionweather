@@ -114,6 +114,14 @@ export function Dashboard() {
                   </button>
                 </li>
               ))}
+              <li className="flex-1 sm:flex-none">
+                <a
+                  href="/haze"
+                  className="relative flex min-h-12 w-full items-center justify-center whitespace-nowrap px-3 text-sm font-medium text-muted transition-colors hover:text-ink focus-visible:-outline-offset-2"
+                >
+                  Haze
+                </a>
+              </li>
             </ul>
           </nav>
         </div>

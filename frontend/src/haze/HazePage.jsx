@@ -426,6 +426,27 @@ function OrbitTip() {
   );
 }
 
+// The shared footer from the design core, on every page.
+function SiteFooter() {
+  return (
+    <footer className="hz-footer">
+      <nav aria-label="Site">
+        <ul>
+          <li>© 2026 Haoming Koo</li>
+          <li aria-hidden="true">·</li>
+          <li><a href="/privacy.html">Privacy</a></li>
+          <li aria-hidden="true">·</li>
+          <li><a href="/terms.html">Terms</a></li>
+          <li aria-hidden="true">·</li>
+          <li>Contact (<a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a>)</li>
+          <li aria-hidden="true">·</li>
+          <li>More projects → <a href="https://kooexperience.com/">kooexperience.com</a></li>
+        </ul>
+      </nav>
+    </footer>
+  );
+}
+
 function useSize(ref) {
   const [size, setSize] = useState({ width: 800, height: 500 });
   useEffect(() => {
@@ -552,13 +573,14 @@ function HazeView() {
   return (
     <div className="hz-app">
       <header className="hz-top">
-        <a className="hz-back" href="/">LionWeather</a>
+        <a className="hz-back" href="/" aria-label="LionWeather home">LionWeather</a>
         <span className="hz-top-sep" aria-hidden="true" />
         <h1>Haze over Singapore</h1>
         <p className="hz-top-sub">PSI, PM2.5, wind and where the wind came from, hour by hour</p>
         {scene && (
           <p className="hz-top-updated">Latest NEA reading {scene.latest.air ? fmtDayTime(scene.latest.air) : "not available"}</p>
         )}
+        <a className="hz-home" href="/">← Back to forecast</a>
       </header>
 
       {!scene && !error && (
@@ -573,6 +595,8 @@ function HazeView() {
           <button type="button" className="hz-btn" onClick={() => load(windowHours)}>Try again</button>
         </div>
       )}
+
+      {!scene && <SiteFooter />}
 
       {scene && region && (
         <main className="hz-main">
@@ -718,21 +742,7 @@ function HazeView() {
 
             <Sources scene={scene} />
 
-            <footer className="hz-footer">
-              <nav aria-label="Site">
-                <ul>
-                  <li>© 2026 Haoming Koo</li>
-                  <li aria-hidden="true">·</li>
-                  <li><a href="/privacy.html">Privacy</a></li>
-                  <li aria-hidden="true">·</li>
-                  <li><a href="/terms.html">Terms</a></li>
-                  <li aria-hidden="true">·</li>
-                  <li>Contact (<a href="mailto:privacy@kooexperience.com">privacy@kooexperience.com</a>)</li>
-                  <li aria-hidden="true">·</li>
-                  <li>More projects → <a href="https://kooexperience.com/">kooexperience.com</a></li>
-                </ul>
-              </nav>
-            </footer>
+            <SiteFooter />
           </aside>
         </main>
       )}
