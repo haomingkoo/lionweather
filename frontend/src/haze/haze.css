@@ -70,6 +70,11 @@
 .hz-top h1 { font-size: 16px; }
 .hz-top-sub { margin: 0; color: var(--muted-c); overflow: hidden; text-overflow: ellipsis; }
 .hz-top-updated { margin: 0 0 0 auto; color: var(--muted-c); font-variant-numeric: tabular-nums; }
+.hz-home { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid var(--line-c); border-radius: 6px; color: var(--ink-c) !important; text-decoration: none; font-weight: 500; white-space: nowrap; }
+.hz-home:hover { background: var(--panel-2); }
+/* Pinned right whether or not the reading time is showing. */
+.hz-home { margin-left: auto; }
+.hz-top-updated + .hz-home { margin-left: 0; }
 
 /* Layout */
 .hz-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
@@ -413,6 +418,7 @@
   .hz-top h1 { flex-basis: 100%; order: 2; font-size: 24px; }
   .hz-back { order: 1; }
   .hz-top-updated { order: 3; margin: 0; flex-basis: 100%; font-size: 12px; }
+  .hz-home { order: 1; margin-left: auto; min-height: 36px; }
   .hz-toolbar { padding: 8px 16px; justify-content: space-between; }
   .hz-legend { order: 3; margin-left: 0; flex-basis: 100%; }
   .hz-legend-hint { display: none; }

@@ -24,6 +24,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { RAIN_BANDS, RAIN_BOUNDS, fieldPixels, gaugesAt, rainField } from "../map3d/rainField";
 
 const RainMap3D = lazy(() => import("./RainMap3D"));
+const RETRY_MS = [3000, 10000, 30000];
 
 function hasWebGL2() {
   try {
@@ -106,9 +107,13 @@ export function WeatherMap() {
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState(null);
 
+  // A failed load is retried after 3, 10 and 30 seconds before the error shows;
+  // after that the Retry button and the 5-minute refresh try again.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    const load = () =>
+    let timer = 0;
+    const load = (tries) =>
       getRainGauges()
         .then((d) => {
           if (!alive) return;
@@ -116,14 +121,20 @@ export function WeatherMap() {
           setRainError(false);
           setFrame((f) => (f == null || f >= d.times.length - 1 ? d.times.length - 1 : f));
         })
-        .catch(() => alive && setRainError(true));
-    load();
-    const id = setInterval(load, 5 * 60 * 1000);
+        .catch(() => {
+          if (!alive) return;
+          if (tries < RETRY_MS.length) timer = setTimeout(() => load(tries + 1), RETRY_MS[tries]);
+          else setRainError(true);
+        });
+    setRainError(false);
+    load(0);
+    const id = setInterval(() => load(RETRY_MS.length), 5 * 60 * 1000);
     return () => {
       alive = false;
+      clearTimeout(timer);
       clearInterval(id);
     };
-  }, []);
+  }, [attempt]);
 
   const last = rain ? rain.times.length - 1 : 0;
   useEffect(() => {
@@ -202,7 +213,18 @@ export function WeatherMap() {
           {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
         </button>
         <p className="min-w-[7rem] text-sm font-medium tabular-nums" aria-live="polite">
-          {rainError && !rain ? "Rain readings not available" : at ? `Rain at ${at}` : "Loading rain readings..."}
+          {rainError && !rain ? (
+            <>
+              Rain readings could not load.{" "}
+              <button type="button" onClick={() => setAttempt((a) => a + 1)} className="ml-1 underline underline-offset-2 hover:text-accent">
+                Try again
+              </button>
+            </>
+          ) : at ? (
+            `Rain at ${at}`
+          ) : (
+            "Loading rain readings..."
+          )}
         </p>
         {rain && (
           <label className="flex min-w-[10rem] flex-1 items-center gap-2 text-xs text-muted">
@@ -340,9 +362,12 @@ export function WeatherMap() {
             </li>
           ))}
         </ul>
+        {rain && reporting > 0 && !wet && (
+          <p className="text-sm font-medium text-ink" role="status">No rain right now. {reporting} NEA gauges, checked {at}.</p>
+        )}
         <p>
           Rain drawn from NEA rain gauges.{" "}
-          {rain ? `${reporting} gauges reporting${wet ? `, ${wet} with rain` : ", all dry"} at ${at}.` : ""} Colour between gauges is
+          {rain && wet ? `${reporting} gauges reporting, ${wet} with rain at ${at}. ` : ""}Colour between gauges is
           interpolated{view === "3d" ? "; the falling rain is drawn from it" : ""}.
         </p>
       </div>

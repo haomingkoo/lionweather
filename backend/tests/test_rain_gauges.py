@@ -59,3 +59,64 @@ def test_endpoint_says_when_gauges_are_down(client):
     c, mp = client
     mp.setattr(rain_router, "get_rain_gauge_service", lambda: FakeService(None))
     assert c.get("/api/rain/gauges").status_code == 503
+
+
+class FakeResponse:
+    def __init__(self, status, body=None):
+        self.status_code = status
+        self._body = body or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import httpx
+
+            raise httpx.HTTPStatusError("x", request=None, response=None)
+        return self
+
+    def json(self):
+        return self._body
+
+
+class FakeClient:
+    def __init__(self, statuses, body):
+        self.statuses = list(statuses)
+        self.body = body
+        self.calls = 0
+
+    async def get(self, url, params=None):
+        self.calls += 1
+        return FakeResponse(self.statuses.pop(0), self.body)
+
+
+@pytest.mark.asyncio
+async def test_a_rate_limit_is_retried_after_a_wait():
+    body = page([(f"2026-10-26T22:{m:02d}:00+08:00", {"S1": 0}) for m in range(0, 60, 4)])
+    client = FakeClient([429, 429, 200], body)
+    waits = []
+
+    async def sleep(s):
+        waits.append(s)
+
+    out = await rg.fetch_gauges(client, datetime(2026, 10, 26, 15, tzinfo=timezone.utc), sleep=sleep)
+    assert client.calls == 3
+    assert waits == list(rg.RETRY_WAITS)
+    assert out["values"]["S1"][-1] == 0
+
+
+@pytest.mark.asyncio
+async def test_last_good_readings_are_kept_through_a_failure(monkeypatch):
+    svc = rg.RainGaugeService()
+    good = {"times": ["t"], "stations": [], "values": {}}
+
+    async def ok(client, now):
+        return dict(good)
+
+    async def fail(client, now):
+        import httpx
+
+        raise httpx.HTTPError("429")
+
+    monkeypatch.setattr(rg, "fetch_gauges", ok)
+    assert (await svc.gauges())["times"] == ["t"]
+    monkeypatch.setattr(rg, "fetch_gauges", fail)
+    assert (await svc.gauges(force=True))["times"] == ["t"]

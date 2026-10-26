@@ -250,6 +250,20 @@ async def _collect_air_quality_loop() -> None:
         await asyncio.sleep(900)
 
 
+async def _rain_gauge_loop() -> None:
+    """Background loop: keep the NEA rain gauge cache warm (readings every 5 minutes)."""
+    from app.services.rain_gauges import get_rain_gauge_service
+
+    service = get_rain_gauge_service()
+    await asyncio.sleep(20)  # stay clear of the collectors' start-up burst
+    while True:
+        try:
+            await service.gauges(force=True)
+        except Exception as e:
+            logger.error(f"[Rain gauges] Refresh failed: {e}", exc_info=True)
+        await asyncio.sleep(180)
+
+
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     """Manage background services: start on boot, cancel on shutdown."""
@@ -270,6 +284,7 @@ async def lifespan(app_instance: FastAPI):
     _background_tasks.append(asyncio.create_task(_collect_data_loop(), name="data_collector"))
     _background_tasks.append(asyncio.create_task(_collect_forecasts_loop(), name="forecast_collector"))
     _background_tasks.append(asyncio.create_task(_collect_air_quality_loop(), name="air_quality_collector"))
+    _background_tasks.append(asyncio.create_task(_rain_gauge_loop(), name="rain_gauges"))
     logger.info("Data collector started (every 10 min)")
     logger.info("Forecast collector started (every 1 hr)")
 

@@ -2,8 +2,10 @@
 
 Each gauge reports the rain that fell in the last 5 minutes. One request for
 today's readings returns the newest 25 (about two hours), which is the loop the
-rain map plays. Cached for 4 minutes, so the gauges are asked at most once per
-reading interval.
+rain map plays. A background loop keeps the cache warm so visitors never wait on
+data.gov.sg, which rate-limits the shared backend address (HTTP 429); a rate
+limit is retried after a short wait, and the last good readings are served for
+up to two hours while it lasts.
 """
 from __future__ import annotations
 
@@ -19,7 +21,8 @@ logger = logging.getLogger(__name__)
 SGT = timezone(timedelta(hours=8))
 URL = "https://api-open.data.gov.sg/v2/real-time/api/rainfall"
 CACHE_TTL = timedelta(minutes=4)
-STALE_LIMIT = timedelta(minutes=30)
+STALE_LIMIT = timedelta(hours=2)
+RETRY_WAITS = (2.0, 6.0)  # seconds before retrying a rate-limited request
 SOURCE = {
     "name": "NEA rain gauges via data.gov.sg",
     "url": "https://data.gov.sg/datasets/d_6580738cdd7db79374ed3152159fbd69/view",
@@ -64,12 +67,21 @@ def parse_readings(payloads: list[dict]) -> dict:
     }
 
 
-async def fetch_gauges(client: httpx.AsyncClient, now: datetime) -> dict:
+async def _get(client: httpx.AsyncClient, date: str, sleep=asyncio.sleep) -> dict:
+    for wait in (*RETRY_WAITS, None):
+        response = await client.get(URL, params={"date": date})
+        if response.status_code == 429 and wait is not None:
+            await sleep(wait)
+            continue
+        return response.raise_for_status().json()
+
+
+async def fetch_gauges(client: httpx.AsyncClient, now: datetime, sleep=asyncio.sleep) -> dict:
     today = now.astimezone(SGT).date()
-    pages = [(await client.get(URL, params={"date": today.isoformat()})).raise_for_status().json()]
+    pages = [await _get(client, today.isoformat(), sleep)]
     # Just after midnight today's page is short; the end of yesterday fills the loop.
     if len((pages[0].get("data") or {}).get("readings", [])) < 13:
-        pages.append((await client.get(URL, params={"date": (today - timedelta(days=1)).isoformat()})).raise_for_status().json())
+        pages.append(await _get(client, (today - timedelta(days=1)).isoformat(), sleep))
     result = parse_readings(pages)
     result["times"] = result["times"][-25:]
     result["values"] = {k: v[-25:] for k, v in result["values"].items()}
@@ -81,10 +93,10 @@ class RainGaugeService:
         self._cached: tuple[datetime, dict] | None = None
         self._lock = asyncio.Lock()
 
-    async def gauges(self) -> dict | None:
+    async def gauges(self, force: bool = False) -> dict | None:
         async with self._lock:
             now = datetime.now(timezone.utc)
-            if self._cached and now - self._cached[0] < CACHE_TTL:
+            if not force and self._cached and now - self._cached[0] < CACHE_TTL:
                 return self._cached[1]
             try:
                 async with httpx.AsyncClient(timeout=15.0, headers=_headers()) as client:
