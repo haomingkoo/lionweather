@@ -160,7 +160,7 @@ export function AirQualityCard({ location = null }) {
       <p className={`mt-1 text-xs ${latest.status === "stale" ? "text-warn" : "text-muted"}`} role={latest.status === "stale" ? "status" : undefined}>
         {latest.status === "stale" ? `Delayed: last NEA reading ${updated}` : `Updated ${updated}`}
       </p>
-      <a href="/haze" className="inline-block mt-2 text-xs font-medium text-white/90 underline underline-offset-2 hover:text-white">
+      <a href="/haze" className="mt-2 inline-flex min-h-6 items-center text-sm font-medium text-accent underline underline-offset-2 hover:text-ink">
         See the haze hour by hour on a 3D map
       </a>
       {links}
