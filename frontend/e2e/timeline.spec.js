@@ -17,8 +17,14 @@ const long = {
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/haze/scene*", (route) => route.fulfill({ json: long }));
   await page.route("**/api/haze/wind-field*", (route) => route.fulfill({ json: { status: "unavailable" } }));
-  // The map is not under test; keep tiles off the network.
-  await page.route(/openfreemap|amazonaws/, (route) => route.abort());
+  // The map is not under test, and software WebGL on CI runners is slow enough to
+  // stall input. Report no WebGL 2 so the page uses its flat map.
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      return type === "webgl2" ? null : getContext.call(this, type, ...rest);
+    };
+  });
 });
 
 // Seasons had a slider whose drag did not land on the chosen date. A real mouse
