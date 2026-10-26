@@ -20,7 +20,7 @@ export function Map2D({ scene, index, region, onSelect, onHover }) {
   return (
     <div className="hz-map2d">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Flat map of PM2.5 by region">
-        <rect width={WIDTH} height={HEIGHT} fill="#c3cfcb" />
+        <rect width={WIDTH} height={HEIGHT} className="hz-map2d-sea" />
         {regionsGeo.features.map((f) => {
           const r = f.properties.region;
           const at = regionAt(scene, r, index);
@@ -28,9 +28,9 @@ export function Map2D({ scene, index, region, onSelect, onHover }) {
             <path
               key={r}
               d={pathFor(f.geometry)}
-              fill={at.pm25Band?.color || "#cfc6b6"}
+              className="hz-map2d-region"
+              fill={at.pm25Band?.color || "#9aa5b4"}
               fillOpacity={r === region ? 0.6 : 0.42}
-              stroke="#3a332c"
               strokeOpacity={r === region ? 0.9 : 0.4}
               strokeWidth={r === region ? 2.5 : 1}
               onClick={() => onSelect(r)}
@@ -44,9 +44,9 @@ export function Map2D({ scene, index, region, onSelect, onHover }) {
           if (!w) return null;
           const len = 10 + w[0] * 3;
           return (
-            <g key={s.name} transform={`translate(${px(s.lng)},${py(s.lat)}) rotate(${w[1] + 180})`}>
-              <line x1="0" y1={len / 2} x2="0" y2={-len / 2} stroke="#fffaf0" strokeWidth="2.5" />
-              <path d={`M0,${-len / 2 - 6} L5,${-len / 2 + 2} L-5,${-len / 2 + 2} Z`} fill="#fffaf0" />
+            <g key={s.name} className="hz-map2d-arrow" transform={`translate(${px(s.lng)},${py(s.lat)}) rotate(${w[1] + 180})`}>
+              <line x1="0" y1={len / 2} x2="0" y2={-len / 2} strokeWidth="2.5" />
+              <path d={`M0,${-len / 2 - 6} L5,${-len / 2 + 2} L-5,${-len / 2 + 2} Z`} stroke="none" />
             </g>
           );
         })}

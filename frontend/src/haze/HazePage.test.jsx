@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import fixture from "./scene.fixture.json";
 
-vi.mock("../api/haze", () => ({ getHazeScene: vi.fn() }));
+vi.mock("../api/haze", () => ({ getHazeScene: vi.fn(), getHazeWindField: vi.fn(() => Promise.resolve({ status: "unavailable" })) }));
 vi.mock("./HazeMap", () => ({ HazeMap: () => null }));
 
 import { getHazeScene } from "../api/haze";
@@ -42,14 +42,25 @@ describe("HazePage", () => {
     expect(within(card).getByText("Elevated")).toBeInTheDocument();
   });
 
-  it("says plainly that fire hotspots need a key, and keeps the toggle off", async () => {
+  it("says plainly when fire detections and the air path are unavailable, and keeps those toggles off", async () => {
     getHazeScene.mockResolvedValue(fixture);
     render(<HazePage />);
 
-    const toggle = await screen.findByRole("checkbox", { name: /Fire hotspots/ });
-    expect(toggle).toBeDisabled();
-    expect(toggle).not.toBeChecked();
-    expect(screen.getByText("Needs a NASA FIRMS key")).toBeInTheDocument();
+    const fires = await screen.findByRole("checkbox", { name: /Fire detections/ });
+    expect(fires).toBeDisabled();
+    expect(fires).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Air path/ })).toBeDisabled();
+    expect(screen.getByText("The air path is not available right now.")).toBeInTheDocument();
+    expect(screen.getByText("NASA fire detections are not available right now.")).toBeInTheDocument();
+  });
+
+  it("explains the hour from the data it has, without claiming a cause", async () => {
+    getHazeScene.mockResolvedValue(fixture);
+    render(<HazePage />);
+
+    const card = await screen.findByRole("region", { name: "At cursor" });
+    expect(within(card).getByText("Why this hour looks like this")).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/gets it first/);
   });
 
   it("shows an error with a retry when the API fails", async () => {

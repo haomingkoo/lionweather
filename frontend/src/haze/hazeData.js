@@ -45,13 +45,17 @@ export function hazeDensity(pm25) {
   return Math.min(1, Math.sqrt(pm25 / 250));
 }
 
-const CLEAN = [222, 220, 212];
-const SMOKE = [176, 120, 62];
+const SMOKE_TINTS = {
+  light: { clean: [206, 211, 218], smoke: [166, 118, 64] },
+  dark: { clean: [128, 138, 152], smoke: [200, 152, 94] },
+};
 
-// Smoke tint: pale grey in clean air, yellow-brown as PM2.5 climbs.
-export function hazeColor(pm25) {
+// Smoke tint: pale grey in clean air, yellow-brown as PM2.5 climbs. Lighter at night
+// so it still reads against the dark map.
+export function hazeColor(pm25, theme = "light") {
+  const { clean, smoke } = SMOKE_TINTS[theme] || SMOKE_TINTS.light;
   const t = hazeDensity(pm25);
-  return CLEAN.map((c, i) => Math.round(c + (SMOKE[i] - c) * t));
+  return clean.map((c, i) => Math.round(c + (smoke[i] - c) * t));
 }
 
 export function valueAt(series, index) {
