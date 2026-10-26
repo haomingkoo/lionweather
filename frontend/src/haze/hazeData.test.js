@@ -152,3 +152,40 @@ describe("wind field", () => {
     expect(compass(359)).toBe("N");
   });
 });
+
+import { hazeProfile, opticalDepth, LAYER_TOP_M } from "./hazeLayer";
+
+describe("haze column", () => {
+  it("stays nearly clear in the normal band and thickens through elevated and high", () => {
+    expect(opticalDepth(20)).toBeLessThan(0.03);
+    expect(opticalDepth(55)).toBeLessThan(0.03);
+    expect(opticalDepth(100)).toBeGreaterThan(0.5);
+    expect(opticalDepth(200)).toBeGreaterThan(1.7);
+    expect(opticalDepth(null)).toBe(0);
+  });
+
+  it("keeps most of the haze below the layer top, so tall towers poke through", () => {
+    const { alts, weights } = hazeProfile();
+    expect(weights.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6);
+    const below = weights.filter((_, i) => alts[i] < LAYER_TOP_M + 40).reduce((a, b) => a + b, 0);
+    expect(below).toBeGreaterThan(0.8);
+    expect(Math.max(...alts)).toBeLessThan(700);
+  });
+});
+
+import { eyeFromMatrix } from "./hazeLayer";
+
+describe("eyeFromMatrix", () => {
+  it("recovers a camera position from a translate-then-perspective matrix", () => {
+    // Perspective (near 0.1, far 100) times a translation by (-2, -3, -10): eye at (2, 3, 10).
+    const n = 0.1, f = 100;
+    const P = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -(f + n) / (f - n), -1, 0, 0, (-2 * f * n) / (f - n), 0];
+    const T = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -2, -3, -10, 1];
+    const M = new Array(16).fill(0);
+    for (let c = 0; c < 4; c += 1) for (let r = 0; r < 4; r += 1) for (let k = 0; k < 4; k += 1) M[c * 4 + r] += P[k * 4 + r] * T[c * 4 + k];
+    const [x, y, z] = eyeFromMatrix(M);
+    expect(x).toBeCloseTo(2, 3);
+    expect(y).toBeCloseTo(3, 3);
+    expect(z).toBeCloseTo(10 - n, 3);
+  });
+});

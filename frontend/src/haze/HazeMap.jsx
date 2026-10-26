@@ -3,8 +3,8 @@ import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import regionsGeo from "./sg-regions.json";
-import { HazeLayer, SG_BOUNDS } from "./hazeLayer";
-import { REGIONS, capitalise, hazeColor, hazeDensity, regionAt, windField } from "./hazeData";
+import { HazeLayer, SG_BOUNDS, opticalDepth } from "./hazeLayer";
+import { REGIONS, capitalise, hazeColor, regionAt, windField } from "./hazeData";
 import { FONT, FONT_BOLD, PALETTES, applyTheme, buildStyle, pixelRatioFor } from "../map3d/basemap";
 import { addBuildings, showBuildings, themeBuildings } from "../map3d/buildings";
 import { labelBox } from "./placement";
@@ -366,7 +366,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     REGIONS.forEach((r, i) => {
       const at = regionAt(scene, r, index);
       map.setFeatureState({ source: "regions", id: r }, { color: at.pm25Band?.color || PALETTES[theme].land, selected: r === region });
-      layer.setRegionState(i, { density: hazeDensity(at.pm25), color: hazeColor(at.pm25, theme) });
+      layer.setRegionState(i, { density: opticalDepth(at.pm25), color: hazeColor(at.pm25, theme) });
     });
     if (mean) {
       const rad = (mean.dir_deg * Math.PI) / 180;
