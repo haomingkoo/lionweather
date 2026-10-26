@@ -1,4 +1,11 @@
 # LionWeather
+<p align="center">
+  <a href="https://kooexperience.com/blog/posts/lionweather.html"><img src="docs/media/haze-preview.webp" width="800" alt="The haze map traces the wind reaching Singapore back over regional fire detections from a day earlier"></a>
+  <br>
+  <a href="https://lionweather.kooexperience.com/?tour=1">▶ 30-second tour</a> · <a href="https://lionweather.kooexperience.com/">Live app</a> · <a href="https://kooexperience.com/blog/posts/lionweather.html">kooexperience.com</a>
+  <br>
+  <sub>Music: Sascha Ende, ende.app (CC BY 4.0)</sub>
+</p>
 
 Singapore weather intelligence - NEA real-time data, ML-powered rainfall forecasting, a rain map from NEA rain gauges, and a 3D haze map.
 
