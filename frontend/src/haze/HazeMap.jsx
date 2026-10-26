@@ -18,11 +18,11 @@ setWorkerUrl(workerUrl);
 const MAP_INK = {
   light: {
     label: "#111827", halo: "rgba(244,246,249,0.94)", line: "#1f2937", path: "#0369a1", path2: "#0369a1",
-    tick: "#ffffff", smoke: "120,100,78", smokeK: 1, fireLow: "#e8a23a", fireMid: "#d9622b", fireHigh: "#a3261c", fireStroke: "#fff7ea",
+    tick: "#ffffff", smoke: "120,100,78", smokeK: 1, peat: "#7a8a47", peatLine: "#5b6a2f", fireLow: "#e8a23a", fireMid: "#d9622b", fireHigh: "#a3261c", fireStroke: "#fff7ea",
   },
   dark: {
     label: "#e8eef6", halo: "rgba(11,18,32,0.92)", line: "#cbd5e1", path: "#7dd3fc", path2: "#7dd3fc",
-    tick: "#0b1220", smoke: "190,165,130", smokeK: 0.55, fireLow: "#f6c35b", fireMid: "#f08a3c", fireHigh: "#e2483a", fireStroke: "#2a1608",
+    tick: "#0b1220", smoke: "190,165,130", smokeK: 0.55, peat: "#8fa05c", peatLine: "#a9bb72", fireLow: "#f6c35b", fireMid: "#f08a3c", fireHigh: "#e2483a", fireStroke: "#2a1608",
   },
 };
 
@@ -34,8 +34,8 @@ export const VIEWS = {
 function cameraFor(view, dim, width) {
   const base = VIEWS[view];
   const narrow = width < 700;
-  const zoom = base.zoom - (narrow ? (view === "sg" ? 1.25 : 0.45) : width < 1000 ? 0.4 : 0);
-  const center = narrow && view === "sg" ? [103.83, 1.345] : narrow ? [106.3, -0.9] : base.center;
+  const zoom = base.zoom - (narrow ? (view === "sg" ? 1.25 : 1.1) : width < 1000 ? 0.4 : 0);
+  const center = narrow && view === "sg" ? [103.83, 1.345] : narrow ? [107.4, -0.6] : base.center;
   const pitch = dim === "3d" ? (narrow ? Math.min(base.pitch, 50) : base.pitch) : 0;
   const bearing = dim === "3d" && !narrow ? base.bearing : 0;
   return { center, zoom, pitch, bearing };
@@ -166,13 +166,35 @@ function arrowImage() {
   return ctx.getImageData(0, 0, size, size);
 }
 
-export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, smoke, smokeHour, fires, onHover, onSelect }) {
+// Clusters big enough to name on the map; the rest are still clickable dots.
+const CLUSTER_LABEL_MIN = 25;
+export const PEAT_URL = "/map3d/peat-sea.json";
+
+function clusterGeo(clusters, selected) {
+  return {
+    type: "FeatureCollection",
+    features: (clusters || []).map((c) => ({
+      type: "Feature",
+      id: c.id,
+      properties: {
+        id: c.id,
+        frp: c.frp_mw,
+        big: c.detections >= CLUSTER_LABEL_MIN,
+        selected: c.id === selected,
+        label: `${c.province || "Offshore"}\n${c.detections.toLocaleString("en-SG")} fires`,
+      },
+      geometry: { type: "Point", coordinates: [c.lng, c.lat] },
+    })),
+  };
+}
+
+export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, smoke, smokeHour, fires, cluster, onCluster, onHover, onSelect }) {
   const container = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const readyRef = useRef(false);
   const propsRef = useRef({});
-  propsRef.current = { onHover, onSelect, scene, view, dim };
+  propsRef.current = { onHover, onSelect, onCluster, scene, view, dim };
 
   useEffect(() => {
     const el = container.current;
@@ -218,6 +240,10 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
       map.addSource("pathfire", { type: "geojson", data: EMPTY });
       map.addSource("pathfire-label", { type: "geojson", data: EMPTY });
       map.addSource("pathdot", { type: "geojson", data: EMPTY });
+      map.addSource("peat", { type: "geojson", data: EMPTY });
+      map.addSource("clusters", { type: "geojson", data: EMPTY });
+      map.addLayer({ id: "peat-fill", type: "fill", source: "peat", paint: { "fill-color": ink.peat, "fill-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 8, 0.3] } }, "places");
+      map.addLayer({ id: "peat-line", type: "line", source: "peat", paint: { "line-color": ink.peatLine, "line-width": 0.6, "line-opacity": 0.6 } }, "places");
       map.addSource("smoke", { type: "geojson", data: EMPTY });
       map.addImage("path-arrow", arrowImage(), { pixelRatio: 2, sdf: true });
 
@@ -313,7 +339,9 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         type: "circle",
         source: "fires",
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, ["interpolate", ["linear"], ["get", "frp"], 0, 1.4, 100, 3.6], 9, ["interpolate", ["linear"], ["get", "frp"], 0, 3, 100, 7]],
+          // Sized by fire power when zoomed out; from zoom 10 each point is drawn at the
+          // true size of a VIIRS pixel, 375 m across (radius in pixels doubles per zoom).
+          "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 4, ["interpolate", ["linear"], ["get", "frp"], 0, 1.4, 100, 3.6], 9, ["interpolate", ["linear"], ["get", "frp"], 0, 2.4, 100, 4], 10, 2.45, 16, 157],
           "circle-color": fireColor,
           "circle-opacity": fireFade,
           "circle-stroke-color": ink.fireStroke,
@@ -338,6 +366,33 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         paint: { "line-color": ink.fireMid, "line-width": 3.5 },
       });
       ["path-arrows", "path-ticks", "path-tick-labels"].forEach((id) => map.moveLayer(id));
+      map.addLayer({
+        id: "cluster-ring",
+        type: "circle",
+        source: "clusters",
+        paint: {
+          "circle-radius": ["case", ["get", "selected"], 22, ["get", "big"], 14, 8],
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-color": ink.label,
+          "circle-stroke-width": ["case", ["get", "selected"], 2.5, 0],
+          "circle-stroke-opacity": 0.9,
+        },
+      });
+      map.addLayer({
+        id: "cluster-labels",
+        type: "symbol",
+        source: "clusters",
+        filter: ["get", "big"],
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": FONT_BOLD,
+          "text-size": 12,
+          "text-anchor": "top",
+          "text-offset": [0, 1.2],
+          "symbol-sort-key": ["-", 0, ["get", "frp"]],
+        },
+        paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
+      });
       map.addLayer({
         id: "path-dot-glow",
         type: "circle",
@@ -408,6 +463,15 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         propsRef.current.onHover?.(null);
       };
       map.on("mouseleave", "region-fill", leave);
+      const pickCluster = (e) => {
+        const id = e.features?.[0]?.properties.id;
+        if (id != null) propsRef.current.onCluster?.(Number(id));
+      };
+      ["cluster-ring", "cluster-labels"].forEach((id) => {
+        map.on("click", id, pickCluster);
+        map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
+      });
       map.on("mouseleave", "fires-core", leave);
       map.on("click", "region-fill", (e) => {
         const r = e.features?.[0]?.properties.region;
@@ -485,6 +549,43 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     map.getSource("pathfire-label")?.setData(label);
   }, [fires, scene, index]);
 
+  // Fire clusters, and the camera flying in when one is picked.
+  useMapSync((map) => map.getSource("clusters")?.setData(clusterGeo(scene?.hotspots?.clusters, cluster)), [scene, cluster]);
+  const lastCluster = useRef(null);
+  useMapSync((map) => {
+    const was = lastCluster.current;
+    lastCluster.current = cluster;
+    if (cluster == null) {
+      // Back to region: return to the region camera.
+      if (was != null && view === "region") {
+        const cam = cameraFor(view, dim, container.current.clientWidth);
+        if (motion) map.flyTo({ ...cam, duration: 1800 });
+        else map.jumpTo(cam);
+      }
+      return;
+    }
+    const c = scene?.hotspots?.clusters?.find((x) => x.id === cluster);
+    if (!c) return;
+    const [w, s, e, n] = c.bbox;
+    const pad = 0.15;
+    const opts = { padding: 60, maxZoom: 9.5, pitch: dim === "3d" ? 55 : 0, bearing: 0 };
+    if (motion) map.fitBounds([[w - pad, s - pad], [e + pad, n + pad]], { ...opts, duration: 2200 });
+    else map.fitBounds([[w - pad, s - pad], [e + pad, n + pad]], { ...opts, animate: false });
+  }, [cluster]);
+
+  // Peatland loads the first time the Region view opens.
+  const peatLoaded = useRef(false);
+  useMapSync((map) => {
+    if (view !== "region" || !layers.peat || peatLoaded.current) return;
+    peatLoaded.current = true;
+    fetch(PEAT_URL)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`peat ${r.status}`))))
+      .then((data) => map.getSource("peat")?.setData(data))
+      .catch(() => {
+        peatLoaded.current = false;
+      });
+  }, [view, layers.peat]);
+
   // A dot travels along the path into Singapore every 4 seconds: air flowing in.
   useEffect(() => {
     const map = mapRef.current;
@@ -537,6 +638,11 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     set("fires-core", "circle-color", fireColor);
     set("fires-core", "circle-stroke-color", ink.fireStroke);
     set("smoke", "heatmap-color", smokeRamp(ink.smoke, ink.smokeK));
+    set("peat-fill", "fill-color", ink.peat);
+    set("peat-line", "line-color", ink.peatLine);
+    set("cluster-labels", "text-color", ink.label);
+    set("cluster-labels", "text-halo-color", ink.halo);
+    set("cluster-ring", "circle-stroke-color", ink.label);
   }, [theme]);
 
   // Layer toggles.
@@ -552,6 +658,8 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     ["fires-glow", "fires-core"].forEach((id) => vis(id, layers.hotspots && region));
     ["path850", "path-arrows", "path-ticks", "path-tick-labels", "path-fire", "path-fire-glow", "path-fire-label", "path-head", "path-dot", "path-dot-glow"].forEach((id) => vis(id, layers.path && region));
     vis("path925", layers.path925 && region);
+    ["peat-fill", "peat-line"].forEach((id) => vis(id, layers.peat && region));
+    ["cluster-ring", "cluster-labels"].forEach((id) => vis(id, layers.hotspots && region));
     layer.showHaze = layers.haze;
     layer.showWind = layers.wind;
     vis("smoke", layers.smoke && region);

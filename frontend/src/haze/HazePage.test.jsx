@@ -84,3 +84,12 @@ describe("HazePage", () => {
     expect(container.textContent).not.toContain("\u2014");
   });
 });
+
+describe("fire clusters", () => {
+  it("lists peatland and fire layers with plain notes", async () => {
+    getHazeScene.mockResolvedValue(fixture);
+    render(<HazePage />);
+    expect(await screen.findByRole("checkbox", { name: /Peatland/ })).toBeInTheDocument();
+    expect(screen.getByText("Where fires smoulder and smoke most")).toBeInTheDocument();
+  });
+});
