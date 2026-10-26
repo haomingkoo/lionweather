@@ -2,8 +2,10 @@ import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, use
 import { getHazeScene, getHazeWindField } from "../api/haze";
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
 import {
+  METRICS,
   REGIONS,
   adviceFor,
+  parseMetric,
   capitalise,
   compass,
   findEvents,
@@ -72,9 +74,9 @@ function Band({ band }) {
   );
 }
 
-function Toggle({ checked, onChange, label, note, disabled }) {
+function Toggle({ checked, onChange, label, note, disabled, title }) {
   return (
-    <label className={`hz-toggle${disabled ? " is-disabled" : ""}`}>
+    <label className={`hz-toggle${disabled ? " is-disabled" : ""}`} title={title}>
       <input type="checkbox" checked={checked && !disabled} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
       <span className="hz-toggle-text">
         <span>{label}</span>
@@ -118,7 +120,7 @@ function Info({ label, children }) {
   );
 }
 
-function AtCursor({ scene, index, region, onRegion, why }) {
+function AtCursor({ scene, index, region, onRegion, why, metric }) {
   const at = regionAt(scene, region, index);
   const wind = scene.wind.mean[index];
   const advice = adviceFor(at.psiBand, at.pm25Band);
@@ -137,12 +139,12 @@ function AtCursor({ scene, index, region, onRegion, why }) {
         </select>
       </label>
       <dl className="hz-stats">
-        <div>
+        <div className={metric === "psi" ? "is-active" : undefined}>
           <dt>PSI <small>24 h</small></dt>
           <dd className="hz-num">{at.psi ?? "n/a"}</dd>
           <dd><Band band={at.psiBand} /></dd>
         </div>
-        <div>
+        <div className={metric === "pm25" ? "is-active" : undefined}>
           <dt>PM2.5 <small>µg/m³, 1 h</small></dt>
           <dd className="hz-num">{at.pm25 ?? "n/a"}</dd>
           <dd><Band band={at.pm25Band} /></dd>
@@ -363,7 +365,7 @@ function Tooltip({ hover, scene, index, bounds }) {
   );
 }
 
-function Legend({ view, scene, smokeOn, path925, peat }) {
+function Legend({ view, scene, smokeOn, path925, peat, metric }) {
   if (view === "streets") {
     return (
       <div className="hz-legend" aria-label="Map key">
@@ -374,19 +376,25 @@ function Legend({ view, scene, smokeOn, path925, peat }) {
   if (view === "region") {
     return (
       <div className="hz-legend" aria-label="Map key">
-        <span className="hz-key" title="About 1.5 km up (850 hPa), dot every 6 h"><i className="hz-key-path" aria-hidden="true" />Wind path (last 3 days)</span>
+        <span className="hz-key" title="About 1.5 km up (850 hPa), dot every 6 h"><i className="hz-key-path" aria-hidden="true" />Wind path, last 3 days</span>
         {path925 && <span className="hz-key" title="925 hPa"><i className="hz-key-path2" aria-hidden="true" />Closer to the ground</span>}
-        {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fires, larger is hotter</span>}
-        {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Smoke drift, simulated</span>}
-        {peat && <span className="hz-key" title="PEATMAP, University of Leeds"><i className="hz-key-peat" aria-hidden="true" />Peatland (where fires smoulder and smoke most)</span>}
+        {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fires · size shows intensity</span>}
+        {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Smoke drift (simulated)</span>}
+        {peat && (
+          <span className="hz-key" title={PEAT_NOTE}>
+            <i className="hz-key-peat" aria-hidden="true" />Peatland
+            <Info label="About peatland"><p>{PEAT_NOTE}</p></Info>
+          </span>
+        )}
       </div>
     );
   }
+  const bands = scene.bands[metric];
   return (
     <div className="hz-legend" aria-label="Map key">
-      <span className="hz-legend-title">PM2.5 µg/m³</span>
-      {scene.bands.pm25.map((b, i) => {
-        const lo = i === 0 ? 0 : scene.bands.pm25[i - 1].max + 1;
+      <span className="hz-legend-title">{metric === "psi" ? "PSI" : "PM2.5 µg/m³"}</span>
+      {bands.map((b, i) => {
+        const lo = i === 0 ? 0 : bands[i - 1].max + 1;
         return (
           <span key={b.key} className="hz-key" style={{ "--c": `var(--band-${b.key})` }}>
             <i aria-hidden="true" />
@@ -394,9 +402,23 @@ function Legend({ view, scene, smokeOn, path925, peat }) {
           </span>
         );
       })}
-      <span className="hz-legend-hint hz-muted">Browner haze, more PM2.5. Streaks show wind.</span>
+      <span className="hz-legend-hint hz-muted">Browner haze, higher {METRICS[metric].short}. Streaks show wind.</span>
     </div>
   );
+}
+
+const PEAT_NOTE = "Fires on peat smoulder for weeks and produce the thickest smoke.";
+const METRIC_KEY = "hz-metric";
+
+// PSI by default; a ?metric= link wins, then the last choice in this browser.
+function initialMetric() {
+  try {
+    const fromUrl = parseMetric(new URLSearchParams(window.location.search).get("metric"));
+    if (fromUrl) return fromUrl;
+    return parseMetric(localStorage.getItem(METRIC_KEY)) || "psi";
+  } catch {
+    return "psi";
+  }
 }
 
 // Shown once per browser, then remembered.
@@ -476,6 +498,18 @@ function HazeView() {
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [hover, setHover] = useState(null);
   const [clusterId, setClusterId] = useState(null);
+  const [metric, setMetricState] = useState(initialMetric);
+  const setMetric = (m) => {
+    setMetricState(m);
+    try {
+      localStorage.setItem(METRIC_KEY, m);
+      const url = new URL(window.location.href);
+      url.searchParams.set("metric", m);
+      window.history.replaceState(null, "", url);
+    } catch {
+      /* private mode or a sandboxed frame: the choice lasts for this visit */
+    }
+  };
   const [district, setDistrict] = useState("cbd");
   const [windStatus, setWindStatus] = useState(null);
   const mapBox = useRef(null);
@@ -519,7 +553,7 @@ function HazeView() {
     return () => clearInterval(id);
   }, [playing, speed, scene, dataEnd]);
 
-  const events = useMemo(() => (scene ? findEvents(scene) : []), [scene]);
+  const events = useMemo(() => (scene ? findEvents(scene, metric) : []), [scene, metric]);
   const points = useMemo(() => (scene?.hotspots?.status === "ok" ? scene.hotspots.points : []), [scene]);
   const smoke = useMemo(() => simulateSmoke(field, points), [field, points]);
   const cursorT = scene ? new Date(scene.hours[index]).getTime() / 1000 : 0;
@@ -619,12 +653,18 @@ function HazeView() {
                     </select>
                   </label>
                 )}
-                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} peat={layers.peat} />
+                <Segmented
+                  label="Reading shown"
+                  value={metric}
+                  onChange={setMetric}
+                  options={Object.values(METRICS).map((m) => [m.key, m.label])}
+                />
+                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} peat={layers.peat} metric={metric} />
               </div>
               {webgl && dim === "3d" && <OrbitTip />}
               <div className="hz-map" ref={mapBox}>
                 {webgl ? (
-                  <MapBoundary fallback={<Map2D scene={scene} index={index} region={region} onSelect={setRegion} onHover={setHover} />}>
+                  <MapBoundary fallback={<Map2D scene={scene} index={index} region={region} onSelect={setRegion} onHover={setHover} metric={metric} />}>
                     <Suspense fallback={<div className="hz-state" role="status">Loading the map…</div>}>
                       <HazeMap
                         scene={scene}
@@ -635,6 +675,7 @@ function HazeView() {
                         layers={layers}
                         motion={!reduced}
                         theme={theme}
+                        metric={metric}
                         smoke={smoke}
                         smokeHour={smokeHour}
                         fires={fires}
@@ -652,7 +693,7 @@ function HazeView() {
                     </Suspense>
                   </MapBoundary>
                 ) : (
-                  <Map2D scene={scene} index={index} region={region} onSelect={setRegion} onHover={setHover} />
+                  <Map2D scene={scene} index={index} region={region} onSelect={setRegion} onHover={setHover} metric={metric} />
                 )}
                 <Tooltip hover={hover} scene={scene} index={index} bounds={mapSize} />
               </div>
@@ -684,7 +725,7 @@ function HazeView() {
           </div>
 
           <aside className="hz-side">
-            <AtCursor scene={scene} index={index} region={region} onRegion={setRegion} why={why} />
+            <AtCursor scene={scene} index={index} region={region} onRegion={setRegion} why={why} metric={metric} />
 
             {view === "streets" && <StreetsCard inflow={inflow} district={district} status={windStatus} hour={scene.hours[index]} />}
 
@@ -695,26 +736,26 @@ function HazeView() {
             <section className="hz-card" aria-label="Layers">
               <header className="hz-card-head"><h2>Layers</h2></header>
               <div className="hz-toggles">
-                <Toggle checked={layers.haze} onChange={setLayer("haze")} label="Haze" note="Thickness follows PM2.5" disabled={!webgl} />
+                <Toggle checked={layers.haze} onChange={setLayer("haze")} label="Haze" note={`Follows ${METRICS[metric].short}`} disabled={!webgl} />
                 <Toggle checked={layers.wind} onChange={setLayer("wind")} label="Wind" note={`${stationCount} NEA stations`} disabled={!webgl} />
                 <Toggle checked={layers.regions} onChange={setLayer("regions")} label="Regions" note="NEA's five areas" disabled={!webgl} />
                 <Toggle checked={layers.buildings} onChange={setLayer("buildings")} label="Buildings" note={dim === "3d" ? "OpenStreetMap, real heights" : "3D view only"} disabled={!webgl || dim !== "3d"} />
                 <Toggle checked={layers.relief} onChange={setLayer("relief")} label="Relief" note="Hill shading" disabled={!webgl} />
-                <Toggle checked={layers.path} onChange={setLayer("path")} label="Wind path (last 3 days)" note={pathOk ? "About 1.5 km up" : "Not available right now"} disabled={!webgl || !pathOk} />
+                <Toggle checked={layers.path} onChange={setLayer("path")} label="Wind path, last 3 days" note={pathOk ? "About 1.5 km up" : "Not available now"} disabled={!webgl || !pathOk} />
                 <Toggle checked={layers.path925} onChange={setLayer("path925")} label="Same, closer to the ground" note="About 750 m up" disabled={!webgl || !pathOk} />
                 <Toggle
                   checked={layers.hotspots}
                   onChange={setLayer("hotspots")}
-                  label="Fire detections"
-                  note={hs.status === "ok" ? "NASA satellites, last 24 h" : "Not available right now"}
+                  label="Fires · size shows intensity"
+                  note={hs.status === "ok" ? "NASA, last 24 h" : "Not available now"}
                   disabled={!webgl || hs.status !== "ok"}
                 />
-                <Toggle checked={layers.peat} onChange={setLayer("peat")} label="Peatland" note="Where fires smoulder and smoke most" disabled={!webgl} />
+                <Toggle checked={layers.peat} onChange={setLayer("peat")} label="Peatland" note="Smoulders for weeks" title={PEAT_NOTE} disabled={!webgl} />
                 <Toggle
                   checked={layers.smoke}
                   onChange={setLayer("smoke")}
-                  label="Smoke drift"
-                  note={smoke ? "Simulated" : "Needs fires and wind"}
+                  label="Smoke drift (simulated)"
+                  note={smoke ? "From fires and wind" : "Needs fires and wind"}
                   disabled={!webgl || !smoke}
                 />
               </div>

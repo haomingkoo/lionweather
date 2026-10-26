@@ -111,11 +111,14 @@ describe("findEvents", () => {
   it("marks band changes in the worst region and the PM2.5 peak", () => {
     const s = scene([90, 120, 130, 95], [30, 70, 80, 40]);
     const events = findEvents(s);
-    expect(events.map((e) => [e.index, e.label])).toEqual([
+    expect(findEvents(s, "psi").map((e) => [e.index, e.label])).toEqual([
       [1, "PSI up to unhealthy"],
+      [2, "Peak: PSI 130 in the west"],
+      [3, "PSI down to moderate"],
+    ]);
+    expect(findEvents(s, "pm25").map((e) => [e.index, e.label])).toEqual([
       [1, "Rose to elevated"],
       [2, "Peak: 80 µg/m³ in the west"],
-      [3, "PSI down to moderate"],
       [3, "Back to normal"],
     ]);
   });
@@ -123,7 +126,7 @@ describe("findEvents", () => {
   it("drops a change undone within an hour and keeps the later of two quick changes", () => {
     // PM2.5: normal, elevated, normal, ..., then elevated, high in consecutive hours.
     const s = scene([60, 60, 60, 60, 60, 60, 60], [30, 70, 30, 30, 30, 70, 160]);
-    const labels = findEvents(s).filter((e) => e.kind === "pm25").map((e) => [e.index, e.label]);
+    const labels = findEvents(s, "pm25").filter((e) => e.kind === "pm25").map((e) => [e.index, e.label]);
     expect(labels).toEqual([[6, "Rose to high"]]);
   });
 });
@@ -203,5 +206,26 @@ describe("eyeFromMatrix", () => {
     expect(x).toBeCloseTo(2, 3);
     expect(y).toBeCloseTo(3, 3);
     expect(z).toBeCloseTo(10 - n, 3);
+  });
+});
+
+
+describe("metric", async () => {
+  const { hazeLevel, parseMetric, METRICS } = await import("./hazeData");
+  const { opticalDepthFor } = await import("./hazeLayer");
+  it("reads only psi or pm25 from a link", () => {
+    expect(parseMetric("psi")).toBe("psi");
+    expect(parseMetric("pm25")).toBe("pm25");
+    expect(parseMetric("PSI")).toBeNull();
+    expect(parseMetric(null)).toBeNull();
+    expect(METRICS.psi.label).toBe("PSI 24-h");
+  });
+
+  it("scales haze to each metric: clear through moderate PSI, thick past very unhealthy", () => {
+    expect(hazeLevel(300, "psi")).toBe(1);
+    expect(hazeLevel(250, "pm25")).toBe(1);
+    expect(opticalDepthFor(90, "psi")).toBeLessThan(0.03);
+    expect(opticalDepthFor(250, "psi")).toBeGreaterThan(1.3);
+    expect(opticalDepthFor(150, "pm25")).toBeCloseTo(opticalDepthFor(150), 6);
   });
 });

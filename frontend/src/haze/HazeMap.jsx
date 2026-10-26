@@ -3,7 +3,7 @@ import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import regionsGeo from "./sg-regions.json";
-import { HazeLayer, SG_BOUNDS, opticalDepth } from "./hazeLayer";
+import { HazeLayer, SG_BOUNDS, opticalDepthFor } from "./hazeLayer";
 import { REGIONS, capitalise, hazeColor, regionAt, windField } from "./hazeData";
 import { FONT, FONT_BOLD, PALETTES, applyTheme, buildStyle, pixelRatioFor } from "../map3d/basemap";
 import { addBuildings, showBuildings, themeBuildings } from "../map3d/buildings";
@@ -48,7 +48,7 @@ function cameraFor(view, dim, width, district = "cbd") {
   return { center, zoom, pitch, bearing };
 }
 
-function labelPoints(scene, index) {
+function labelPoints(scene, index, metric) {
   return {
     type: "FeatureCollection",
     features: REGIONS.map((r) => {
@@ -56,7 +56,7 @@ function labelPoints(scene, index) {
       const loc = scene.regions[r];
       return {
         type: "Feature",
-        properties: { name: capitalise(r), value: at.pm25 != null ? `${at.pm25}` : "no data" },
+        properties: { name: capitalise(r), value: at[metric] != null ? `${at[metric]}` : "no data" },
         geometry: { type: "Point", coordinates: [loc.lng, loc.lat] },
       };
     }),
@@ -195,7 +195,7 @@ function clusterGeo(clusters, selected) {
   };
 }
 
-export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, smoke, smokeHour, fires, cluster, onCluster, onHover, onSelect, district = "cbd", inflow, onWindStatus }) {
+export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, metric = "psi", smoke, smokeHour, fires, cluster, onCluster, onHover, onSelect, district = "cbd", inflow, onWindStatus }) {
   const container = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -551,21 +551,21 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     const mean = scene.wind.mean[index];
     REGIONS.forEach((r, i) => {
       const at = regionAt(scene, r, index);
-      map.setFeatureState({ source: "regions", id: r }, { color: at.pm25Band?.color || PALETTES[theme].land, selected: r === region });
-      layer.setRegionState(i, { density: opticalDepth(at.pm25), color: hazeColor(at.pm25, theme) });
+      map.setFeatureState({ source: "regions", id: r }, { color: at[`${metric}Band`]?.color || PALETTES[theme].land, selected: r === region });
+      layer.setRegionState(i, { density: opticalDepthFor(at[metric], metric), color: hazeColor(at[metric], theme, metric) });
     });
     if (mean) {
       const rad = (mean.dir_deg * Math.PI) / 180;
       layer.setDrift([-mean.speed_kn * Math.sin(rad), -mean.speed_kn * Math.cos(rad)]);
     }
-    map.getSource("labels")?.setData(labelPoints(scene, index));
+    map.getSource("labels")?.setData(labelPoints(scene, index, metric));
     layer.setField(windField(scene.wind.stations, scene.wind.station_hourly, index, SG_BOUNDS));
     const air = scene.air_path?.status === "ok" ? scene.air_path.paths : null;
     map.getSource("path850")?.setData(pathGeo(air?.["850hPa"]?.[index]));
     map.getSource("path925")?.setData(pathGeo(air?.["925hPa"]?.[index]));
     map.getSource("ticks")?.setData(tickGeo(air?.["850hPa"]?.[index]));
     map.getSource("pathhead")?.setData(headGeo(air?.["850hPa"]?.[index]));
-  }, [scene, index, region, theme]);
+  }, [scene, index, region, theme, metric]);
 
   useMapSync((map) => {
     map.getSource("fires")?.setData(fireGeo(fires));

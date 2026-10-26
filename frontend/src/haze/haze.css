@@ -319,7 +319,9 @@
 .hz-region-select { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; color: var(--muted-c); }
 .hz-region-select select { min-width: 132px; }
 .hz-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-.hz-stats > div { background: var(--panel-2); border-radius: 6px; padding: 8px 10px; }
+.hz-stats > div { background: var(--panel-2); border-radius: 6px; padding: 8px 10px; border: 1px solid transparent; }
+/* The reading the map is showing. */
+.hz-stats > div.is-active { border-color: var(--accent-c); background: var(--panel); }
 .hz-stats dt { color: var(--ink-c); font-weight: 500; }
 .hz-stats dt small { color: var(--muted-c); font-weight: 400; font-size: 12px; }
 .hz-stats dd { margin: 0; }

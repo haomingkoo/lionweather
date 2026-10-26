@@ -59,11 +59,28 @@ const SMOKE_TINTS = {
   dark: { clean: [96, 106, 122], smoke: [158, 124, 86] },
 };
 
-// Smoke tint: pale grey in clean air, yellow-brown as PM2.5 climbs. Lighter at night
-// so it still reads against the dark map.
-export function hazeColor(pm25, theme = "light") {
+// The two numbers the page can show. PSI is the 24-hour index Singaporeans know;
+// PM2.5 is the 1-hour concentration.
+export const METRICS = {
+  psi: { key: "psi", label: "PSI 24-h", unit: "", top: 300, short: "PSI" },
+  pm25: { key: "pm25", label: "PM2.5 1-h", unit: "µg/m³", top: 250, short: "PM2.5" },
+};
+
+export function parseMetric(value) {
+  return METRICS[value] ? value : null;
+}
+
+// 0 in clean air, 1 at the top of the scale shown (PSI 300, PM2.5 250).
+export function hazeLevel(value, metric = "pm25") {
+  if (value == null || !Number.isFinite(value) || value <= 0) return 0;
+  return Math.min(1, Math.sqrt(value / METRICS[metric].top));
+}
+
+// Smoke tint: pale grey in clean air, yellow-brown as the reading climbs. Lighter at
+// night so it still reads against the dark map.
+export function hazeColor(value, theme = "light", metric = "pm25") {
   const { clean, smoke } = SMOKE_TINTS[theme] || SMOKE_TINTS.light;
-  const t = hazeDensity(pm25);
+  const t = hazeLevel(value, metric);
   return clean.map((c, i) => Math.round(c + (smoke[i] - c) * t));
 }
 
@@ -128,15 +145,15 @@ function nationalMax(scene, key, i) {
   return values.length ? Math.max(...values) : null;
 }
 
-// Key changes worth a marker: band changes in the worst region, and the PM2.5
-// peak. A change undone within an hour (normal, elevated, normal) is noise and is
-// dropped; a change followed by another within an hour keeps only the later one.
-export function findEvents(scene) {
+// Key changes worth a marker for the metric shown: band changes in the worst
+// region, and the peak. A change undone within an hour (normal, elevated, normal) is
+// noise and is dropped; a change followed by another within an hour keeps the later.
+export function findEvents(scene, metric = "pm25") {
   const order = (kind, key) => scene.bands[kind].findIndex((b) => b.key === key);
   const kinds = { psi: [], pm25: [] };
   const prev = { psi: null, pm25: null };
   scene.hours.forEach((_, i) => {
-    for (const kind of ["psi", "pm25"]) {
+    for (const kind of [metric]) {
       const band = bandFor(nationalMax(scene, kind, i), scene.bands[kind]);
       if (!band) continue;
       const before = prev[kind];
@@ -156,18 +173,18 @@ export function findEvents(scene) {
   const label = ({ kind, band, from }) => {
     const up = order(kind, band.key) > order(kind, from.key);
     const name = band.label.toLowerCase();
+    if (band.key === "normal" || band.key === "good") return kind === "psi" ? "PSI back to good" : "Back to normal";
     if (kind === "psi") return `PSI ${up ? "up" : "down"} to ${name}`;
-    if (band.key === "normal") return "Back to normal";
     return `${up ? "Rose" : "Down"} to ${name}`;
   };
   const events = [...kinds.psi, ...kinds.pm25].map((e) => ({ index: e.index, kind: e.kind, color: e.band.color, label: label(e) }));
-  const top = peak(scene, "pm25");
+  const top = peak(scene, metric);
   if (top) {
     events.push({
       index: top.index,
       kind: "peak",
-      color: bandFor(top.value, scene.bands.pm25)?.color,
-      label: `Peak: ${top.value} µg/m³ in the ${top.region}`,
+      color: bandFor(top.value, scene.bands[metric])?.color,
+      label: metric === "psi" ? `Peak: PSI ${top.value} in the ${top.region}` : `Peak: ${top.value} µg/m³ in the ${top.region}`,
     });
   }
   return events.sort((a, b) => a.index - b.index);
