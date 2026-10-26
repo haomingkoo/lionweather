@@ -15,7 +15,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.keyboard.press("Enter");
       const dialog = page.getByRole("dialog", { name: "LionWeather in 30 seconds" });
       await expect(dialog).toBeVisible();
-      await expect(dialog.locator("video")).toHaveAttribute("poster", "/media/haze-poster.jpg");
+      await expect(dialog.locator("video")).toHaveAttribute("poster", "/media/haze-poster.jpg?v=1");
       await expect(dialog.getByText("Music: Sascha Ende, ende.app (CC BY 4.0)")).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();
