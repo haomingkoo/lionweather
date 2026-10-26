@@ -140,8 +140,10 @@
 .hz-key .hz-key-path { width: 18px; height: 3px; border-radius: 2px; background: var(--path); }
 .hz-key .hz-key-path2 { width: 18px; height: 0; border-radius: 0; border-top: 2px dashed var(--path); background: none; opacity: 0.7; }
 .hz-key .hz-key-fire { width: 10px; height: 10px; border-radius: 50%; background: var(--fire); }
+.hz-key .hz-key-tracer { width: 18px; height: 2px; border-radius: 1px; background: var(--ink-c); opacity: 0.7; }
 .hz-key .hz-key-peat { width: 14px; height: 10px; border-radius: 2px; background: #7a8a47; opacity: 0.6; }
-:root.dark .hz-key .hz-key-peat { background: #8fa05c; }
+:root.dark .hz-key .hz-key-tracer { width: 18px; height: 2px; border-radius: 1px; background: var(--ink-c); opacity: 0.7; }
+.hz-key .hz-key-peat { background: #8fa05c; }
 .hz-key .hz-key-smoke { width: 14px; height: 10px; border-radius: 50%; background: var(--smoke); opacity: 0.6; }
 .hz-legend-hint { white-space: nowrap; }
 .hz-tip { display: flex; align-items: center; gap: 12px; margin: 0; padding: 6px 12px; font-size: 12px; color: var(--muted-c); background: var(--panel); border-bottom: 1px solid var(--line-c); }
@@ -398,6 +400,7 @@
   .hz-card { order: 6; margin: 8px 16px 0; }
   .hz-cursor-card { order: 3; margin: 12px 16px 0; }
   .hz-cluster-card { order: 3; margin: 12px 16px 0; }
+  .hz-card[aria-label="Wind among the towers"] { order: 3; margin: 12px 16px 0; }
   .hz-card[aria-label="Where today's air came from"] { order: 4; margin: 8px 16px 12px; }
   .hz-footer { order: 7; margin: 12px 16px 0; }
 }

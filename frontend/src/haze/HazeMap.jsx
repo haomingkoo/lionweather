@@ -8,6 +8,9 @@ import { REGIONS, capitalise, hazeColor, regionAt, windField } from "./hazeData"
 import { FONT, FONT_BOLD, PALETTES, applyTheme, buildStyle, pixelRatioFor } from "../map3d/basemap";
 import { addBuildings, showBuildings, themeBuildings } from "../map3d/buildings";
 import { MAX_PITCH, addOrbitControls } from "../map3d/controls";
+import { WindTowersLayer } from "../map3d/windTowersLayer";
+import { buildObstacleMask, gridSizeFor, latticeSpeed, makeFrame, toGrid } from "../map3d/lbm";
+import { DISTRICTS, DISTRICT_SIZE_M, footprintsFrom } from "../map3d/streets";
 import { labelBox } from "./placement";
 import { eachParticleAt, edgeFade } from "./smoke";
 import { fireStretches } from "./explain";
@@ -31,9 +34,13 @@ export const VIEWS = {
   region: { center: [108.6, -0.3], zoom: 5.05, pitch: 36, bearing: 0 },
 };
 
-function cameraFor(view, dim, width) {
-  const base = VIEWS[view];
+function cameraFor(view, dim, width, district = "cbd") {
   const narrow = width < 700;
+  if (view === "streets") {
+    const d = DISTRICTS[district] || DISTRICTS.cbd;
+    return { center: [d.lng, d.lat], zoom: narrow ? 14.6 : 15.2, pitch: dim === "3d" ? 60 : 0, bearing: dim === "3d" ? d.bearing : 0 };
+  }
+  const base = VIEWS[view];
   const zoom = base.zoom - (narrow ? (view === "sg" ? 1.25 : 1.1) : width < 1000 ? 0.4 : 0);
   const center = narrow && view === "sg" ? [103.83, 1.345] : narrow ? [107.4, -0.6] : base.center;
   const pitch = dim === "3d" ? (narrow ? Math.min(base.pitch, 50) : base.pitch) : 0;
@@ -188,20 +195,22 @@ function clusterGeo(clusters, selected) {
   };
 }
 
-export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, smoke, smokeHour, fires, cluster, onCluster, onHover, onSelect }) {
+export function HazeMap({ scene, index, region, view, dim, layers, motion, theme, smoke, smokeHour, fires, cluster, onCluster, onHover, onSelect, district = "cbd", inflow, onWindStatus }) {
   const container = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const readyRef = useRef(false);
   const propsRef = useRef({});
-  propsRef.current = { onHover, onSelect, onCluster, scene, view, dim };
+  propsRef.current = { onHover, onSelect, onCluster, onWindStatus, scene, view, dim };
+  const windRef = useRef(null);
+  const buildToken = useRef(0);
 
   useEffect(() => {
     const el = container.current;
     const map = new MapLibreMap({
       container: el,
       style: buildStyle(theme),
-      ...cameraFor(view, dim, el.clientWidth),
+      ...cameraFor(view, dim, el.clientWidth, district),
       maxPitch: MAX_PITCH,
       maxBounds: [[84, -16], [132, 16]],
       pixelRatio: pixelRatioFor(),
@@ -226,6 +235,16 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     });
     layer.setTheme(theme);
     layerRef.current = layer;
+    const phone = el.clientWidth < 700 || !!window.matchMedia?.("(pointer: coarse)").matches;
+    const wind = new WindTowersLayer({
+      n: gridSizeFor({ phone }),
+      particles: phone ? 8192 : 16384,
+      onStatus: (status) => propsRef.current.onWindStatus?.(status),
+    });
+    wind.setTheme(theme);
+    wind.setAnimate(motion);
+    windRef.current = wind;
+    window.__windLayer = wind;
 
     map.on("load", () => {
       const ink = MAP_INK[theme] || MAP_INK.light;
@@ -420,6 +439,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
       });
       map.addLayer(layer);
+      map.addLayer(wind);
       map.addLayer({
         id: "region-labels",
         type: "symbol",
@@ -490,9 +510,15 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
       reducedMotion: !motion,
       idle: () => propsRef.current.view === "sg" && propsRef.current.dim === "3d",
     });
-    const io = new IntersectionObserver(([entry]) => layer.setVisible(entry.isIntersecting && !document.hidden));
+    const io = new IntersectionObserver(([entry]) => {
+      layer.setVisible(entry.isIntersecting && !document.hidden);
+      wind.setVisible(entry.isIntersecting && !document.hidden);
+    });
     io.observe(el);
-    const onVis = () => layer.setVisible(!document.hidden);
+    const onVis = () => {
+      layer.setVisible(!document.hidden);
+      wind.setVisible(!document.hidden);
+    };
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
@@ -558,7 +584,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     if (cluster == null) {
       // Back to region: return to the region camera.
       if (was != null && view === "region") {
-        const cam = cameraFor(view, dim, container.current.clientWidth);
+        const cam = cameraFor(view, dim, container.current.clientWidth, district);
         if (motion) map.flyTo({ ...cam, duration: 1800 });
         else map.jumpTo(cam);
       }
@@ -661,7 +687,8 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     ["peat-fill", "peat-line"].forEach((id) => vis(id, layers.peat && region));
     ["cluster-ring", "cluster-labels"].forEach((id) => vis(id, layers.hotspots && region));
     layer.showHaze = layers.haze;
-    layer.showWind = layers.wind;
+    // In the street view the simulated flow replaces the island-wide streaks.
+    layer.showWind = layers.wind && view !== "streets";
     vis("smoke", layers.smoke && region);
     layer.kick();
   }, [layers, dim, view]);
@@ -675,10 +702,63 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     const [on, off] = dim === "2d" ? [0.5, 0.36] : [0.16, 0.06];
     map.setPaintProperty("region-fill", "fill-opacity", ["case", ["boolean", ["feature-state", "selected"], false], on, off]);
     layer.setAnimate(motion);
-    const cam = cameraFor(view, dim, container.current.clientWidth);
+    const cam = cameraFor(view, dim, container.current.clientWidth, district);
     if (motion) map.flyTo({ ...cam, duration: 2400, curve: 1.3, essential: false });
     else map.jumpTo(cam);
-  }, [view, dim, motion]);
+  }, [view, dim, motion, district]);
+
+  // Wind among the towers: build the obstacle grid from the footprints loaded for
+  // the district, turned to this hour's measured wind, and restart the simulation.
+  // Tiles arrive after the camera does, and the animated layers keep the map from
+  // ever going idle, so each finished move and each loaded tile batch (debounced)
+  // checks whether more buildings have loaded since the last build.
+  const windBuild = useRef(null);
+  useMapSync((map) => {
+    const wind = windRef.current;
+    if (windBuild.current) {
+      map.off("moveend", windBuild.current.later);
+      map.off("sourcedata", windBuild.current.onData);
+      clearTimeout(windBuild.current.timer);
+    }
+    windBuild.current = null;
+    const on = view === "streets" && !!inflow;
+    wind.setActive(on);
+    wind.setTheme(theme);
+    if (!on) return;
+    const d = DISTRICTS[district] || DISTRICTS.cbd;
+    const state = { count: -1 };
+    const build = () => {
+      if (map.isMoving()) return;
+      const frame = makeFrame({ lat: d.lat, lng: d.lng, sizeM: DISTRICT_SIZE_M, n: wind.n, fromDeg: inflow.fromDeg });
+      const inside = (f) => {
+        const ring = f.geometry?.type === "Polygon" ? f.geometry.coordinates[0] : f.geometry?.coordinates?.[0]?.[0];
+        if (!ring?.length) return false;
+        const [gx, gy] = toGrid(frame, ring[0][0], ring[0][1]);
+        return gx > -40 && gx < frame.n + 40 && gy > -40 && gy < frame.n + 40;
+      };
+      const live = map.querySourceFeatures("omt", { sourceLayer: "building" }).filter(inside);
+      const baked = map.getSource("sg-buildings") ? map.querySourceFeatures("sg-buildings").filter(inside) : [];
+      const count = live.length + baked.length;
+      if (count <= state.count * 1.1 + 5) return;
+      state.count = count;
+      const mask = buildObstacleMask(footprintsFrom([...live, ...baked]), frame);
+      wind.setScene({ frame, mask, u0: latticeSpeed(inflow.speedKn) });
+      window.__windSolid = mask.reduce((a, v) => a + v, 0) / mask.length;
+    };
+    const handle = { build, timer: 0 };
+    handle.later = () => {
+      clearTimeout(handle.timer);
+      handle.timer = setTimeout(build, 400);
+    };
+    handle.onData = (e) => e.sourceId === "omt" && handle.later();
+    windBuild.current = handle;
+    map.on("moveend", handle.later);
+    map.on("sourcedata", handle.onData);
+    handle.later();
+    map.triggerRepaint();
+  }, [view, district, inflow?.fromDeg, inflow?.speedKn, theme]);
+
+  useMapSync(() => windRef.current?.setAnimate(motion), [motion]);
 
   return <div ref={container} className="hz-map-canvas" aria-label="Map of haze over Singapore" role="region" />;
 }
