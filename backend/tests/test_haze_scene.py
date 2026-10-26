@@ -9,6 +9,7 @@ from app.db.database import execute_sql
 from app.routers import haze as router_module
 from app.services import air_quality as aq
 from app.services import haze_scene as hs
+from app.services import wind_grid as wg
 
 SGT = timezone(timedelta(hours=8))
 END = datetime(2026, 10, 25, 12, 30, tzinfo=SGT)
@@ -37,6 +38,36 @@ def service(monkeypatch):
     svc = hs.HazeSceneService()
     monkeypatch.setattr(hs, "_service", svc)
     return svc
+
+
+class FakeWind:
+    """A uniform south-westerly over the whole grid, covering the last 8 days."""
+
+    def __init__(self, grid=None):
+        self._grid = grid
+
+    async def grid(self):
+        return self._grid
+
+
+def uniform_grid(u=4.0, v=4.0):
+    import numpy as np
+
+    now = int(datetime.now(timezone.utc).timestamp()) // 3600 * 3600
+    times = np.arange(now - 8 * 86400, now + 2 * 86400, 3600)
+    grid = wg.WindGrid(times=times, lats=wg.LATS.copy(), lons=wg.LONS.copy())
+    shape = (len(times), len(wg.LATS), len(wg.LONS))
+    for level in wg.LEVELS:
+        grid.u[level] = np.full(shape, u)
+        grid.v[level] = np.full(shape, v)
+    return grid
+
+
+@pytest.fixture(autouse=True)
+def wind(monkeypatch):
+    fake = FakeWind(uniform_grid())
+    monkeypatch.setattr(wg, "get_wind_grid_service", lambda: fake)
+    return fake
 
 
 @pytest.fixture
@@ -94,17 +125,6 @@ def test_aggregate_wind_reads_naive_timestamps_as_sgt_and_drops_out_of_window():
     assert wind["mean"] == [{"speed_kn": 3.0, "dir_deg": 90, "stations": 1}]
 
 
-def test_back_trajectory_walks_upwind_and_skips_gaps():
-    westerly = {"speed_kn": 10, "dir_deg": 270, "stations": 5}
-    mean = [westerly, None, westerly]
-    path = hs.back_trajectory(mean, end_index=2, hours=3)
-
-    assert [p[2] for p in path] == [0, 1, 3]
-    assert path[1][1] < path[0][1]  # air came from the west
-    assert path[1][0] == pytest.approx(path[0][0], abs=1e-3)
-    assert path[0][1] - path[1][1] == pytest.approx(10 * 1.852 / (111.32 * 0.9997), abs=1e-3)
-
-
 # --- air quality alignment ---------------------------------------------------
 
 def test_align_air_places_readings_on_the_hour_grid():
@@ -136,11 +156,28 @@ FIRMS_CSV = """latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satell
 """
 
 
-def test_parse_firms_csv_drops_low_confidence_and_sorts_by_power():
-    points = hs.parse_firms_csv(FIRMS_CSV)
+def test_parse_firms_csv_drops_low_confidence():
+    rows = hs.parse_firms_csv(FIRMS_CSV)
 
-    assert [p["frp"] for p in points] == [40.0, 12.5]
-    assert points[0]["at"] == "2026-10-25T14:18:00+08:00"
+    assert [r[2] for r in rows] == [12.5, 40.0]
+    assert datetime.fromtimestamp(rows[1][3], SGT).isoformat() == "2026-10-25T14:18:00+08:00"
+
+
+def test_merge_hotspots_joins_one_pass_in_one_cell_and_sorts_by_power():
+    t = 1_792_000_000
+    rows = [
+        [-1.200, 103.400, 10.0, t],
+        [-1.203, 103.404, 5.0, t],  # same ~2 km cell, same pass
+        [-1.203, 103.404, 7.0, t + 3600],  # next pass: kept apart
+        [-2.000, 113.900, 30.0, t],
+        [-3.000, 113.000, 99.0, t - 90000],  # before the window
+    ]
+    points = hs.merge_hotspots(rows, since=t - 86400)
+
+    assert [p[2] for p in points] == [30.0, 15.0, 7.0]
+    assert points[1][4] == 2
+    assert points[1][:2] == [-1.2015, 103.402]
+    assert sum(p[4] for p in points) == 4
 
 
 def test_parse_firms_csv_rejects_error_text():
@@ -191,11 +228,17 @@ def test_scene_endpoint_shapes_data_and_flags_missing_firms_key(temp_db, service
     assert body["coverage"] == {"hours": 24, "air_hours": 24, "wind_hours": 24}
     assert body["wind"]["mean"][-1] == {"speed_kn": 5.0, "dir_deg": 225, "stations": 1}
     assert [s["name"] for s in body["wind"]["stations"]] == ["Changi"]
-    assert len(body["trajectories"]) == 24
-    assert len(body["trajectories"][-1]) == hs.TRAJECTORY_HOURS + 1
-    # South-westerly wind: the air came from the south-west.
-    origin = body["trajectories"][-1][-1]
-    assert origin[0] < hs.SINGAPORE[0] and origin[1] < hs.SINGAPORE[1]
+    air = body["air_path"]
+    assert air["status"] == "ok"
+    assert set(air["paths"]) == {"850hPa", "925hPa"}
+    assert len(air["paths"]["850hPa"]) == 24
+    path = air["paths"]["850hPa"][-1]
+    # Air moving north-east at 5.7 m/s came from the south-west.
+    origin = path["points"][-1]
+    assert origin[0] < wg.SINGAPORE[0] and origin[1] < wg.SINGAPORE[1]
+    assert path["points"][0][:2] == [round(wg.SINGAPORE[0], 3), round(wg.SINGAPORE[1], 3)]
+    speed, direction = air["sg_wind"]["850hPa"][-1]
+    assert speed == pytest.approx(5.7, abs=0.1) and direction == pytest.approx(225, abs=0.5)
     assert body["hotspots"]["status"] == "unavailable"
     assert body["hotspots"]["signup"].startswith("https://firms.modaps.eosdis.nasa.gov")
     assert body["bands"]["pm25"][0] == {
@@ -224,20 +267,47 @@ def test_scene_uses_firms_when_key_is_set(temp_db, service, client, monkeypatch)
     monkeypatch.setattr(hs, "backfill_air", lambda dates: _noop())
     seen = {}
 
-    async def fake_fetch(key, days):
+    async def fake_fetch(key, days, since=None):
         seen["key"] = key
-        return {"status": "ok", "days": days, "bbox": hs.FIRMS_BBOX, "points": hs.parse_firms_csv(FIRMS_CSV)}
+        seen["days"] = days
+        return {"status": "ok", "days": days, "bbox": hs.FIRMS_BBOX, "points": hs.merge_hotspots(hs.parse_firms_csv(FIRMS_CSV))}
 
     monkeypatch.setattr(hs, "fetch_hotspots", fake_fetch)
     body = client.get("/api/haze/scene?hours=24").json()
 
     assert seen["key"] == "test-key"
+    assert seen["days"] in (2, 3)  # 24-hour window plus the day before, in UTC days
     assert body["hotspots"]["status"] == "ok"
     assert len(body["hotspots"]["points"]) == 2
 
 
 async def _noop():
     return 0
+
+
+def test_scene_says_when_the_air_path_has_no_wind(temp_db, service, client, monkeypatch, wind):
+    monkeypatch.setattr(hs, "backfill_air", lambda dates: _noop())
+    wind._grid = None
+    body = client.get("/api/haze/scene?hours=24").json()
+
+    assert body["air_path"]["status"] == "unavailable"
+    assert "paths" not in body["air_path"]
+
+
+def test_wind_field_endpoint_covers_the_window_and_a_day_either_side(client):
+    body = client.get("/api/haze/wind-field?hours=24").json()
+
+    assert body["status"] == "ok"
+    assert body["level"] == "850hPa"
+    assert body["hours"] == 24 + 48
+    assert len(body["u"]) == body["hours"] * len(body["lats"]) * len(body["lons"])
+    assert body["u"][0] == 40 and body["v"][0] == 40
+    assert body["forecast_from"] is not None
+
+
+def test_wind_field_endpoint_reports_missing_wind(client, wind):
+    wind._grid = None
+    assert client.get("/api/haze/wind-field?hours=24").json()["status"] == "unavailable"
 
 
 def test_scene_rejects_unsupported_window(client):

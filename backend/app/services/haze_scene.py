@@ -1,8 +1,9 @@
-"""Hourly haze scene for the /haze page: PSI, PM2.5, wind and fire hotspots.
+"""Hourly haze scene for the /haze page: PSI, PM2.5, wind, air paths and fire hotspots.
 
 PSI and PM2.5 come from the air quality store (NEA via data.gov.sg), backfilled by day.
-Wind comes from the NEA station readings the data collector already stores every
-10 minutes. Fire hotspots come from NASA FIRMS and need a free FIRMS_MAP_KEY.
+Station wind comes from the NEA readings the data collector stores every 10 minutes.
+Air paths are traced through Open-Meteo's gridded wind (see wind_grid). Fire hotspots
+come from NASA FIRMS and need a free FIRMS_MAP_KEY.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ import httpx
 
 from app.db.database import fetch_all
 from app.services import air_quality as aq
+from app.services import wind_grid as wg
 
 logger = logging.getLogger(__name__)
 
@@ -25,23 +27,30 @@ SGT = aq.SGT
 ALLOWED_HOURS = (24, 48, 72)
 CACHE_TTL = timedelta(minutes=10)
 HOTSPOT_TTL = timedelta(hours=1)
-# Back-trajectory length; surface wind of ~3 knots covers ~270 km in 48 h.
-TRAJECTORY_HOURS = 48
-SINGAPORE = (1.3521, 103.8198)
-KM_PER_DEG = 111.32
-KNOT_KMH = 1.852
+# Back-trajectory length, and the levels traced: 850 hPa (about 1.5 km up, where
+# smoke travels far) and 925 hPa (about 750 m) for comparison.
+TRAJECTORY_HOURS = 72
+TRAJECTORY_LEVELS = ("850hPa", "925hPa")
+# Detections from the day before the window feed the "last 24 hours" count and the
+# smoke drift at the window's start.
+HOTSPOT_LOOKBACK = timedelta(hours=24)
+# Detections in the same ~2 km cell from the same satellite pass are merged into one
+# point carrying their count and total fire power.
+HOTSPOT_CELL_DEG = 0.02
 
 FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/{source}/{bbox}/{days}"
-FIRMS_SOURCE = "VIIRS_SNPP_NRT"
+# NOAA-20 delivers its passes reliably; S-NPP has gaps.
+FIRMS_SOURCE = "VIIRS_NOAA20_NRT"
 # West, south, east, north: Sumatra, Peninsular Malaysia and Borneo.
 FIRMS_BBOX = (95.0, -6.0, 119.5, 7.5)
 FIRMS_SIGNUP = "https://firms.modaps.eosdis.nasa.gov/api/map_key/"
-MAX_HOTSPOTS = 4000
+MAX_HOTSPOTS = 8000
 
 SOURCES = {
     "air": {"name": "NEA via data.gov.sg", "url": "https://data.gov.sg/datasets/d_fe37906a0182569d891506e815e819b7/view"},
     "wind": {"name": "NEA weather stations via data.gov.sg", "url": "https://data.gov.sg/datasets/d_7677738484067741bf3b56ab5d69c7e9/view"},
-    "fires": {"name": "NASA FIRMS (VIIRS S-NPP, near real time)", "url": "https://firms.modaps.eosdis.nasa.gov/"},
+    "fires": {"name": "NASA FIRMS satellite fire detections", "url": "https://firms.modaps.eosdis.nasa.gov/"},
+    "air_path": {"name": "Open-Meteo wind", "url": "https://open-meteo.com/"},
 }
 
 
@@ -183,29 +192,6 @@ def aggregate_wind(rows: list[dict], grid: list[datetime]) -> dict:
     }
 
 
-def back_trajectory(mean: list[dict | None], end_index: int, hours: int = TRAJECTORY_HOURS) -> list[list[float]]:
-    """Walk upwind from Singapore using the hourly national mean wind.
-
-    Returns [lat, lng, hours_before_end] points from Singapore backwards. Hours
-    without wind are skipped, so the path is shorter rather than invented.
-    """
-    lat, lng = SINGAPORE
-    path = [[round(lat, 4), round(lng, 4), 0]]
-    for step in range(hours):
-        i = end_index - step
-        if i < 0:
-            break
-        w = mean[i]
-        if not w:
-            continue
-        u, v = to_uv(w["speed_kn"] * KNOT_KMH, w["dir_deg"])  # km/h towards
-        # Going back in time moves against the flow.
-        lat -= v / KM_PER_DEG
-        lng -= u / (KM_PER_DEG * math.cos(math.radians(lat)))
-        path.append([round(lat, 4), round(lng, 4), step + 1])
-    return path
-
-
 # --- fire hotspots -----------------------------------------------------------
 
 def parse_firms_csv(text: str) -> list[dict]:
@@ -218,16 +204,27 @@ def parse_firms_csv(text: str) -> list[dict]:
         try:
             hhmm = row["acq_time"].zfill(4)
             when = datetime.fromisoformat(f"{row['acq_date']}T{hhmm[:2]}:{hhmm[2:]}:00+00:00")
-            points.append({
-                "lat": round(float(row["latitude"]), 4),
-                "lng": round(float(row["longitude"]), 4),
-                "frp": round(float(row.get("frp") or 0), 1),
-                "at": when.astimezone(SGT).isoformat(),
-            })
+            points.append([float(row["latitude"]), float(row["longitude"]), float(row.get("frp") or 0), int(when.timestamp())])
         except (KeyError, ValueError):
             continue
-    points.sort(key=lambda p: p["frp"], reverse=True)
-    return points[:MAX_HOTSPOTS]
+    return points
+
+
+def merge_hotspots(rows: list[list], since: float | None = None, cell: float = HOTSPOT_CELL_DEG) -> list[list]:
+    """Compact rows [lat, lng, total MW, unix seconds, detections], strongest first."""
+    cells: dict[tuple, list] = {}
+    for lat, lng, frp, seen in rows:
+        if since is not None and seen < since:
+            continue
+        key = (round(lat / cell), round(lng / cell), seen)
+        acc = cells.setdefault(key, [0.0, 0.0, 0.0, seen, 0])
+        acc[0] += lat
+        acc[1] += lng
+        acc[2] += frp
+        acc[4] += 1
+    points = [[round(a[0] / a[4], 4), round(a[1] / a[4], 4), round(a[2], 1), a[3], a[4]] for a in cells.values()]
+    points.sort(key=lambda p: p[2], reverse=True)
+    return points
 
 
 def hotspots_unavailable() -> dict:
@@ -240,7 +237,7 @@ def hotspots_unavailable() -> dict:
     }
 
 
-async def fetch_hotspots(key: str, days: int) -> dict:
+async def fetch_hotspots(key: str, days: int, since: float | None = None) -> dict:
     url = FIRMS_URL.format(
         key=key, source=FIRMS_SOURCE, bbox=",".join(str(v) for v in FIRMS_BBOX), days=days
     )
@@ -248,11 +245,22 @@ async def fetch_hotspots(key: str, days: int) -> dict:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(url)
             response.raise_for_status()
-        points = parse_firms_csv(response.text)
+        points = merge_hotspots(parse_firms_csv(response.text), since)
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning(f"FIRMS fetch failed: {exc.__class__.__name__}")
         return {"status": "error", "message": "NASA FIRMS did not answer. Try again later.", "points": []}
-    return {"status": "ok", "days": days, "bbox": FIRMS_BBOX, "points": points}
+    last = max((p[3] for p in points), default=None)
+    return {
+        "status": "ok",
+        "days": days,
+        "bbox": FIRMS_BBOX,
+        "source": FIRMS_SOURCE,
+        "fields": ["lat", "lng", "frp_mw", "seen_unix", "detections"],
+        "detections": sum(p[4] for p in points),
+        "truncated": len(points) > MAX_HOTSPOTS,
+        "points": points[:MAX_HOTSPOTS],
+        "last_pass": datetime.fromtimestamp(last, timezone.utc).astimezone(SGT).isoformat() if last else None,
+    }
 
 
 # --- scene -------------------------------------------------------------------
@@ -262,10 +270,36 @@ def coverage(series: dict[str, list]) -> int:
     return sum(1 for i in range(length) if any(s[i] is not None for s in series.values()))
 
 
-def build_scene(grid, air, wind_full, lookback, hotspots, fetched_at) -> dict:
+def air_paths(wind: wg.WindGrid | None, grid: list[datetime]) -> dict:
+    """Back-trajectories for every hour, plus the model wind over Singapore."""
+    if wind is None:
+        return {"status": "unavailable", "message": "Wind for the air path is not available right now."}
+    paths = {
+        level: [wg.back_trajectory(wind, level, t.timestamp(), TRAJECTORY_HOURS) for t in grid]
+        for level in TRAJECTORY_LEVELS
+    }
+    sg_wind = {}
+    for level in ("850hPa", "10m"):
+        row = []
+        for t in grid:
+            uv = wind.velocity(level, t.timestamp(), *wg.SINGAPORE)
+            row.append(None if uv is None else [round(x, 1) for x in wg.from_uv(*uv)])
+        sg_wind[level] = row
+    return {
+        "status": "ok",
+        "hours": TRAJECTORY_HOURS,
+        "levels": list(TRAJECTORY_LEVELS),
+        "paths": paths,
+        "sg_wind": sg_wind,
+        "sg_wind_unit": "m/s",
+        "grid": {"west": float(wind.lons[0]), "east": float(wind.lons[-1]), "south": float(wind.lats[0]), "north": float(wind.lats[-1])},
+        "updated": wind.fetched_at.astimezone(SGT).isoformat() if wind.fetched_at else None,
+    }
+
+
+def build_scene(grid, air, wind_full, lookback, hotspots, fetched_at, air_path=None) -> dict:
     """Assemble the response; wind_full covers lookback extra hours before the grid."""
     mean_full = wind_full["mean"]
-    trajectories = [back_trajectory(mean_full, lookback + i) for i in range(len(grid))]
     station_hourly = {k: v[lookback:] for k, v in wind_full["station_hourly"].items()}
     psi_last = max((i for i in range(len(grid)) if any(air["psi"][r][i] is not None for r in aq.REGIONS)), default=None)
     wind_mean = mean_full[lookback:]
@@ -281,8 +315,7 @@ def build_scene(grid, air, wind_full, lookback, hotspots, fetched_at) -> dict:
             "station_hourly": station_hourly,
             "mean": wind_mean,
         },
-        "trajectories": trajectories,
-        "trajectory_hours": TRAJECTORY_HOURS,
+        "air_path": air_path or {"status": "unavailable", "message": "Wind for the air path is not available right now."},
         "hotspots": hotspots,
         "bands": {
             "psi": [{"max": u, "key": k, "label": label, "advice": a} for u, k, label, a in aq.PSI_BANDS],
@@ -306,19 +339,23 @@ def build_scene(grid, air, wind_full, lookback, hotspots, fetched_at) -> dict:
 class HazeSceneService:
     def __init__(self) -> None:
         self._cache: dict[int, tuple[datetime, dict]] = {}
-        self._hotspots: tuple[datetime, dict] | None = None
+        self._hotspots: dict[int, tuple[datetime, dict]] = {}
         self._lock = asyncio.Lock()
 
-    async def _get_hotspots(self, now: datetime) -> dict:
+    async def _get_hotspots(self, now: datetime, start: datetime, hours: int) -> dict:
         key = os.getenv("FIRMS_MAP_KEY", "").strip()
         if not key:
             return hotspots_unavailable()
-        if self._hotspots and now - self._hotspots[0] < HOTSPOT_TTL:
-            return self._hotspots[1]
-        result = await fetch_hotspots(key, days=3)
+        cached = self._hotspots.get(hours)
+        if cached and now - cached[0] < HOTSPOT_TTL:
+            return cached[1]
+        # FIRMS counts whole UTC days back from today.
+        since = start - HOTSPOT_LOOKBACK
+        days = min(5, (now.date() - since.astimezone(timezone.utc).date()).days + 1)
+        result = await fetch_hotspots(key, days=days, since=since.timestamp())
         # Keep errors briefly so a FIRMS outage is retried soon.
         stamp = now if result["status"] == "ok" else now - HOTSPOT_TTL + timedelta(minutes=5)
-        self._hotspots = (stamp, result)
+        self._hotspots[hours] = (stamp, result)
         return result
 
     async def scene(self, hours: int) -> dict:
@@ -335,7 +372,8 @@ class HazeSceneService:
                 await backfill_air(missing)
                 air = align_air(await asyncio.to_thread(aq.load_history, hours + 1), grid)
 
-            lookback = TRAJECTORY_HOURS
+            # Station wind for the hours before the window is not drawn; one extra hour is enough.
+            lookback = 1
             full_grid = hour_grid(now, hours + lookback)
             try:
                 rows = await asyncio.to_thread(load_wind_rows, full_grid[0])
@@ -343,8 +381,10 @@ class HazeSceneService:
                 logger.error(f"Haze scene wind query failed: {exc}")
                 rows = []
             wind_full = aggregate_wind(rows, full_grid)
-            hotspots = await self._get_hotspots(now)
-            scene = build_scene(grid, air, wind_full, lookback, hotspots, now)
+            hotspots = await self._get_hotspots(now, grid[0], hours)
+            model_wind = await wg.get_wind_grid_service().grid()
+            paths = await asyncio.to_thread(air_paths, model_wind, grid)
+            scene = build_scene(grid, air, wind_full, lookback, hotspots, now, paths)
             self._cache[hours] = (now, scene)
             return scene
 
