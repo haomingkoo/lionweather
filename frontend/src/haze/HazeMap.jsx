@@ -7,8 +7,10 @@ import { HazeLayer, SG_BOUNDS, opticalDepth } from "./hazeLayer";
 import { REGIONS, capitalise, hazeColor, regionAt, windField } from "./hazeData";
 import { FONT, FONT_BOLD, PALETTES, applyTheme, buildStyle, pixelRatioFor } from "../map3d/basemap";
 import { addBuildings, showBuildings, themeBuildings } from "../map3d/buildings";
+import { MAX_PITCH, addOrbitControls } from "../map3d/controls";
 import { labelBox } from "./placement";
-import { eachParticleAt } from "./smoke";
+import { eachParticleAt, edgeFade } from "./smoke";
+import { fireStretches } from "./explain";
 
 setWorkerUrl(workerUrl);
 
@@ -32,8 +34,8 @@ export const VIEWS = {
 function cameraFor(view, dim, width) {
   const base = VIEWS[view];
   const narrow = width < 700;
-  const zoom = base.zoom - (narrow ? (view === "sg" ? 1.25 : 0.75) : width < 1000 ? 0.4 : 0);
-  const center = narrow && view === "sg" ? [103.83, 1.345] : narrow ? [107.2, -0.6] : base.center;
+  const zoom = base.zoom - (narrow ? (view === "sg" ? 1.25 : 0.45) : width < 1000 ? 0.4 : 0);
+  const center = narrow && view === "sg" ? [103.83, 1.345] : narrow ? [106.3, -0.9] : base.center;
   const pitch = dim === "3d" ? (narrow ? Math.min(base.pitch, 50) : base.pitch) : 0;
   const bearing = dim === "3d" && !narrow ? base.bearing : 0;
   return { center, zoom, pitch, bearing };
@@ -74,7 +76,8 @@ function smokeGeo(sim, hour) {
   const features = [];
   eachParticleAt(sim, hour, (lat, lon, age) => {
     if (age < 0) return;
-    features.push({ type: "Feature", properties: { w: Math.exp(-age / 48) }, geometry: { type: "Point", coordinates: [lon, lat] } });
+    const w = Math.exp(-age / 48) * edgeFade(lat, lon, sim.bounds);
+    if (w > 0.01) features.push({ type: "Feature", properties: { w }, geometry: { type: "Point", coordinates: [lon, lat] } });
   });
   return { type: "FeatureCollection", features };
 }
@@ -99,10 +102,50 @@ function tickGeo(path) {
       .filter(([, , h]) => h > 0 && h % 6 === 0)
       .map(([lat, lng, h]) => ({
         type: "Feature",
-        properties: { major: h % 24 === 0, label: h % 24 === 0 ? `${h} h ago` : "" },
+        properties: { major: h % 24 === 0, label: h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} ago` : "" },
         geometry: { type: "Point", coordinates: [lng, lat] },
       })),
   };
+}
+
+// The Singapore end of the path, where the "arriving now" label sits.
+function headGeo(path) {
+  if (!path || path.points.length < 2) return EMPTY;
+  const [lat, lng] = path.points[0];
+  return { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [lng, lat] } }] };
+}
+
+// Stretches of the path that pass over fire detections, and a label on the longest.
+function fireStretchGeo(path, fires) {
+  if (!path || !fires?.length) return [EMPTY, EMPTY];
+  const runs = fireStretches(path.points, fires);
+  if (!runs.length) return [EMPTY, EMPTY];
+  const line = (a, b) => path.points.slice(a, b + 1).map(([lat, lng]) => [lng, lat]);
+  const lines = { type: "FeatureCollection", features: runs.map(([a, b]) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: line(a, b) } })) };
+  const [a, b] = runs.reduce((best, r) => (r[1] - r[0] > best[1] - best[0] ? r : best));
+  const [lat, lng] = path.points[Math.round((a + b) / 2)];
+  const label = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [lng, lat] } }] };
+  return [lines, label];
+}
+
+// A point a fraction of the way along a path, from where the air was to Singapore.
+function alongPath(path, f) {
+  const pts = path.points.slice().reverse();
+  const seg = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i += 1) {
+    const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    seg.push(d);
+    total += d;
+  }
+  let target = f * total;
+  let i = 0;
+  while (i < seg.length - 1 && target > seg[i]) {
+    target -= seg[i];
+    i += 1;
+  }
+  const k = seg[i] ? target / seg[i] : 0;
+  return [pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k, pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k];
 }
 
 function arrowImage() {
@@ -129,7 +172,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
   const layerRef = useRef(null);
   const readyRef = useRef(false);
   const propsRef = useRef({});
-  propsRef.current = { onHover, onSelect, scene };
+  propsRef.current = { onHover, onSelect, scene, view, dim };
 
   useEffect(() => {
     const el = container.current;
@@ -137,7 +180,8 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
       container: el,
       style: buildStyle(theme),
       ...cameraFor(view, dim, el.clientWidth),
-      maxPitch: 70,
+      maxPitch: MAX_PITCH,
+      maxBounds: [[84, -16], [132, 16]],
       pixelRatio: pixelRatioFor(),
       attributionControl: { compact: true },
       canvasContextAttributes: { antialias: true },
@@ -170,6 +214,10 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
       map.addSource("path850", { type: "geojson", data: EMPTY });
       map.addSource("path925", { type: "geojson", data: EMPTY });
       map.addSource("ticks", { type: "geojson", data: EMPTY });
+      map.addSource("pathhead", { type: "geojson", data: EMPTY });
+      map.addSource("pathfire", { type: "geojson", data: EMPTY });
+      map.addSource("pathfire-label", { type: "geojson", data: EMPTY });
+      map.addSource("pathdot", { type: "geojson", data: EMPTY });
       map.addSource("smoke", { type: "geojson", data: EMPTY });
       map.addImage("path-arrow", arrowImage(), { pixelRatio: 2, sdf: true });
 
@@ -225,7 +273,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         id: "path-arrows",
         type: "symbol",
         source: "path850",
-        layout: { "symbol-placement": "line", "symbol-spacing": 90, "icon-image": "path-arrow", "icon-size": 0.8, "icon-allow-overlap": true },
+        layout: { "symbol-placement": "line", "symbol-spacing": 70, "icon-image": "path-arrow", "icon-size": 1.1, "icon-allow-overlap": true },
         paint: { "icon-color": ink.tick },
       });
       map.addLayer({
@@ -272,6 +320,49 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
           "circle-stroke-width": 0.6,
           "circle-stroke-opacity": fireFade,
         },
+      });
+      // The air path draws over the fires so the stretch that crossed them reads.
+      map.addLayer({
+        id: "path-fire-glow",
+        type: "line",
+        source: "pathfire",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": ink.fireMid, "line-width": 12, "line-blur": 6, "line-opacity": 0.55 },
+      });
+      ["path925", "path850"].forEach((id) => map.moveLayer(id));
+      map.addLayer({
+        id: "path-fire",
+        type: "line",
+        source: "pathfire",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": ink.fireMid, "line-width": 3.5 },
+      });
+      ["path-arrows", "path-ticks", "path-tick-labels"].forEach((id) => map.moveLayer(id));
+      map.addLayer({
+        id: "path-dot-glow",
+        type: "circle",
+        source: "pathdot",
+        paint: { "circle-radius": 14, "circle-color": ink.path, "circle-blur": 1, "circle-opacity": ["get", "a"] },
+      });
+      map.addLayer({
+        id: "path-dot",
+        type: "circle",
+        source: "pathdot",
+        paint: { "circle-radius": 5, "circle-color": ink.tick, "circle-stroke-color": ink.path, "circle-stroke-width": 2.5, "circle-opacity": ["get", "a"], "circle-stroke-opacity": ["get", "a"] },
+      });
+      map.addLayer({
+        id: "path-fire-label",
+        type: "symbol",
+        source: "pathfire-label",
+        layout: { "text-field": "passed over fires here", "text-font": FONT, "text-size": 12, "text-anchor": "left", "text-offset": [1.2, 0] },
+        paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
+      });
+      map.addLayer({
+        id: "path-head",
+        type: "symbol",
+        source: "pathhead",
+        layout: { "text-field": "Air arriving now came this way", "text-font": FONT_BOLD, "text-size": 12, "text-anchor": "left", "text-offset": [1.1, 0.6], "text-max-width": 12 },
+        paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
       });
       map.addLayer(layer);
       map.addLayer({
@@ -331,12 +422,17 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     });
 
     // Stop drawing when the map is off screen or the tab is hidden.
+    const removeOrbit = addOrbitControls(map, {
+      reducedMotion: !motion,
+      idle: () => propsRef.current.view === "sg" && propsRef.current.dim === "3d",
+    });
     const io = new IntersectionObserver(([entry]) => layer.setVisible(entry.isIntersecting && !document.hidden));
     io.observe(el);
     const onVis = () => layer.setVisible(!document.hidden);
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
+      removeOrbit();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
       map.remove();
@@ -378,9 +474,36 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     map.getSource("path850")?.setData(pathGeo(air?.["850hPa"]?.[index]));
     map.getSource("path925")?.setData(pathGeo(air?.["925hPa"]?.[index]));
     map.getSource("ticks")?.setData(tickGeo(air?.["850hPa"]?.[index]));
+    map.getSource("pathhead")?.setData(headGeo(air?.["850hPa"]?.[index]));
   }, [scene, index, region, theme]);
 
-  useMapSync((map) => map.getSource("fires")?.setData(fireGeo(fires)), [fires]);
+  useMapSync((map) => {
+    map.getSource("fires")?.setData(fireGeo(fires));
+    const air = scene?.air_path?.status === "ok" ? scene.air_path.paths["850hPa"][index] : null;
+    const [lines, label] = fireStretchGeo(air, fires);
+    map.getSource("pathfire")?.setData(lines);
+    map.getSource("pathfire-label")?.setData(label);
+  }, [fires, scene, index]);
+
+  // A dot travels along the path into Singapore every 4 seconds: air flowing in.
+  useEffect(() => {
+    const map = mapRef.current;
+    const path = scene?.air_path?.status === "ok" ? scene.air_path.paths["850hPa"][index] : null;
+    if (!map || !path || path.points.length < 2 || !motion || view !== "region" || !layers.path) {
+      map?.getSource("pathdot")?.setData(EMPTY);
+      return undefined;
+    }
+    let raf = 0;
+    const tick = (now) => {
+      const f = (now % 4000) / 4000;
+      const a = Math.min(1, f / 0.1, (1 - f) / 0.1);
+      const [lng, lat] = alongPath(path, f);
+      map.getSource("pathdot")?.setData({ type: "Feature", properties: { a }, geometry: { type: "Point", coordinates: [lng, lat] } });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [scene, index, motion, view, layers.path]);
   useMapSync((map) => map.getSource("smoke")?.setData(smokeGeo(smoke, smokeHour)), [smoke, smokeHour]);
 
   // Theme: day and night palettes.
@@ -400,6 +523,15 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     set("path-ticks", "circle-stroke-color", ink.path);
     set("path-tick-labels", "text-color", ink.label);
     set("path-tick-labels", "text-halo-color", ink.halo);
+    ["path-fire-label", "path-head"].forEach((id) => {
+      set(id, "text-color", ink.label);
+      set(id, "text-halo-color", ink.halo);
+    });
+    set("path-fire", "line-color", ink.fireMid);
+    set("path-fire-glow", "line-color", ink.fireMid);
+    set("path-dot-glow", "circle-color", ink.path);
+    set("path-dot", "circle-color", ink.tick);
+    set("path-dot", "circle-stroke-color", ink.path);
     const fireColor = ["interpolate", ["linear"], ["get", "frp"], 0, ink.fireLow, 20, ink.fireMid, 100, ink.fireHigh];
     set("fires-glow", "circle-color", fireColor);
     set("fires-core", "circle-color", fireColor);
@@ -418,7 +550,8 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     // The air path and fires belong to the Region view; over the city they only clutter.
     const region = view === "region";
     ["fires-glow", "fires-core"].forEach((id) => vis(id, layers.hotspots && region));
-    ["path850", "path925", "path-arrows", "path-ticks", "path-tick-labels"].forEach((id) => vis(id, layers.path && region));
+    ["path850", "path-arrows", "path-ticks", "path-tick-labels", "path-fire", "path-fire-glow", "path-fire-label", "path-head", "path-dot", "path-dot-glow"].forEach((id) => vis(id, layers.path && region));
+    vis("path925", layers.path925 && region);
     layer.showHaze = layers.haze;
     layer.showWind = layers.wind;
     vis("smoke", layers.smoke && region);

@@ -142,6 +142,12 @@
 .hz-key .hz-key-fire { width: 10px; height: 10px; border-radius: 50%; background: var(--fire); }
 .hz-key .hz-key-smoke { width: 14px; height: 10px; border-radius: 50%; background: var(--smoke); opacity: 0.6; }
 .hz-legend-hint { white-space: nowrap; }
+.hz-tip { display: flex; align-items: center; gap: 12px; margin: 0; padding: 6px 12px; font-size: 12px; color: var(--muted-c); background: var(--panel); border-bottom: 1px solid var(--line-c); }
+.hz-tip button { margin-left: auto; white-space: nowrap; flex: none; border: 1px solid var(--line-c); background: var(--panel); border-radius: 6px; padding: 2px 10px; cursor: pointer; color: var(--ink-c); }
+.hz-map .maplibregl-ctrl-group { background: var(--panel); border: 1px solid var(--line-c); box-shadow: none; }
+.hz-map .maplibregl-ctrl-group button + button { border-top-color: var(--line-c); }
+.hz-map .map3d-tilt button { color: var(--ink-c); display: grid; place-items: center; }
+:root.dark .hz-map .maplibregl-ctrl-group:not(.map3d-tilt) .maplibregl-ctrl-icon { filter: invert(1); }
 .hz-map-note { margin: 0; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line-c); }
 
 .hz-tooltip {
@@ -317,7 +323,16 @@
 .hz-wind-line { margin: 8px 0 0 !important; padding-top: 8px; border-top: 1px solid var(--line-c); }
 .hz-why { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-c); }
 .hz-why h3 { font-size: 14px; margin-bottom: 4px; }
-.hz-label-line { font-weight: 500; }
+.hz-advice-main { font-weight: 500; }
+.hz-card-sub { margin: -4px 0 6px !important; }
+.hz-info { position: relative; }
+.hz-info summary { list-style: none; cursor: pointer; color: var(--muted-c); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; }
+.hz-info summary::-webkit-details-marker { display: none; }
+.hz-info summary:hover, .hz-info[open] summary { color: var(--ink-c); background: var(--panel-2); }
+.hz-info-body { position: absolute; right: 0; top: 28px; z-index: 5; width: min(300px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line-c); box-shadow: 0 6px 18px rgb(0 0 0 / 0.16); font-size: 13px; font-weight: 400; }
+.hz-info:not([open]) .hz-info-body { display: none; }
+.hz-info-body p { margin: 0 0 6px; }
+.hz-info-body p:last-child { margin: 0; }
 .hz-outlook { font-weight: 500; }
 
 .hz-toggles { display: flex; flex-direction: column; }
@@ -378,11 +393,13 @@
   .hz-charts > :last-child { grid-column: 1 / -1; }
   .hz-card { order: 6; margin: 8px 16px 0; }
   .hz-cursor-card { order: 3; margin: 12px 16px 0; }
-  .hz-card[aria-label="Air path and smoke"] { order: 4; margin: 8px 16px 12px; }
+  .hz-card[aria-label="Where today's air came from"] { order: 4; margin: 8px 16px 12px; }
   .hz-footer { order: 7; margin: 12px 16px 0; }
 }
 
 @media (max-width: 640px) {
+  /* Pinch zooms on a phone; the zoom buttons only crowd the map. */
+  .hz-map .maplibregl-ctrl-zoom-in, .hz-map .maplibregl-ctrl-zoom-out { display: none; }
   .hz-top { height: auto; flex-wrap: wrap; row-gap: 0; padding: 8px 16px; white-space: normal; }
   .hz-top-sep, .hz-top-sub { display: none; }
   .hz-top h1 { flex-basis: 100%; order: 2; font-size: 24px; }

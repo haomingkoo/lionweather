@@ -28,52 +28,57 @@ describe("landAt", () => {
 describe("explainHour", () => {
   it("SW wind with fires on the path: names Sumatra and the west side", () => {
     const out = explainHour({ pm25: WEST_HIGH, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: RIAU_FIRES });
-    expect(out.headline).toBe("The west is highest this hour, 92 against 61 µg/m³ in the east.");
-    expect(out.body).toBe(
-      "Air is arriving from the southwest, over Sumatra, where NASA satellites saw 3 fire detections near its path in the last 24 hours, so the west side gets it first.",
-    );
-    expect(out.context).toMatch(/Jurong and Tuas/);
-    expect(out.context).toMatch(/can't separate/);
+    expect(out.headline).toBe("West highest: 92 vs 61 µg/m³ in the east.");
+    expect(out.body).toBe("Likely smoke: air came over 3 fires upwind.");
+    expect(out.context).toBe("West has industry and shipping (Jurong, Tuas).");
   });
 
   it("NE wind: fires in Sumatra are off the path and no cause is claimed", () => {
     const out = explainHour({ pm25: WEST_HIGH, wind850: [7, 45], surface: [6, 40], path: NE_PATH, fires: RIAU_FIRES });
     expect(out.facts.firesOnPath).toBe(0);
-    expect(out.body).toBe(
-      "Air is arriving from the northeast, and NASA satellites saw no fires along its path in the last 24 hours, so there is no clear outside source.",
-    );
-    expect(out.body).not.toMatch(/gets it first/);
+    expect(out.body).toBe("Cause unclear: air came from the northeast (no fires on its path).");
+    expect(out.body).not.toMatch(/Likely/);
   });
 
   it("calm winds: says the difference looks local and claims no source", () => {
     const out = explainHour({ pm25: WEST_HIGH, wind850: [1.2, 200], surface: [1, 180], path: SW_PATH, fires: RIAU_FIRES });
     expect(out.facts.calm).toBe(true);
-    expect(out.body).toMatch(/Winds are light/);
-    expect(out.body).toMatch(/no clear outside source/);
-    expect(out.body).not.toMatch(/fire/);
+    expect(out.body).toBe("Cause unclear: winds are light, so it looks local.");
   });
 
   it("no fires anywhere: says so plainly", () => {
     const out = explainHour({ pm25: WEST_HIGH, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: [] });
-    expect(out.body).toMatch(/saw no fires along its path/);
+    expect(out.body).toBe("Cause unclear: air came from the southwest (no fires on its path).");
   });
 
   it("similar readings: no region is singled out", () => {
     const out = explainHour({ pm25: { west: 30, east: 28, north: 29, south: 31, central: 30 }, wind850: [1, 90], surface: [1, 90], path: null });
-    expect(out.headline).toBe("Readings are similar across the island this hour.");
-    expect(out.body).toBe("Winds are light, so there is no clear source this hour.");
+    expect(out.headline).toBe("Similar across the island.");
+    expect(out.body).toBe("No clear source: winds are light.");
     expect(out.context).toBeNull();
   });
 
   it("does not credit fires when the high region is not on the windward side", () => {
     const out = explainHour({ pm25: { east: 90, west: 60, north: 62, south: 61, central: 63 }, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: RIAU_FIRES });
-    expect(out.body).toMatch(/doesn't show why the east is highest/);
+    expect(out.body).toBe("Cause unclear: air came from the southwest (3 fires on its path).");
   });
 
   it("is honest when fire data or the air path is missing", () => {
-    expect(explainHour({ pm25: WEST_HIGH, wind850: [6, 225], path: SW_PATH, firesKnown: false }).body).toMatch(/Fire detections are not available/);
-    expect(explainHour({ pm25: WEST_HIGH, wind850: null, surface: [5, 220], path: null, fires: RIAU_FIRES }).body).toMatch(/air path is not available/);
-    expect(explainHour({ pm25: { west: 50 } }).headline).toMatch(/Not enough regional readings/);
+    expect(explainHour({ pm25: WEST_HIGH, wind850: [6, 225], path: SW_PATH, firesKnown: false }).body).toMatch(/fire data not available/);
+    expect(explainHour({ pm25: WEST_HIGH, wind850: null, surface: [5, 220], path: null, fires: RIAU_FIRES }).body).toMatch(/air path not available/);
+    expect(explainHour({ pm25: { west: 50 } }).headline).toMatch(/Too few regional readings/);
+  });
+});
+
+it("never names a country or blames anyone in the sentences", () => {
+  const cases = [
+    { pm25: WEST_HIGH, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: RIAU_FIRES },
+    { pm25: WEST_HIGH, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: [] },
+    { pm25: { west: 50, east: 50, north: 50, south: 50, central: 50 }, wind850: [6, 225], surface: [5, 220], path: SW_PATH, fires: RIAU_FIRES },
+  ];
+  cases.forEach((c) => {
+    const { headline, body } = explainHour(c);
+    expect(`${headline} ${body}`).not.toMatch(/Indonesia|Malaysia|Sumatra|Borneo|blame|caused by|country/i);
   });
 });
 
@@ -83,5 +88,17 @@ describe("path helpers", () => {
     expect(s.from).toBe("SW");
     expect(s.lands).toEqual(["Sumatra"]);
     expect(firesNearPath(s.points, [[-0.3, 102.1, 1, 0], [3, 110, 1, 0]])).toHaveLength(1);
+  });
+});
+
+describe("fireStretches", () => {
+  it("finds the stretch of path that passes over fires", async () => {
+    const { fireStretches } = await import("./explain");
+    const runs = fireStretches(SW_PATH, RIAU_FIRES);
+    expect(runs.length).toBe(1);
+    const [a, b] = runs[0];
+    expect(SW_PATH[a][2]).toBeGreaterThan(20);
+    expect(SW_PATH[b][2]).toBe(48);
+    expect(fireStretches(NE_PATH, RIAU_FIRES)).toEqual([]);
   });
 });

@@ -26,7 +26,9 @@ describe("HazePage", () => {
     expect(within(card).getByRole("combobox")).toHaveValue("west");
     expect(within(card).getByText("92")).toBeInTheDocument();
     expect(within(card).getByText("Moderate")).toBeInTheDocument();
-    expect(within(card).getByText("Normal activities are fine.")).toBeInTheDocument();
+    expect(within(card).getByText("Fine for normal activities.")).toBeInTheDocument();
+    expect(within(card).getByText(/Wind [0-9.]+ kn from [NESW]+/)).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/m\/s/);
   });
 
   it("moves the cursor with the timeline and updates the card", async () => {
@@ -49,9 +51,9 @@ describe("HazePage", () => {
     const fires = await screen.findByRole("checkbox", { name: /Fire detections/ });
     expect(fires).toBeDisabled();
     expect(fires).not.toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /Air path/ })).toBeDisabled();
-    expect(screen.getByText("The air path is not available right now.")).toBeInTheDocument();
-    expect(screen.getByText("NASA fire detections are not available right now.")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Where today's air came from/ })).toBeDisabled();
+    expect(screen.getByText("Air path not available right now.")).toBeInTheDocument();
+    expect(screen.getByText("Fire detections not available right now.")).toBeInTheDocument();
   });
 
   it("explains the hour from the data it has, without claiming a cause", async () => {
@@ -59,8 +61,8 @@ describe("HazePage", () => {
     render(<HazePage />);
 
     const card = await screen.findByRole("region", { name: "At cursor" });
-    expect(within(card).getByText("Why this hour looks like this")).toBeInTheDocument();
-    expect(card.textContent).not.toMatch(/gets it first/);
+    expect(within(card).getByRole("heading", { name: "Why" })).toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/Likely smoke/);
   });
 
   it("shows an error with a retry when the API fails", async () => {

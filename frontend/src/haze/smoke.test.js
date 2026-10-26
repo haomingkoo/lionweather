@@ -97,9 +97,13 @@ describe("smoke drift", () => {
     const f = uniform(6, 6, 72);
     // Riau, south-west of Singapore by about 2 degrees.
     const sim = simulateSmoke(f, [[-0.4, 101.9, 50, T0]], { maxParticles: 300 });
-    const out = smokeOutlook(sim, 12);
+    // Three hours in, the plume is still on its way (about 9 hours to cover 290 km).
+    const out = smokeOutlook(sim, 3);
+    expect(out.overNow).toBe(0);
     expect(out.onCourse).toBe(1);
-    expect(outlookText(out, { fires: 1 })).toMatch(/1 fire cluster is on course for Singapore in the next 24 hours\./);
+    expect(smokeOutlook(sim, 12).overNow).toBe(1);
+    expect(outlookText(smokeOutlook(sim, 12), { fires: 1 })).toBe("Simulated: smoke from 1 fire cluster over Singapore now.");
+    expect(outlookText(out, { fires: 1 })).toBe("Simulated: smoke from 1 fire cluster may reach Singapore in 24 h.");
   });
 
   it("says the smoke misses Singapore on a north-easterly", () => {
@@ -108,7 +112,7 @@ describe("smoke drift", () => {
     const out = smokeOutlook(sim, 12);
     expect(out.onCourse).toBe(0);
     expect(out.overNow).toBe(0);
-    expect(outlookText(out, { fires: 1 })).toMatch(/none of the smoke in the air reaches Singapore/);
+    expect(outlookText(out, { fires: 1 })).toBe("Simulated: no smoke reaches Singapore in 24 h.");
   });
 
   it("flags when the next day runs on forecast wind", () => {
@@ -119,8 +123,8 @@ describe("smoke drift", () => {
 
   it("is plain when there are no fires or no wind", () => {
     expect(simulateSmoke(uniform(1, 1), [])).toBeNull();
-    expect(outlookText(null, { fires: 0 })).toMatch(/no fires/);
-    expect(outlookText(null, { fires: 3 })).toMatch(/not available/);
+    expect(outlookText(null, { fires: 0 })).toBe("No fires seen in this window.");
+    expect(outlookText(null, { fires: 3 })).toBe("Smoke drift unavailable this hour.");
     expect(SINGAPORE.lat).toBeCloseTo(1.35, 2);
   });
 });
@@ -131,5 +135,30 @@ describe("smoke age", () => {
     const sim = simulateSmoke(f, [[1.2, 103.6, 50, T0]], { maxParticles: 50, releaseHours: 1, diffusivity: 0 });
     expect(smokeOutlook(sim, 10).overNow).toBe(1);
     expect(smokeOutlook(sim, 60).airborne).toBe(0);
+  });
+});
+
+describe("grid edge", async () => {
+  const { edgeFade } = await import("./smoke");
+  it("fades smoke to nothing at the border of the wind data", () => {
+    const b = [95, -6, 120, 7];
+    expect(edgeFade(0, 108, b)).toBe(1);
+    expect(edgeFade(6.99, 108, b)).toBeLessThan(0.01);
+    expect(edgeFade(6.25, 108, b)).toBeCloseTo(0.5, 5);
+    expect(edgeFade(0, 120, b)).toBe(0);
+  });
+
+  it("keeps the last smoke before a northern border faint, not a hard line", () => {
+    const f = uniform(0, 12, 48); // straight north, 43 km/h
+    const sim = simulateSmoke(f, [[3, 110, 50, T0]], { maxParticles: 200, releaseHours: 1, diffusivity: 0 });
+    let maxEdgeWeight = 0;
+    for (let i = 0; i < sim.count; i += 1) {
+      for (let h = 0; h < sim.nt; h += 1) {
+        const lat = sim.pos[(i * sim.nt + h) * 2];
+        if (Number.isNaN(lat) || lat < 6.8) continue;
+        maxEdgeWeight = Math.max(maxEdgeWeight, edgeFade(lat, sim.pos[(i * sim.nt + h) * 2 + 1], sim.bounds));
+      }
+    }
+    expect(maxEdgeWeight).toBeLessThan(0.15);
   });
 });
