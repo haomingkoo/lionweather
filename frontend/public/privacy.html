@@ -60,7 +60,7 @@
 
     <main>
       <h1>Privacy</h1>
-      <p class="muted">Last updated 26 October 2026</p>
+      <p class="muted">Last updated 27 October 2026</p>
 
       <p>
         LionWeather is a free Singapore weather app run by Koo Haoming (individual, Singapore).
@@ -89,12 +89,13 @@
         <li><strong>OpenStreetMap Nominatim</strong> turns coordinates and searches into place names.
           Sometimes your browser asks it directly, so it also sees your IP address.</li>
         <li><strong>OneMap</strong> (Singapore Land Authority) gets the postal codes you search for, straight from your browser.</li>
-        <li><strong>OpenStreetMap tile servers</strong> send the map images, so they see your IP address.</li>
+        <li><strong>OpenStreetMap tile servers</strong> send the flat map images, so they see your IP address.</li>
+        <li><strong>OpenFreeMap</strong> sends the 3D map tiles and <strong>Amazon Web Services</strong> sends the terrain tiles, so both see your IP address.</li>
         <li><strong>Cloudflare</strong> delivers the site and blocks abuse.</li>
         <li>Cloudflare Web Analytics: cookieless, aggregate page views, no input capture.</li>
       </ul>
       <p>
-        Railway, Cloudflare and OpenStreetMap run servers outside Singapore, so your data may be handled overseas.
+        Railway, Cloudflare, OpenStreetMap, OpenFreeMap and Amazon Web Services run servers outside Singapore, so your data may be handled overseas.
         Each provider has its own privacy policy.
       </p>
 
@@ -111,12 +112,13 @@
         <li>Once you add your location, the app re-reads your GPS every 15 minutes while the tab is open.
           Use the <strong>Following my location</strong> button to turn that off.</li>
         <li>Delete a location card to remove it. Deleting your GPS card also turns off live location.</li>
-        <li>Clear this site's data in your browser to remove everything it stored. That is four local storage keys:
+        <li>Clear this site's data in your browser to remove everything it stored. That is five local storage keys:
           <ul>
             <li><code>lionweather_locations</code>: your location cards and their last weather</li>
             <li><code>geolocation_permission</code>: whether live location is on</li>
             <li><code>lionweather_rain_notify</code>: whether rain alerts are on</li>
             <li><code>lionweather_rain_notify_last</code>: when the last rain alert fired</li>
+            <li><code>hz-orbit-tip</code>: that you closed the tip on how to turn the 3D map</li>
           </ul>
         </li>
         <li>The light and dark theme follows Singapore's sunrise and sunset. It is worked out in your browser and not stored.</li>

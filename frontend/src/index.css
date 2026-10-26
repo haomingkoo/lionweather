@@ -85,6 +85,12 @@
   filter: grayscale(1) invert(0.92) brightness(0.9) contrast(0.9);
 }
 
+/* MapLibre's on-map controls follow the theme. */
+.maplibregl-ctrl-group { background: rgb(var(--surface)); border: 1px solid rgb(var(--line)); box-shadow: none; }
+.maplibregl-ctrl-group button + button { border-top-color: rgb(var(--line)); }
+.map3d-tilt button { color: rgb(var(--ink)); display: grid; place-items: center; }
+.dark .maplibregl-ctrl-group:not(.map3d-tilt) .maplibregl-ctrl-icon { filter: invert(1); }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
