@@ -179,11 +179,11 @@ function AirPathCard({ scene, index, view, outlook, fireCount, firesInDay }) {
   const path = air?.status === "ok" ? air.paths["850hPa"][index] : null;
   const summary = path ? pathSummary(path.points, { hours: 24 }) : null;
   return (
-    <section className="hz-card" aria-label="Where today's air came from">
+    <section className="hz-card" aria-label="Where this wind came from">
       <header className="hz-card-head">
-        <h2>Where today&apos;s air came from</h2>
+        <h2>Where this wind came from</h2>
         <Info label="How this is worked out">
-          <p>We trace the wind backwards from Singapore, hour by hour, to show where the air you&apos;re breathing was 1 to 3 days ago.</p>
+          <p>We trace the wind back from Singapore, hour by hour, to show where it blew from over the past 3 days.</p>
           <p className="hz-muted">
             Open-Meteo wind at 850 hPa (about 1.5 km up). The smoke drift carries particles from each NASA fire detection on the
             same wind: 12 hours of smoke per detection, followed for 2 days. Not a PSI forecast. Clouds can hide fires.
@@ -191,12 +191,12 @@ function AirPathCard({ scene, index, view, outlook, fireCount, firesInDay }) {
         </Info>
       </header>
       {summary ? (
-        <p title="850 hPa">
-          Air arriving ~1.5 km up came from the {DIRECTION_WORDS[summary.from]}
+        <p title="About 1.5 km up (850 hPa)">
+          The wind came from the {DIRECTION_WORDS[summary.from]}
           {summary.lands.length ? `, over ${summary.lands.join(" and ")}` : ""} ({NF.format(summary.reachKm)} km away 24 h ago).
         </p>
       ) : (
-        <p className="hz-muted">Air path not available right now.</p>
+        <p className="hz-muted">Wind path not available right now.</p>
       )}
       {hs.status === "ok" ? (
         <>
@@ -209,7 +209,7 @@ function AirPathCard({ scene, index, view, outlook, fireCount, firesInDay }) {
       ) : (
         <p className="hz-muted">Fire detections not available right now.</p>
       )}
-      {view !== "region" && <p className="hz-muted hz-small">Region view shows the path, fires and smoke.</p>}
+      {view !== "region" && <p className="hz-muted hz-small">Region view shows the wind path, fires and smoke.</p>}
     </section>
   );
 }
@@ -374,7 +374,7 @@ function Legend({ view, scene, smokeOn, path925, peat }) {
   if (view === "region") {
     return (
       <div className="hz-legend" aria-label="Map key">
-        <span className="hz-key" title="850 hPa, dot every 6 h"><i className="hz-key-path" aria-hidden="true" />Where today&apos;s air came from</span>
+        <span className="hz-key" title="About 1.5 km up (850 hPa), dot every 6 h"><i className="hz-key-path" aria-hidden="true" />Wind path (last 3 days)</span>
         {path925 && <span className="hz-key" title="925 hPa"><i className="hz-key-path2" aria-hidden="true" />Closer to the ground</span>}
         {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fires, larger is hotter</span>}
         {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Smoke drift, simulated</span>}
@@ -555,7 +555,7 @@ function HazeView() {
         <a className="hz-back" href="/">LionWeather</a>
         <span className="hz-top-sep" aria-hidden="true" />
         <h1>Haze over Singapore</h1>
-        <p className="hz-top-sub">PSI, PM2.5, wind and where the air came from, hour by hour</p>
+        <p className="hz-top-sub">PSI, PM2.5, wind and where the wind came from, hour by hour</p>
         {scene && (
           <p className="hz-top-updated">Latest NEA reading {scene.latest.air ? fmtDayTime(scene.latest.air) : "not available"}</p>
         )}
@@ -676,7 +676,7 @@ function HazeView() {
                 <Toggle checked={layers.regions} onChange={setLayer("regions")} label="Regions" note="NEA's five areas" disabled={!webgl} />
                 <Toggle checked={layers.buildings} onChange={setLayer("buildings")} label="Buildings" note={dim === "3d" ? "OpenStreetMap, real heights" : "3D view only"} disabled={!webgl || dim !== "3d"} />
                 <Toggle checked={layers.relief} onChange={setLayer("relief")} label="Relief" note="Hill shading" disabled={!webgl} />
-                <Toggle checked={layers.path} onChange={setLayer("path")} label="Where today's air came from" note={pathOk ? "About 1.5 km up, last 3 days" : "Not available right now"} disabled={!webgl || !pathOk} />
+                <Toggle checked={layers.path} onChange={setLayer("path")} label="Wind path (last 3 days)" note={pathOk ? "About 1.5 km up" : "Not available right now"} disabled={!webgl || !pathOk} />
                 <Toggle checked={layers.path925} onChange={setLayer("path925")} label="Same, closer to the ground" note="About 750 m up" disabled={!webgl || !pathOk} />
                 <Toggle
                   checked={layers.hotspots}

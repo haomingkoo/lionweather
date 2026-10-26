@@ -94,7 +94,7 @@ function smokeRamp(rgb, k = 1) {
   return ["interpolate", ["linear"], ["heatmap-density"], 0, `rgba(${rgb},0)`, 0.1, `rgba(${rgb},${0.16 * k})`, 0.4, `rgba(${rgb},${0.34 * k})`, 1, `rgba(${rgb},${0.52 * k})`];
 }
 
-// The path runs from where the air was to Singapore, so arrows point at Singapore.
+// The path runs from where the wind blew from to Singapore, so arrows point at Singapore.
 function pathGeo(path) {
   if (!path || path.points.length < 2) return EMPTY;
   const coords = path.points.map(([lat, lng]) => [lng, lat]).reverse();
@@ -135,7 +135,7 @@ function fireStretchGeo(path, fires) {
   return [lines, label];
 }
 
-// A point a fraction of the way along a path, from where the air was to Singapore.
+// A point a fraction of the way along a path, from its far end to Singapore.
 function alongPath(path, f) {
   const pts = path.points.slice().reverse();
   const seg = [];
@@ -368,7 +368,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
           "circle-stroke-opacity": fireFade,
         },
       });
-      // The air path draws over the fires so the stretch that crossed them reads.
+      // The wind path draws over the fires so the stretch that crossed them reads.
       map.addLayer({
         id: "path-fire-glow",
         type: "line",
@@ -428,14 +428,14 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
         id: "path-fire-label",
         type: "symbol",
         source: "pathfire-label",
-        layout: { "text-field": "passed over fires here", "text-font": FONT, "text-size": 12, "text-anchor": "left", "text-offset": [1.2, 0] },
+        layout: { "text-field": "Passed over fires", "text-font": FONT, "text-size": 12, "text-anchor": "left", "text-offset": [1.2, 0] },
         paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
       });
       map.addLayer({
         id: "path-head",
         type: "symbol",
         source: "pathhead",
-        layout: { "text-field": "Air arriving now came this way", "text-font": FONT_BOLD, "text-size": 12, "text-anchor": "left", "text-offset": [1.1, 0.6], "text-max-width": 12 },
+        layout: { "text-field": "Where this wind came from", "text-font": FONT_BOLD, "text-size": 12, "text-anchor": "left", "text-offset": [1.1, 0.6], "text-max-width": 12 },
         paint: { "text-color": ink.label, "text-halo-color": ink.halo, "text-halo-width": 1.8 },
       });
       map.addLayer(layer);
@@ -679,7 +679,7 @@ export function HazeMap({ scene, index, region, view, dim, layers, motion, theme
     vis("region-fill", layers.regions);
     vis("region-line", layers.regions);
     vis("region-labels", layers.regions);
-    // The air path and fires belong to the Region view; over the city they only clutter.
+    // The wind path and fires belong to the Region view; over the city they only clutter.
     const region = view === "region";
     ["fires-glow", "fires-core"].forEach((id) => vis(id, layers.hotspots && region));
     ["path850", "path-arrows", "path-ticks", "path-tick-labels", "path-fire", "path-fire-glow", "path-fire-label", "path-head", "path-dot", "path-dot-glow"].forEach((id) => vis(id, layers.path && region));

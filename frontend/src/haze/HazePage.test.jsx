@@ -44,15 +44,15 @@ describe("HazePage", () => {
     expect(within(card).getByText("Elevated")).toBeInTheDocument();
   });
 
-  it("says plainly when fire detections and the air path are unavailable, and keeps those toggles off", async () => {
+  it("says plainly when fire detections and the wind path are unavailable, and keeps those toggles off", async () => {
     getHazeScene.mockResolvedValue(fixture);
     render(<HazePage />);
 
     const fires = await screen.findByRole("checkbox", { name: /Fire detections/ });
     expect(fires).toBeDisabled();
     expect(fires).not.toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /Where today's air came from/ })).toBeDisabled();
-    expect(screen.getByText("Air path not available right now.")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Wind path \(last 3 days\)/ })).toBeDisabled();
+    expect(screen.getByText("Wind path not available right now.")).toBeInTheDocument();
     expect(screen.getByText("Fire detections not available right now.")).toBeInTheDocument();
   });
 
