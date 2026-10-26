@@ -16,10 +16,10 @@ function pathFor(geometry) {
     .join("");
 }
 
-export function Map2D({ scene, index, region, onSelect, onHover }) {
+export function Map2D({ scene, index, region, onSelect, onHover, metric = "psi" }) {
   return (
     <div className="hz-map2d">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Flat map of PM2.5 by region">
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`Flat map of ${metric === "psi" ? "PSI" : "PM2.5"} by region`}>
         <rect width={WIDTH} height={HEIGHT} className="hz-map2d-sea" />
         {regionsGeo.features.map((f) => {
           const r = f.properties.region;
@@ -29,7 +29,7 @@ export function Map2D({ scene, index, region, onSelect, onHover }) {
               key={r}
               d={pathFor(f.geometry)}
               className="hz-map2d-region"
-              fill={at.pm25Band?.color || "#9aa5b4"}
+              fill={at[`${metric}Band`]?.color || "#9aa5b4"}
               fillOpacity={r === region ? 0.6 : 0.42}
               strokeOpacity={r === region ? 0.9 : 0.4}
               strokeWidth={r === region ? 2.5 : 1}
@@ -55,7 +55,7 @@ export function Map2D({ scene, index, region, onSelect, onHover }) {
           return (
             <text key={r} x={px(loc.lng)} y={py(loc.lat)} textAnchor="middle" className="hz-map2d-label">
               <tspan x={px(loc.lng)}>{capitalise(r)}</tspan>
-              <tspan x={px(loc.lng)} dy="1.2em" className="hz-map2d-value">{at.pm25 ?? "no data"}</tspan>
+              <tspan x={px(loc.lng)} dy="1.2em" className="hz-map2d-value">{at[metric] ?? "no data"}</tspan>
             </text>
           );
         })}

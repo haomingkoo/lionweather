@@ -46,6 +46,17 @@ export function opticalDepth(pm25) {
   return 0.02 * Math.min(1, pm25 / 55) + Math.max(0, pm25 - 55) / 80;
 }
 
+// The same for PSI: clear through good and moderate (up to 100), thick by very
+// unhealthy (above 200).
+export function opticalDepthPsi(psi) {
+  if (psi == null || !Number.isFinite(psi) || psi <= 0) return 0;
+  return 0.02 * Math.min(1, psi / 100) + Math.max(0, psi - 100) / 110;
+}
+
+export function opticalDepthFor(value, metric = "pm25") {
+  return metric === "psi" ? opticalDepthPsi(value) : opticalDepth(value);
+}
+
 const SLICE_VS = `#version 300 es
 uniform mat4 u_matrix;
 uniform vec4 u_rect;      // mercator x0, y0, x1, y1
