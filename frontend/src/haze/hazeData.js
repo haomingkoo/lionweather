@@ -47,7 +47,7 @@ export function hazeDensity(pm25) {
 
 const SMOKE_TINTS = {
   light: { clean: [206, 211, 218], smoke: [166, 118, 64] },
-  dark: { clean: [128, 138, 152], smoke: [200, 152, 94] },
+  dark: { clean: [96, 106, 122], smoke: [158, 124, 86] },
 };
 
 // Smoke tint: pale grey in clean air, yellow-brown as PM2.5 climbs. Lighter at night

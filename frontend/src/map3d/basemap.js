@@ -27,9 +27,9 @@ export const PALETTES = {
     shadow: "#5b6b80",
     highlight: "#ffffff",
     accentShade: "#7d8b9c",
-    buildingLow: "#d4dbe5",
-    buildingHigh: "#aab8ca",
-    light: { color: "#ffffff", intensity: 0.45 },
+    buildingLow: "#c3cedc",
+    buildingHigh: "#8fa3bd",
+    light: { color: "#fff7ec", intensity: 0.6 },
     sky: "#dde6ef",
   },
   dark: {
@@ -46,9 +46,9 @@ export const PALETTES = {
     shadow: "#02060d",
     highlight: "#3a4a63",
     accentShade: "#22314a",
-    buildingLow: "#3a4864",
-    buildingHigh: "#62779c",
-    light: { color: "#d6e2f2", intensity: 0.4 },
+    buildingLow: "#33415c",
+    buildingHigh: "#5d7398",
+    light: { color: "#d6e2f2", intensity: 0.5 },
     sky: "#0b1220",
   },
 };
@@ -172,7 +172,9 @@ export function applyTheme(map, theme) {
   THEMED.forEach(([id, prop, key]) => {
     if (map.getLayer(id)) map.setPaintProperty(id, prop, p[key]);
   });
-  map.setLight({ anchor: "viewport", position: [1.25, 210, 40], ...p.light });
+  // Light fixed to the map from the south-west and fairly low, so the two visible
+  // faces of a tower read as lit and shaded.
+  map.setLight({ anchor: "map", position: [1.4, 225, 55], ...p.light });
 }
 
 // Desktop draws at the screen's full sharpness up to 2x; phones stay at 1.75x to save battery.

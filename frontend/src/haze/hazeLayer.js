@@ -11,31 +11,61 @@ const MASK_BOUNDS = [103.55, 1.13, 104.15, 1.5];
 const MASK_W = 1024;
 const MASK_H = 640;
 const BLUR_PX = 9; // about 600 m: soft edges, regions still read as regions
-const SLICES = 20;
-const TOP_M = 1400;
-const SCALE_M = 480; // haze thins with height over about half a kilometre
+const SLICES = 24;
+// Haze sits in a layer about 180 m deep with a soft top, so the tallest towers
+// (up to 290 m) poke through, plus a thin veil above it.
+export const LAYER_TOP_M = 180;
+const VEIL_TOP_M = 700;
+
+// Slice heights and the share of the column each one carries (sums to 1).
+// Slices are packed close around the layer top, where the edge shows.
+export function hazeProfile(slices = SLICES) {
+  const alts = [];
+  const weights = [];
+  for (let i = 0; i < slices; i += 1) {
+    const f = (i + 0.5) / slices;
+    alts.push(VEIL_TOP_M * f * f);
+  }
+  const edge = (z) => 1 / (1 + Math.exp((z - LAYER_TOP_M) / 25));
+  let sum = 0;
+  alts.forEach((z, i) => {
+    const lo = i === 0 ? 0 : (alts[i - 1] + z) / 2;
+    const hi = i === slices - 1 ? VEIL_TOP_M : (z + alts[i + 1]) / 2;
+    const w = (0.88 * edge(z) + 0.12 * Math.exp(-z / 400)) * (hi - lo);
+    weights.push(w);
+    sum += w;
+  });
+  return { alts, weights: weights.map((w) => w / sum) };
+}
+
+// Optical depth of a vertical column from PM2.5 in µg/m³: next to nothing in NEA's
+// normal band, thick by the high band. Applied along each line of sight, so towers
+// further away sit behind more haze.
+export function opticalDepth(pm25) {
+  if (pm25 == null || !Number.isFinite(pm25) || pm25 <= 0) return 0;
+  return 0.02 * Math.min(1, pm25 / 55) + Math.max(0, pm25 - 55) / 80;
+}
 
 const SLICE_VS = `#version 300 es
 uniform mat4 u_matrix;
 uniform vec4 u_rect;      // mercator x0, y0, x1, y1
 uniform float u_meter;
 uniform float u_flat;
-uniform float u_slices;
-uniform float u_top;
-uniform float u_scale;
-uniform float u_wsum;
+uniform float u_alt[24];
+uniform float u_weight[24];
 in vec2 a_corner;
 out vec2 v_uv;
 out float v_w;
 out float v_slice;
+out vec3 v_world;
 void main() {
-  float i = float(gl_InstanceID);
-  float alt = u_top * (i + 0.5) / u_slices;
-  v_w = exp(-alt / u_scale) / u_wsum;
-  v_slice = i;
+  int i = gl_InstanceID;
+  v_w = u_weight[i];
+  v_slice = float(i);
   v_uv = a_corner;
   vec2 xy = mix(u_rect.xy, u_rect.zw, a_corner);
-  gl_Position = u_matrix * vec4(xy, alt * u_meter * (1.0 - u_flat), 1.0);
+  v_world = vec3(xy, u_alt[i] * u_meter * (1.0 - u_flat));
+  gl_Position = u_matrix * vec4(v_world, 1.0);
 }`;
 
 const SLICE_FS = `#version 300 es
@@ -47,10 +77,12 @@ uniform float u_densB;
 uniform vec3 u_col[5];
 uniform float u_time;
 uniform vec2 u_drift;
-uniform float u_strength;
+uniform vec3 u_camera;
+uniform float u_cap;
 in vec2 v_uv;
 in float v_w;
 in float v_slice;
+in vec3 v_world;
 out vec4 frag;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -62,15 +94,22 @@ float noise(vec2 p) {
 void main() {
   vec4 a = texture(u_maskA, v_uv);
   float b = texture(u_maskB, v_uv).r;
+  // Densities here are optical depths of a vertical column.
   float d = dot(a, u_densA) + b * u_densB;
-  if (d < 0.003) discard;
+  if (d < 0.002) discard;
   vec3 col = (a.x * u_densA.x * u_col[0] + a.y * u_densA.y * u_col[1] + a.z * u_densA.z * u_col[2] +
               a.w * u_densA.w * u_col[3] + b * u_densB * u_col[4]) / max(d, 1e-4);
   // Texture only: soft billows drifting with the wind, plus or minus a quarter.
   vec2 q = v_uv * vec2(34.0, 21.0) + u_drift * u_time + v_slice * 1.37;
   float n = 0.55 * noise(q) + 0.3 * noise(q * 2.07 + 3.1) + 0.15 * noise(q * 4.31 - 1.7);
-  float column = u_strength * (1.0 - exp(-2.2 * d * d)) * (0.75 + 0.5 * n);
-  float alpha = 1.0 - pow(1.0 - clamp(column, 0.0, 0.95), v_w);
+  // Path through this slice relative to straight down: long and low lines of sight,
+  // towards the far towers, cross much more haze.
+  vec3 ray = normalize(v_world - u_camera);
+  float path = min(1.0 / max(abs(ray.z), 0.05), 6.0);
+  // The whole column is capped so the city always shows through, then shared out
+  // between the slices by their weight.
+  float column = min(1.0 - exp(-d * path * (0.8 + 0.4 * n)), u_cap);
+  float alpha = 1.0 - pow(1.0 - column, v_w);
   frag = vec4(col * alpha, alpha);
 }`;
 
@@ -161,6 +200,32 @@ function blur(src, w, h, r) {
   return src;
 }
 
+// The eye sits where the near plane's centre unprojects to (the near plane is
+// a hair in front of it). Column-major 4x4 inverse, applied to clip (0, 0, -1, 1).
+export function eyeFromMatrix(m) {
+  const inv = new Array(16);
+  inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+  inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+  inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+  inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+  inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+  inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+  inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+  inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+  inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+  inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+  inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+  inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+  inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+  inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+  inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+  inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+  const det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+  // Column-major: result = inv * (0, 0, -1, 1).
+  const v = [0, 1, 2, 3].map((r) => (-inv[8 + r] + inv[12 + r]) / det);
+  return [v[0] / v[3], v[1] / v[3], v[2] / v[3]];
+}
+
 const mercX = (lng) => (lng + 180) / 360;
 const mercY = (lat) => (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360;
 
@@ -201,8 +266,8 @@ export function buildMasks(features, w = MASK_W, h = MASK_H, doc = document) {
 }
 
 const PALETTE = {
-  light: { ink: [0.07, 0.09, 0.15], streak: 0.32, strength: 0.9 },
-  dark: { ink: [0.86, 0.9, 0.96], streak: 0.22, strength: 0.85 },
+  light: { ink: [0.07, 0.09, 0.15], streak: 0.32, cap: 0.72 },
+  dark: { ink: [0.86, 0.9, 0.96], streak: 0.22, cap: 0.45 },
 };
 
 const WIND_PARTICLES = 650;
@@ -250,9 +315,9 @@ export class HazeLayer {
     const [w, s, e, n] = MASK_BOUNDS;
     this.rect = [mercX(w), mercY(n), mercX(e), mercY(s)];
     this.meter = MercatorCoordinate.fromLngLat([103.82, 1.35]).meterInMercatorCoordinateUnits();
-    let wsum = 0;
-    for (let i = 0; i < SLICES; i += 1) wsum += Math.exp(-(TOP_M * (i + 0.5)) / SLICES / SCALE_M);
-    this.wsum = wsum;
+    const profile = hazeProfile();
+    this.alts = new Float32Array(profile.alts);
+    this.weights = new Float32Array(profile.weights);
     this.windRand = rng(42);
     this.wind = Array.from({ length: WIND_PARTICLES }, () => this.spawn({}));
   }
@@ -407,16 +472,16 @@ export class HazeLayer {
     gl.uniform4fv(u("u_rect"), this.rect);
     gl.uniform1f(u("u_meter"), this.meter);
     gl.uniform1f(u("u_flat"), this.flat);
-    gl.uniform1f(u("u_slices"), SLICES);
-    gl.uniform1f(u("u_top"), TOP_M);
-    gl.uniform1f(u("u_scale"), SCALE_M);
-    gl.uniform1f(u("u_wsum"), this.wsum);
+    gl.uniform1fv(u("u_alt"), this.alts);
+    gl.uniform1fv(u("u_weight"), this.weights);
+    const cam = eyeFromMatrix(matrix);
+    gl.uniform3f(u("u_camera"), cam[0], cam[1], cam[2]);
+    gl.uniform1f(u("u_cap"), PALETTE[this.theme].cap * (1 - 0.35 * this.flat));
     gl.uniform4f(u("u_densA"), this.density[0], this.density[1], this.density[2], this.density[3]);
     gl.uniform1f(u("u_densB"), this.density[4]);
     gl.uniform3fv(u("u_col"), this.color);
     gl.uniform1f(u("u_time"), this.time);
     gl.uniform2fv(u("u_drift"), this.drift);
-    gl.uniform1f(u("u_strength"), PALETTE[this.theme].strength);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.maskA);
     gl.uniform1i(u("u_maskA"), 0);
