@@ -33,6 +33,9 @@ describe("site-wide Content-Security-Policy", () => {
     expect(connect).toContain("https://nominatim.openstreetmap.org");
     expect(connect).toContain("https://www.onemap.gov.sg");
     expect(img).toContain("https://tile.openstreetmap.org");
+    // Cloudflare injects its Web Analytics beacon at the edge.
+    expect(directive("script-src")).toContain("https://static.cloudflareinsights.com");
+    expect(connect).toContain("https://cloudflareinsights.com");
     expect(directive("worker-src")).toEqual(expect.arrayContaining(["'self'", "blob:"]));
   });
 
