@@ -140,7 +140,8 @@ export function simulateSmoke(f, points, opts = {}) {
     const share = (Math.max(p[2], 0.1) / totalFrp) * maxParticles;
     const n = Math.floor(share) + (rand() < share % 1 ? 1 : 0);
     const h0 = Math.round((p[3] - f.t0) / f.step);
-    const cluster = cellOf.get(`${Math.floor(p[0] / CLUSTER_DEG)}:${Math.floor(p[1] / CLUSTER_DEG)}`);
+    // The backend's province clusters when it sent them; half-degree cells otherwise.
+    const cluster = p[5] ?? cellOf.get(`${Math.floor(p[0] / CLUSTER_DEG)}:${Math.floor(p[1] / CLUSTER_DEG)}`);
     for (let k = 0; k < n; k += 1) {
       const h = h0 + Math.floor(rand() * releaseHours);
       if (h < 0 || h >= f.nt) continue;
@@ -233,6 +234,47 @@ export function smokeOutlook(sim, hour, { nearKm = NEAR_KM, ahead = AHEAD_HOURS,
   const usesForecast = sim.forecastFrom != null && sim.t0 + last * sim.step >= sim.forecastFrom;
   overNow.forEach((c) => onCourse.delete(c));
   return { airborne, onCourse: onCourse.size, overNow: overNow.size, usesForecast, aheadHours: last - h };
+}
+
+// Where one cluster's smoke is going from this hour: the mean drift of its airborne
+// particles over the next 12 hours, and whether any reaches Singapore within a day.
+export function clusterSmoke(sim, cid, hour, { nearKm = NEAR_KM, ahead = AHEAD_HOURS, target = SINGAPORE } = {}) {
+  if (!sim || hour == null) return null;
+  const h = Math.round(hour);
+  if (h < 0 || h >= sim.nt) return null;
+  const k = Math.min(sim.nt - 1, h + 12);
+  const last = Math.min(sim.nt - 1, h + ahead);
+  let airborne = 0;
+  let n = 0;
+  let dLat = 0;
+  let dLon = 0;
+  let reaches = false;
+  for (let i = 0; i < sim.count; i += 1) {
+    if (sim.cluster[i] !== cid || sim.release[i] > h || h - sim.release[i] > MAX_AGE_HOURS) continue;
+    const base = i * sim.nt;
+    const lat0 = sim.pos[(base + h) * 2];
+    if (Number.isNaN(lat0)) continue;
+    airborne += 1;
+    const latK = sim.pos[(base + k) * 2];
+    if (!Number.isNaN(latK) && k > h) {
+      n += 1;
+      dLat += latK - lat0;
+      dLon += sim.pos[(base + k) * 2 + 1] - sim.pos[(base + h) * 2 + 1];
+    }
+    for (let j = h; j <= last && !reaches; j += 1) {
+      const lat = sim.pos[(base + j) * 2];
+      if (Number.isNaN(lat)) break;
+      if (distanceKm(lat, sim.pos[(base + j) * 2 + 1], target.lat, target.lon) <= nearKm) reaches = true;
+    }
+  }
+  if (!airborne) return { airborne: 0 };
+  let heading = null;
+  if (n) {
+    const x = (dLon / n) * Math.cos((target.lat * Math.PI) / 180);
+    const y = dLat / n;
+    if (Math.hypot(x, y) * 111.32 > 15) heading = ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
+  }
+  return { airborne, heading, reaches, aheadHours: last - h };
 }
 
 export function outlookText(outlook, { fires = 0 } = {}) {

@@ -19,6 +19,7 @@ import httpx
 
 from app.db.database import fetch_all
 from app.services import air_quality as aq
+from app.services import fire_clusters as fc
 from app.services import wind_grid as wg
 
 logger = logging.getLogger(__name__)
@@ -245,20 +246,22 @@ async def fetch_hotspots(key: str, days: int, since: float | None = None) -> dic
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.get(url)
             response.raise_for_status()
-        points = merge_hotspots(parse_firms_csv(response.text), since)
+        points = merge_hotspots(parse_firms_csv(response.text), since)[:MAX_HOTSPOTS]
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning(f"FIRMS fetch failed: {exc.__class__.__name__}")
         return {"status": "error", "message": "NASA FIRMS did not answer. Try again later.", "points": []}
+    ids, clusters = await asyncio.to_thread(fc.cluster_points, points)
+    points = [p + [cid] for p, cid in zip(points, ids)]
     last = max((p[3] for p in points), default=None)
     return {
         "status": "ok",
         "days": days,
         "bbox": FIRMS_BBOX,
         "source": FIRMS_SOURCE,
-        "fields": ["lat", "lng", "frp_mw", "seen_unix", "detections"],
+        "fields": ["lat", "lng", "frp_mw", "seen_unix", "detections", "cluster"],
         "detections": sum(p[4] for p in points),
-        "truncated": len(points) > MAX_HOTSPOTS,
-        "points": points[:MAX_HOTSPOTS],
+        "points": points,
+        "clusters": clusters,
         "last_pass": datetime.fromtimestamp(last, timezone.utc).astimezone(SGT).isoformat() if last else None,
     }
 

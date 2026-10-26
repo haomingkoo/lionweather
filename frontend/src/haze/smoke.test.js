@@ -162,3 +162,19 @@ describe("grid edge", async () => {
     expect(maxEdgeWeight).toBeLessThan(0.15);
   });
 });
+
+describe("clusterSmoke", async () => {
+  const { clusterSmoke } = await import("./smoke");
+  it("reports where one cluster's smoke heads and whether it reaches Singapore", () => {
+    const f = uniform(6, 6, 72);
+    // Two clusters by the backend's ids: Riau (0) towards Singapore, and one far east (1).
+    const sim = simulateSmoke(f, [[-0.4, 101.9, 50, T0, 1, 0], [-2, 113, 50, T0, 1, 1]], { maxParticles: 300 });
+    const riau = clusterSmoke(sim, 0, 3);
+    expect(riau.airborne).toBeGreaterThan(0);
+    expect(riau.heading).toBeGreaterThan(30);
+    expect(riau.heading).toBeLessThan(60);
+    expect(riau.reaches).toBe(true);
+    expect(clusterSmoke(sim, 1, 3).reaches).toBe(false);
+    expect(clusterSmoke(sim, 5, 3)).toEqual({ airborne: 0 });
+  });
+});

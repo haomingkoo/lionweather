@@ -15,7 +15,7 @@ import {
   worstRegion,
 } from "./hazeData";
 import { DIRECTION_WORDS, explainHour, pathSummary } from "./explain";
-import { fieldHour, outlookText, prepareField, simulateSmoke, smokeOutlook } from "./smoke";
+import { clusterSmoke, fieldHour, outlookText, prepareField, simulateSmoke, smokeOutlook } from "./smoke";
 import { placeCard } from "./placement";
 import { ORBIT_TIP, ORBIT_TIP_TOUCH } from "../map3d/controls";
 import { PsiChart, Pm25Chart, WindChart } from "./Charts";
@@ -53,7 +53,7 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-const DEFAULT_LAYERS = { haze: true, wind: true, regions: true, relief: true, buildings: true, hotspots: true, path: true, path925: false, smoke: true };
+const DEFAULT_LAYERS = { haze: true, wind: true, regions: true, relief: true, buildings: true, hotspots: true, path: true, path925: false, smoke: true, peat: true };
 const DAY_S = 24 * 3600;
 
 // Points are [lat, lng, MW, seen, detections]: one point can merge several detections.
@@ -202,13 +202,53 @@ function AirPathCard({ scene, index, view, outlook, fireCount, firesInDay }) {
           <p className="hz-outlook">{outlookText(outlook, { fires: fireCount })}</p>
           <p className="hz-muted hz-small">
             Fires seen, last 24 h: {NF.format(firesInDay)}
-            {hs.last_pass && ` · last pass ${fmtTime(hs.last_pass)}`}
+            {hs.last_pass && ` · last pass ${fmtTime(hs.last_pass)}`} · clouds can hide fires
           </p>
         </>
       ) : (
         <p className="hz-muted">Fire detections not available right now.</p>
       )}
       {view !== "region" && <p className="hz-muted hz-small">Region view shows the path, fires and smoke.</p>}
+    </section>
+  );
+}
+
+function peatLine(share) {
+  if (share >= 0.5) return `Mostly on peatland (${Math.round(share * 100)}% of fires)`;
+  if (share >= 0.1) return `Partly on peatland (${Math.round(share * 100)}% of fires)`;
+  return "Not on mapped peatland";
+}
+
+function smokeLine(s) {
+  if (!s) return "Smoke drift unavailable this hour.";
+  if (!s.airborne) return "No smoke from here in the air at this hour.";
+  const dir = s.heading == null ? "Smoke lingers nearby" : `Smoke drifts ${DIRECTION_WORDS[compass(s.heading)]}`;
+  return `${dir}; ${s.reaches ? `reaches Singapore within ${s.aheadHours} h` : `does not reach Singapore in ${s.aheadHours} h`} (simulated).`;
+}
+
+function ClusterCard({ c, smoke, onClose }) {
+  const ref = useRef(null);
+  // On desktop the card sits in the scrolling side panel; bring it into view there.
+  // On a phone the page would scroll away from the map, so leave it.
+  useEffect(() => {
+    if (window.innerWidth >= 1024) ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [c.id]);
+  return (
+    <section ref={ref} className="hz-card hz-cluster-card" aria-label="Fire cluster">
+      <header className="hz-card-head">
+        <h2>{c.province || "Offshore"}</h2>
+        <button type="button" className="hz-link-btn" onClick={onClose}>Back to region</button>
+      </header>
+      <p className="hz-muted hz-small">NASA satellite fire detections</p>
+      <dl className="hz-rows">
+        <div><dt>Fires seen</dt><dd>{NF.format(c.detections)}</dd></div>
+        <div><dt>Fire power</dt><dd>{NF.format(Math.round(c.frp_mw))} MW in total</dd></div>
+        <div><dt>First seen</dt><dd>{fmtDayTime(new Date(c.first * 1000).toISOString())}</dd></div>
+        <div><dt>Last seen</dt><dd>{fmtDayTime(new Date(c.last * 1000).toISOString())}</dd></div>
+        <div><dt>Ground</dt><dd>{peatLine(c.peat_share)}</dd></div>
+      </dl>
+      <p className="hz-cluster-smoke">{smokeLine(smoke)}</p>
+      <p className="hz-muted hz-small">Satellites see heat, not fire size. Peat smoulders for weeks and makes thick smoke.</p>
     </section>
   );
 }
@@ -248,6 +288,8 @@ function Sources({ scene }) {
         </li>
         <li><a href={s.air_path.url} target="_blank" rel="noopener noreferrer">Open-Meteo</a>: regional wind (CC BY 4.0)</li>
         <li><a href={s.fires.url} target="_blank" rel="noopener noreferrer">NASA FIRMS</a>: fire detections</li>
+        <li><a href="https://doi.org/10.5518/252" target="_blank" rel="noopener noreferrer">PEATMAP</a> (Univ. of Leeds, CC BY 4.0): peatland</li>
+        <li><a href="https://www.geoboundaries.org/" target="_blank" rel="noopener noreferrer">geoBoundaries</a> (OSM, ODbL): province names</li>
         <li>OpenStreetMap, via OpenFreeMap: buildings</li>
       </ul>
       <p className="hz-muted hz-small">Checked {fmtTime(scene.fetched_at)}. Refreshes every 10 min.</p>
@@ -291,7 +333,7 @@ function Tooltip({ hover, scene, index, bounds }) {
   );
 }
 
-function Legend({ view, scene, smokeOn, path925 }) {
+function Legend({ view, scene, smokeOn, path925, peat }) {
   if (view === "region") {
     return (
       <div className="hz-legend" aria-label="Map key">
@@ -299,6 +341,7 @@ function Legend({ view, scene, smokeOn, path925 }) {
         {path925 && <span className="hz-key" title="925 hPa"><i className="hz-key-path2" aria-hidden="true" />Closer to the ground</span>}
         {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fires, larger is hotter</span>}
         {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Smoke drift, simulated</span>}
+        {peat && <span className="hz-key" title="PEATMAP, University of Leeds"><i className="hz-key-peat" aria-hidden="true" />Peatland (where fires smoulder and smoke most)</span>}
       </div>
     );
   }
@@ -374,6 +417,7 @@ function HazeView() {
   const [dim, setDim] = useState(reduced ? "2d" : "3d");
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [hover, setHover] = useState(null);
+  const [clusterId, setClusterId] = useState(null);
   const mapBox = useRef(null);
   const mapSize = useSize(mapBox);
 
@@ -428,6 +472,13 @@ function HazeView() {
   const windowFires = useMemo(() => countDetections(points.filter((p) => p[3] >= windowStart && p[3] <= windowStart + windowHours * 3600)), [points, windowStart, windowHours]);
   const smokeHour = smoke && scene ? fieldHour(smoke, scene.hours[index]) : null;
   const outlook = useMemo(() => smokeOutlook(smoke, smokeHour), [smoke, smokeHour]);
+  const cluster = scene?.hotspots?.clusters?.find((c) => c.id === clusterId) || null;
+  const clusterDrift = useMemo(() => (cluster ? clusterSmoke(smoke, cluster.id, smokeHour) : null), [cluster, smoke, smokeHour]);
+  const changeView = (v) => {
+    setView(v);
+    if (v !== "region") setClusterId(null);
+  };
+  const closeCluster = () => setClusterId(null);
 
   const why = useMemo(() => {
     if (!scene) return null;
@@ -491,12 +542,12 @@ function HazeView() {
                 <Segmented
                   label="Map area"
                   value={view}
-                  onChange={setView}
+                  onChange={changeView}
                   options={[["sg", "Singapore"], ["region", "Region"]]}
                   disabledValues={webgl ? [] : ["region"]}
                 />
                 {webgl && <Segmented label="Map style" value={dim} onChange={setDim} options={[["2d", "2D"], ["3d", "3D"]]} />}
-                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} />
+                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} peat={layers.peat} />
               </div>
               {webgl && dim === "3d" && <OrbitTip />}
               <div className="hz-map" ref={mapBox}>
@@ -515,6 +566,11 @@ function HazeView() {
                         smoke={smoke}
                         smokeHour={smokeHour}
                         fires={fires}
+                        cluster={clusterId}
+                        onCluster={(id) => {
+                          setClusterId(id);
+                          setView("region");
+                        }}
                         onHover={setHover}
                         onSelect={setRegion}
                       />
@@ -555,6 +611,8 @@ function HazeView() {
           <aside className="hz-side">
             <AtCursor scene={scene} index={index} region={region} onRegion={setRegion} why={why} />
 
+            {cluster && view === "region" && <ClusterCard c={cluster} smoke={clusterDrift} onClose={closeCluster} />}
+
             <AirPathCard scene={scene} index={index} view={view} outlook={outlook} fireCount={points.length} firesInDay={countDetections(fires)} />
 
             <section className="hz-card" aria-label="Layers">
@@ -574,6 +632,7 @@ function HazeView() {
                   note={hs.status === "ok" ? "NASA satellites, last 24 h" : "Not available right now"}
                   disabled={!webgl || hs.status !== "ok"}
                 />
+                <Toggle checked={layers.peat} onChange={setLayer("peat")} label="Peatland" note="Where fires smoulder and smoke most" disabled={!webgl} />
                 <Toggle
                   checked={layers.smoke}
                   onChange={setLayer("smoke")}
