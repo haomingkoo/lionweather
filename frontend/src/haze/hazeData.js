@@ -14,18 +14,27 @@ export const BAND_COLORS = {
   very_high: "#8f2a35",
 };
 
-// NEA advice for healthy people, reworded in plain language.
+// NEA advice for healthy people, in plain words. PSI and PM2.5 bands that ask
+// the same thing share a line, so the page can show just the stricter one.
 const PLAIN_ADVICE = {
-  good: "Normal activities are fine.",
-  moderate: "Normal activities are fine.",
-  unhealthy: "Cut down on long or hard exercise outdoors.",
+  good: "Fine for normal activities.",
+  moderate: "Fine for normal activities.",
+  normal: "Fine for normal activities.",
+  unhealthy: "Cut back on long or hard exercise outdoors.",
+  elevated: "Cut back on long or hard exercise outdoors.",
   very_unhealthy: "Avoid long or hard exercise outdoors.",
-  hazardous: "Stay indoors as much as you can.",
-  normal: "Fine for normal activities this hour.",
-  elevated: "Go easier on hard exercise outdoors for the next hour.",
-  high: "Avoid hard exercise outdoors for the next hour.",
-  very_high: "Stay indoors where you can for the next hour.",
+  high: "Avoid long or hard exercise outdoors.",
+  hazardous: "Stay indoors where you can.",
+  very_high: "Stay indoors where you can.",
 };
+const ADVICE_LEVEL = { good: 0, moderate: 0, normal: 0, unhealthy: 1, elevated: 1, very_unhealthy: 2, high: 2, hazardous: 3, very_high: 3 };
+
+// One line of advice from the 24-hour PSI and 1-hour PM2.5 bands: the stricter wins.
+export function adviceFor(psiBand, pm25Band) {
+  const bands = [psiBand, pm25Band].filter(Boolean);
+  if (!bands.length) return null;
+  return bands.reduce((a, b) => (ADVICE_LEVEL[b.key] > ADVICE_LEVEL[a.key] ? b : a)).plain;
+}
 
 export function capitalise(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
@@ -119,42 +128,46 @@ function nationalMax(scene, key, i) {
   return values.length ? Math.max(...values) : null;
 }
 
-// Moments worth a marker: band changes in the worst region, and the PM2.5 peak.
+// Key changes worth a marker: band changes in the worst region, and the PM2.5
+// peak. A change undone within an hour (normal, elevated, normal) is noise and is
+// dropped; a change followed by another within an hour keeps only the later one.
 export function findEvents(scene) {
-  const events = [];
-  let prevPsi = null;
-  let prevPm = null;
+  const order = (kind, key) => scene.bands[kind].findIndex((b) => b.key === key);
+  const kinds = { psi: [], pm25: [] };
+  const prev = { psi: null, pm25: null };
   scene.hours.forEach((_, i) => {
-    const psi = bandFor(nationalMax(scene, "psi", i), scene.bands.psi);
-    const pm = bandFor(nationalMax(scene, "pm25", i), scene.bands.pm25);
-    if (psi && prevPsi && psi.key !== prevPsi.key) {
-      const worse = scene.bands.psi.findIndex((b) => b.key === psi.key) >
-        scene.bands.psi.findIndex((b) => b.key === prevPsi.key);
-      events.push({
-        index: i,
-        kind: "psi",
-        color: psi.color,
-        label: worse ? `PSI rose to ${psi.label.toLowerCase()}` : `PSI eased to ${psi.label.toLowerCase()}`,
-      });
+    for (const kind of ["psi", "pm25"]) {
+      const band = bandFor(nationalMax(scene, kind, i), scene.bands[kind]);
+      if (!band) continue;
+      const before = prev[kind];
+      prev[kind] = band;
+      if (!before || band.key === before.key) continue;
+      const list = kinds[kind];
+      const last = list[list.length - 1];
+      if (last && i - last.index < 2) {
+        list.pop();
+        if (band.key === last.from.key) continue;
+        list.push({ index: i, kind, band, from: last.from });
+      } else {
+        list.push({ index: i, kind, band, from: before });
+      }
     }
-    if (pm && prevPm && pm.key !== prevPm.key) {
-      events.push({
-        index: i,
-        kind: "pm25",
-        color: pm.color,
-        label: `PM2.5 ${pm.label.toLowerCase()}`,
-      });
-    }
-    if (psi) prevPsi = psi;
-    if (pm) prevPm = pm;
   });
+  const label = ({ kind, band, from }) => {
+    const up = order(kind, band.key) > order(kind, from.key);
+    const name = band.label.toLowerCase();
+    if (kind === "psi") return `PSI ${up ? "up" : "down"} to ${name}`;
+    if (band.key === "normal") return "Back to normal";
+    return `${up ? "Rose" : "Down"} to ${name}`;
+  };
+  const events = [...kinds.psi, ...kinds.pm25].map((e) => ({ index: e.index, kind: e.kind, color: e.band.color, label: label(e) }));
   const top = peak(scene, "pm25");
   if (top) {
     events.push({
       index: top.index,
       kind: "peak",
       color: bandFor(top.value, scene.bands.pm25)?.color,
-      label: `Highest PM2.5: ${top.value} in the ${top.region}`,
+      label: `Peak: ${top.value} µg/m³ in the ${top.region}`,
     });
   }
   return events.sort((a, b) => a.index - b.index);

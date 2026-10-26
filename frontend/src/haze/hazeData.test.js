@@ -52,7 +52,7 @@ describe("bandFor", () => {
 
   it("returns plain advice and a colour, and nothing for missing values", () => {
     const band = bandFor(150, BANDS.psi);
-    expect(band.plain).toBe("Cut down on long or hard exercise outdoors.");
+    expect(band.plain).toBe("Cut back on long or hard exercise outdoors.");
     expect(band.color).toMatch(/^#[0-9a-f]{6}$/);
     expect(bandFor(null, BANDS.psi)).toBeNull();
     expect(bandFor(Number.NaN, BANDS.psi)).toBeNull();
@@ -112,12 +112,28 @@ describe("findEvents", () => {
     const s = scene([90, 120, 130, 95], [30, 70, 80, 40]);
     const events = findEvents(s);
     expect(events.map((e) => [e.index, e.label])).toEqual([
-      [1, "PSI rose to unhealthy"],
-      [1, "PM2.5 elevated"],
-      [2, "Highest PM2.5: 80 in the west"],
-      [3, "PSI eased to moderate"],
-      [3, "PM2.5 normal"],
+      [1, "PSI up to unhealthy"],
+      [1, "Rose to elevated"],
+      [2, "Peak: 80 µg/m³ in the west"],
+      [3, "PSI down to moderate"],
+      [3, "Back to normal"],
     ]);
+  });
+
+  it("drops a change undone within an hour and keeps the later of two quick changes", () => {
+    // PM2.5: normal, elevated, normal, ..., then elevated, high in consecutive hours.
+    const s = scene([60, 60, 60, 60, 60, 60, 60], [30, 70, 30, 30, 30, 70, 160]);
+    const labels = findEvents(s).filter((e) => e.kind === "pm25").map((e) => [e.index, e.label]);
+    expect(labels).toEqual([[6, "Rose to high"]]);
+  });
+});
+
+describe("adviceFor", () => {
+  it("gives one line, from the stricter band", async () => {
+    const { adviceFor } = await import("./hazeData");
+    expect(adviceFor(bandFor(80, BANDS.psi), bandFor(40, BANDS.pm25))).toBe("Fine for normal activities.");
+    expect(adviceFor(bandFor(80, BANDS.psi), bandFor(160, BANDS.pm25))).toBe("Avoid long or hard exercise outdoors.");
+    expect(adviceFor(null, null)).toBeNull();
   });
 });
 

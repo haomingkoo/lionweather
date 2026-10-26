@@ -3,10 +3,12 @@ import { getHazeScene, getHazeWindField } from "../api/haze";
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
 import {
   REGIONS,
+  adviceFor,
   capitalise,
   compass,
   findEvents,
   fmtDayTime,
+  fmtTime,
   lastIndexWithData,
   peak,
   regionAt,
@@ -15,6 +17,7 @@ import {
 import { DIRECTION_WORDS, explainHour, pathSummary } from "./explain";
 import { fieldHour, outlookText, prepareField, simulateSmoke, smokeOutlook } from "./smoke";
 import { placeCard } from "./placement";
+import { ORBIT_TIP, ORBIT_TIP_TOUCH } from "../map3d/controls";
 import { PsiChart, Pm25Chart, WindChart } from "./Charts";
 import { Timeline } from "./Timeline";
 import { Map2D } from "./Map2D";
@@ -50,7 +53,7 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-const DEFAULT_LAYERS = { haze: true, wind: true, regions: true, relief: true, buildings: true, hotspots: true, path: true, smoke: true };
+const DEFAULT_LAYERS = { haze: true, wind: true, regions: true, relief: true, buildings: true, hotspots: true, path: true, path925: false, smoke: true };
 const DAY_S = 24 * 3600;
 
 // Points are [lat, lng, MW, seen, detections]: one point can merge several detections.
@@ -92,9 +95,32 @@ function Segmented({ value, options, onChange, label, disabledValues = [] }) {
   );
 }
 
+const KNOTS_PER_MS = 1.94384;
+const NF = new Intl.NumberFormat("en-SG");
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 7v4.5M8 4.6v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// A small "i" that opens a short note in place.
+function Info({ label, children }) {
+  return (
+    <details className="hz-info">
+      <summary aria-label={label} title={label}><InfoIcon /></summary>
+      <div className="hz-info-body">{children}</div>
+    </details>
+  );
+}
+
 function AtCursor({ scene, index, region, onRegion, why }) {
   const at = regionAt(scene, region, index);
   const wind = scene.wind.mean[index];
+  const advice = adviceFor(at.psiBand, at.pm25Band);
   return (
     <section className="hz-card hz-cursor-card" aria-label="At cursor">
       <header className="hz-card-head">
@@ -111,37 +137,34 @@ function AtCursor({ scene, index, region, onRegion, why }) {
       </label>
       <dl className="hz-stats">
         <div>
-          <dt>PSI <small>24-hour</small></dt>
+          <dt>PSI <small>24 h</small></dt>
           <dd className="hz-num">{at.psi ?? "n/a"}</dd>
           <dd><Band band={at.psiBand} /></dd>
         </div>
         <div>
-          <dt>PM2.5 <small>µg/m³, 1-hour</small></dt>
+          <dt>PM2.5 <small>µg/m³, 1 h</small></dt>
           <dd className="hz-num">{at.pm25 ?? "n/a"}</dd>
           <dd><Band band={at.pm25Band} /></dd>
         </div>
       </dl>
-      {at.psiBand || at.pm25Band ? (
+      {advice ? (
         <div className="hz-advice">
-          {at.psiBand && <p><strong>Today:</strong> {at.psiBand.plain}</p>}
-          {at.pm25Band && <p><strong>This hour:</strong> {at.pm25Band.plain}</p>}
+          <p className="hz-advice-main">{advice}</p>
           <p className="hz-muted hz-small">
-            Advice for healthy people, based on NEA. Older people, children, pregnant women and anyone with heart or lung
-            conditions should take more care. <a href={scene.links.nea} target="_blank" rel="noopener noreferrer">Read NEA&apos;s advice</a>
+            Sensitive groups: take care. <a href={scene.links.nea} target="_blank" rel="noopener noreferrer">NEA advice ↗</a>
           </p>
         </div>
       ) : (
-        <p className="hz-muted">NEA has no reading for this region at this hour.</p>
+        <p className="hz-muted">No NEA reading here this hour.</p>
       )}
-      <p className="hz-wind-line">
-        {wind
-          ? `Wind ${wind.speed_kn.toFixed(1)} knots from the ${compass(wind.dir_deg)}, averaged over ${wind.stations} stations.`
-          : "No wind readings for this hour."}
+      <p className="hz-wind-line" title={wind ? `Average of ${wind.stations} NEA stations` : undefined}>
+        {wind ? `Wind ${wind.speed_kn.toFixed(1)} kn from ${compass(wind.dir_deg)}` : "No wind reading this hour."}
       </p>
       {why && (
         <div className="hz-why" aria-live="polite">
-          <h3>Why this hour looks like this</h3>
-          <p><strong>{why.headline}</strong> {why.body}</p>
+          <h3>Why</h3>
+          <p><strong>{why.headline}</strong></p>
+          {why.body && <p>{why.body}</p>}
           {why.context && <p className="hz-muted hz-small">{why.context}</p>}
         </div>
       )}
@@ -154,40 +177,38 @@ function AirPathCard({ scene, index, view, outlook, fireCount, firesInDay }) {
   const hs = scene.hotspots;
   const path = air?.status === "ok" ? air.paths["850hPa"][index] : null;
   const summary = path ? pathSummary(path.points, { hours: 24 }) : null;
-  const wind850 = air?.status === "ok" ? air.sg_wind["850hPa"][index] : null;
   return (
-    <section className="hz-card" aria-label="Air path and smoke">
-      <header className="hz-card-head"><h2>Air path and smoke</h2></header>
-      {path ? (
-        <>
-          <p className="hz-label-line">Approximate path of air arriving at 850 hPa, from Open-Meteo wind.</p>
-          <p>
-            {summary && `Over the last day the air came from the ${DIRECTION_WORDS[summary.from]}`}
-            {summary?.lands.length ? `, over ${summary.lands.join(" and ")}` : ""}
-            {summary ? `; 24 hours earlier it was about ${summary.reachKm} km away.` : ""}
-            {wind850 && ` Wind at that height over Singapore: ${wind850[0].toFixed(1)} m/s from the ${DIRECTION_WORDS[compass(wind850[1])]}.`}
+    <section className="hz-card" aria-label="Where today's air came from">
+      <header className="hz-card-head">
+        <h2>Where today&apos;s air came from</h2>
+        <Info label="How this is worked out">
+          <p>We trace the wind backwards from Singapore, hour by hour, to show where the air you&apos;re breathing was 1 to 3 days ago.</p>
+          <p className="hz-muted">
+            Open-Meteo wind at 850 hPa (about 1.5 km up). The smoke drift carries particles from each NASA fire detection on the
+            same wind: 12 hours of smoke per detection, followed for 2 days. Not a PSI forecast. Clouds can hide fires.
           </p>
-          {!path.complete && <p className="hz-muted hz-small">The path stops where it leaves the area the wind data covers.</p>}
-        </>
+        </Info>
+      </header>
+      {summary ? (
+        <p title="850 hPa">
+          Air arriving ~1.5 km up came from the {DIRECTION_WORDS[summary.from]}
+          {summary.lands.length ? `, over ${summary.lands.join(" and ")}` : ""} ({NF.format(summary.reachKm)} km away 24 h ago).
+        </p>
       ) : (
-        <p className="hz-muted">The air path is not available right now.</p>
+        <p className="hz-muted">Air path not available right now.</p>
       )}
       {hs.status === "ok" ? (
         <>
           <p className="hz-outlook">{outlookText(outlook, { fires: fireCount })}</p>
           <p className="hz-muted hz-small">
-            Simulated smoke drift from NASA-detected fires using Open-Meteo wind. Not a forecast of PSI. Each detection is
-            drawn smoking for 12 hours, and its smoke is followed for 2 days.
-          </p>
-          <p className="hz-muted hz-small">
-            NASA satellite fire detections: {firesInDay} in the 24 hours to this hour.
-            {hs.last_pass && ` Last satellite pass ${fmtDayTime(hs.last_pass)}.`} Clouds and thick smoke can hide fires, so some may be missed.
+            Fires seen, last 24 h: {NF.format(firesInDay)}
+            {hs.last_pass && ` · last pass ${fmtTime(hs.last_pass)}`}
           </p>
         </>
       ) : (
-        <p className="hz-muted">{hs.status === "error" ? "NASA fire detections did not load. Try again later." : "NASA fire detections are not available right now."}</p>
+        <p className="hz-muted">Fire detections not available right now.</p>
       )}
-      {view !== "region" && <p className="hz-muted hz-small">Switch to Region to see the path, fires and smoke.</p>}
+      {view !== "region" && <p className="hz-muted hz-small">Region view shows the path, fires and smoke.</p>}
     </section>
   );
 }
@@ -196,15 +217,18 @@ function Overview({ scene, dataEnd, windowFires }) {
   const psiPeak = peak(scene, "psi");
   const pmPeak = peak(scene, "pm25");
   const hs = scene.hotspots;
+  const missingAir = scene.coverage.hours - scene.coverage.air_hours;
+  const missingWind = scene.coverage.hours - scene.coverage.wind_hours;
+  const gaps = [missingAir && `${missingAir} h of air readings`, missingWind && `${missingWind} h of wind`].filter(Boolean);
   return (
     <section className="hz-card" aria-label="Overview">
       <header className="hz-card-head"><h2>Overview</h2></header>
       <dl className="hz-rows">
-        <div><dt>Window</dt><dd>{fmtDayTime(scene.hours[0])} to {fmtDayTime(scene.hours[dataEnd])}</dd></div>
+        <div><dt>Showing</dt><dd>{fmtDayTime(scene.hours[0])} to {fmtDayTime(scene.hours[dataEnd])}</dd></div>
         <div><dt>Highest PSI</dt><dd>{psiPeak ? `${psiPeak.value}, ${psiPeak.region}, ${fmtDayTime(scene.hours[psiPeak.index])}` : "No data"}</dd></div>
         <div><dt>Highest PM2.5</dt><dd>{pmPeak ? `${pmPeak.value} µg/m³, ${pmPeak.region}, ${fmtDayTime(scene.hours[pmPeak.index])}` : "No data"}</dd></div>
-        <div><dt>Hours with data</dt><dd>Air {scene.coverage.air_hours} of {scene.coverage.hours}, wind {scene.coverage.wind_hours} of {scene.coverage.hours}</dd></div>
-        <div><dt>Fire detections</dt><dd>{hs.status === "ok" ? `${windowFires} in this window` : "Not available"}</dd></div>
+        {gaps.length > 0 && <div><dt>Missing</dt><dd>{gaps.join(", ")}</dd></div>}
+        <div><dt>Fires seen</dt><dd>{hs.status === "ok" ? NF.format(windowFires) : "Not available"}</dd></div>
       </dl>
     </section>
   );
@@ -212,29 +236,21 @@ function Overview({ scene, dataEnd, windowFires }) {
 
 function Sources({ scene }) {
   const s = scene.sources;
+  const w = scene.wind.stations.length;
   return (
     <section className="hz-card hz-sources" aria-label="Sources">
       <header className="hz-card-head"><h2>Sources</h2></header>
       <ul>
         <li>
-          <a href={s.air.url} target="_blank" rel="noopener noreferrer">{s.air.name}</a>: PSI and PM2.5.
-          {" "}Latest reading {scene.latest.air ? fmtDayTime(scene.latest.air) : "not available"}.
+          <a href={s.air.url} target="_blank" rel="noopener noreferrer">NEA (data.gov.sg)</a>: PSI, PM2.5,{" "}
+          <a href={s.wind.url} target="_blank" rel="noopener noreferrer">wind</a> from {w} stations
+          {scene.latest.air ? ` · updated ${fmtTime(scene.latest.air)}` : ""}
         </li>
-        <li>
-          <a href={s.wind.url} target="_blank" rel="noopener noreferrer">{s.wind.name}</a>: hourly averages of minute readings.
-          {" "}Latest {scene.latest.wind ? fmtDayTime(scene.latest.wind) : "not available"}.
-        </li>
-        <li>
-          <a href={s.air_path.url} target="_blank" rel="noopener noreferrer">Weather data by Open-Meteo.com</a> (CC BY 4.0): wind at
-          850 hPa, 925 hPa and 10 m for the air path and smoke drift.
-        </li>
-        <li>
-          <a href={s.fires.url} target="_blank" rel="noopener noreferrer">{s.fires.name}</a>
-          {scene.hotspots.status === "ok" ? ": VIIRS heat detections, low confidence removed." : ": not available right now."}
-        </li>
-        <li>Buildings: OpenStreetMap contributors, via OpenFreeMap.</li>
+        <li><a href={s.air_path.url} target="_blank" rel="noopener noreferrer">Open-Meteo</a>: regional wind (CC BY 4.0)</li>
+        <li><a href={s.fires.url} target="_blank" rel="noopener noreferrer">NASA FIRMS</a>: fire detections</li>
+        <li>OpenStreetMap, via OpenFreeMap: buildings</li>
       </ul>
-      <p className="hz-muted hz-small">Checked {fmtDayTime(scene.fetched_at)} SGT. The page refreshes its data every 10 minutes.</p>
+      <p className="hz-muted hz-small">Checked {fmtTime(scene.fetched_at)}. Refreshes every 10 min.</p>
     </section>
   );
 }
@@ -275,14 +291,14 @@ function Tooltip({ hover, scene, index, bounds }) {
   );
 }
 
-function Legend({ view, scene, smokeOn }) {
+function Legend({ view, scene, smokeOn, path925 }) {
   if (view === "region") {
     return (
       <div className="hz-legend" aria-label="Map key">
-        <span className="hz-key"><i className="hz-key-path" aria-hidden="true" />Air path at 850 hPa, dots every 6 h</span>
-        <span className="hz-key"><i className="hz-key-path2" aria-hidden="true" />925 hPa</span>
-        {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fire detections, larger is more fire power</span>}
-        {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Simulated smoke drift</span>}
+        <span className="hz-key" title="850 hPa, dot every 6 h"><i className="hz-key-path" aria-hidden="true" />Where today&apos;s air came from</span>
+        {path925 && <span className="hz-key" title="925 hPa"><i className="hz-key-path2" aria-hidden="true" />Closer to the ground</span>}
+        {scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-fire" aria-hidden="true" />Fires, larger is hotter</span>}
+        {smokeOn && scene.hotspots.status === "ok" && <span className="hz-key"><i className="hz-key-smoke" aria-hidden="true" />Smoke drift, simulated</span>}
       </div>
     );
   }
@@ -298,8 +314,35 @@ function Legend({ view, scene, smokeOn }) {
           </span>
         );
       })}
-      <span className="hz-legend-hint hz-muted">Thicker, browner haze means more PM2.5. Streaks show the wind.</span>
+      <span className="hz-legend-hint hz-muted">Browner haze, more PM2.5. Streaks show wind.</span>
     </div>
+  );
+}
+
+// Shown once per browser, then remembered.
+function OrbitTip() {
+  const [show, setShow] = useState(() => {
+    try {
+      return !localStorage.getItem("hz-orbit-tip");
+    } catch {
+      return false;
+    }
+  });
+  if (!show) return null;
+  const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  const close = () => {
+    setShow(false);
+    try {
+      localStorage.setItem("hz-orbit-tip", "1");
+    } catch {
+      /* private mode: the tip just shows again next time */
+    }
+  };
+  return (
+    <p className="hz-tip" role="note">
+      <span>{touch ? ORBIT_TIP_TOUCH : ORBIT_TIP}</span>
+      <button type="button" onClick={close} aria-label="Dismiss tip">Got it</button>
+    </p>
   );
 }
 
@@ -453,8 +496,9 @@ function HazeView() {
                   disabledValues={webgl ? [] : ["region"]}
                 />
                 {webgl && <Segmented label="Map style" value={dim} onChange={setDim} options={[["2d", "2D"], ["3d", "3D"]]} />}
-                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} />
+                <Legend view={view} scene={scene} smokeOn={layers.smoke && !!smoke} path925={layers.path925} />
               </div>
+              {webgl && dim === "3d" && <OrbitTip />}
               <div className="hz-map" ref={mapBox}>
                 {webgl ? (
                   <MapBoundary fallback={<Map2D scene={scene} index={index} region={region} onSelect={setRegion} onHover={setHover} />}>
@@ -516,24 +560,25 @@ function HazeView() {
             <section className="hz-card" aria-label="Layers">
               <header className="hz-card-head"><h2>Layers</h2></header>
               <div className="hz-toggles">
-                <Toggle checked={layers.haze} onChange={setLayer("haze")} label="Haze" note="Thickness follows each region's PM2.5" disabled={!webgl} />
+                <Toggle checked={layers.haze} onChange={setLayer("haze")} label="Haze" note="Thickness follows PM2.5" disabled={!webgl} />
                 <Toggle checked={layers.wind} onChange={setLayer("wind")} label="Wind" note={`${stationCount} NEA stations`} disabled={!webgl} />
-                <Toggle checked={layers.regions} onChange={setLayer("regions")} label="Regions" note="NEA's five reporting areas" disabled={!webgl} />
+                <Toggle checked={layers.regions} onChange={setLayer("regions")} label="Regions" note="NEA's five areas" disabled={!webgl} />
                 <Toggle checked={layers.buildings} onChange={setLayer("buildings")} label="Buildings" note={dim === "3d" ? "OpenStreetMap, real heights" : "3D view only"} disabled={!webgl || dim !== "3d"} />
                 <Toggle checked={layers.relief} onChange={setLayer("relief")} label="Relief" note="Hill shading" disabled={!webgl} />
-                <Toggle checked={layers.path} onChange={setLayer("path")} label="Air path" note={pathOk ? "Approximate, from Open-Meteo wind" : "Not available right now"} disabled={!webgl || !pathOk} />
+                <Toggle checked={layers.path} onChange={setLayer("path")} label="Where today's air came from" note={pathOk ? "About 1.5 km up, last 3 days" : "Not available right now"} disabled={!webgl || !pathOk} />
+                <Toggle checked={layers.path925} onChange={setLayer("path925")} label="Same, closer to the ground" note="About 750 m up" disabled={!webgl || !pathOk} />
                 <Toggle
                   checked={layers.hotspots}
                   onChange={setLayer("hotspots")}
                   label="Fire detections"
-                  note={hs.status === "ok" ? "NASA satellites, 24 hours to the cursor" : "Not available right now"}
+                  note={hs.status === "ok" ? "NASA satellites, last 24 h" : "Not available right now"}
                   disabled={!webgl || hs.status !== "ok"}
                 />
                 <Toggle
                   checked={layers.smoke}
                   onChange={setLayer("smoke")}
                   label="Smoke drift"
-                  note={smoke ? "Simulated from fires and wind" : "Needs fire detections and wind"}
+                  note={smoke ? "Simulated" : "Needs fires and wind"}
                   disabled={!webgl || !smoke}
                 />
               </div>
@@ -542,8 +587,9 @@ function HazeView() {
             <Overview scene={scene} dataEnd={dataEnd} windowFires={windowFires} />
 
             {events.length > 0 && (
-              <section className="hz-card" aria-label="Moments">
-                <header className="hz-card-head"><h2>Moments</h2></header>
+              <section className="hz-card" aria-label="Key changes">
+                <header className="hz-card-head"><h2>Key changes</h2></header>
+                <p className="hz-muted hz-small hz-card-sub">Tap to jump the timeline.</p>
                 <ol className="hz-moments">
                   {events.map((e) => (
                     <li key={`${e.kind}-${e.index}`}>

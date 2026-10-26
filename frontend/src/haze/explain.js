@@ -107,7 +107,7 @@ function plural(n, word) {
 export function explainHour({ pm25, wind850, surface, path, fires = [], firesKnown = true }) {
   const ranking = rankRegions(pm25 || {});
   if (ranking.length < 2) {
-    return { headline: "Not enough regional readings this hour to compare.", body: null, context: null, facts: { ranking } };
+    return { headline: "Too few regional readings to compare.", body: null, context: null, facts: { ranking } };
   }
   const top = ranking[0];
   const low = ranking[ranking.length - 1];
@@ -121,39 +121,53 @@ export function explainHour({ pm25, wind850, surface, path, fires = [], firesKno
   const facts = { ranking, spread, similar, calm, from, lands: summary?.lands || [], firesOnPath: detections };
 
   const headline = similar
-    ? "Readings are similar across the island this hour."
-    : `The ${top.region} is highest this hour, ${top.value} against ${low.value} µg/m³ in the ${low.region}.`;
+    ? "Similar across the island."
+    : `${capitalise(top.region)} highest: ${top.value} vs ${low.value} µg/m³ in the ${low.region}.`;
 
   let body;
+  // Regional wording: the sentence describes the air and the fires, not places.
+  const route = from ? `air came from the ${DIRECTION_WORDS[from]}` : null;
+  const fireCount = plural(detections, "fire");
   if (calm) {
-    body = similar
-      ? "Winds are light, so there is no clear source this hour."
-      : "Winds are light, so the difference looks local rather than carried in. The data shows no clear outside source.";
+    body = similar ? "No clear source: winds are light." : "Cause unclear: winds are light, so it looks local.";
   } else if (!from) {
-    body = "There is no wind reading for this hour, so the data can't point to a source.";
+    body = "Cause unclear: no wind reading this hour.";
+  } else if (!summary) {
+    body = `Cause unclear: ${route}; air path not available.`;
+  } else if (!firesKnown) {
+    body = `Cause unclear: ${route}; fire data not available.`;
+  } else if (!detections) {
+    body = `Cause unclear: ${route} (no fires on its path).`;
+  } else if (similar) {
+    body = `Likely smoke island-wide: air came over ${fireCount} upwind.`;
+  } else if (FIRST_SIDE[from].includes(top.region)) {
+    body = `Likely smoke: air came over ${fireCount} upwind.`;
   } else {
-    const where = summary?.lands.length ? `, over ${summary.lands.join(" and ")}` : "";
-    const arriving = `Air is arriving from the ${DIRECTION_WORDS[from]}${where}`;
-    if (!summary) {
-      body = `${arriving}. The air path is not available, so fires along it can't be checked.`;
-    } else if (!firesKnown) {
-      body = `${arriving}. Fire detections are not available, so the data can't say whether it carried smoke.`;
-    } else if (!detections) {
-      body = `${arriving}, and NASA satellites saw no fires along its path in the last 24 hours, so there is no clear outside source.`;
-    } else {
-      const fireClause = `where NASA satellites saw ${plural(detections, "fire detection")} near its path in the last 24 hours`;
-      if (similar) {
-        body = `${arriving}, ${fireClause}. The whole island is getting similar air.`;
-      } else if (FIRST_SIDE[from].includes(top.region)) {
-        body = `${arriving}, ${fireClause}, so the ${top.region} side gets it first.`;
-      } else {
-        body = `${arriving}, ${fireClause}, but that air reaches the ${FIRST_SIDE[from].join(" and ")} first, not the ${top.region}, so the data doesn't show why the ${top.region} is highest.`;
-      }
-    }
+    body = `Cause unclear: ${route} (${fireCount} on its path).`;
   }
 
-  const context = !similar && top.region === "west"
-    ? "For context, the west also has industry and shipping around Jurong and Tuas. These readings can't separate that from smoke carried in."
-    : null;
-  return { headline: capitalise(headline), body, context, facts };
+  const context = !similar && top.region === "west" ? "West has industry and shipping (Jurong, Tuas)." : null;
+  return { headline, body, context, facts };
+}
+
+// Runs of consecutive path segments that pass within `km` of a fire detection, as
+// [first point index, last point index] pairs, for highlighting on the map.
+export function fireStretches(points, fires, km = 30) {
+  if (!points || points.length < 2 || !fires?.length) return [];
+  const runs = [];
+  let start = null;
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const minLat = Math.min(a[0], b[0]) - km / 111;
+    const maxLat = Math.max(a[0], b[0]) + km / 111;
+    const near = fires.some(([lat, lon]) => lat >= minLat && lat <= maxLat && segmentKm(lat, lon, a, b) <= km);
+    if (near && start === null) start = i - 1;
+    if (!near && start !== null) {
+      runs.push([start, i - 1]);
+      start = null;
+    }
+  }
+  if (start !== null) runs.push([start, points.length - 1]);
+  return runs;
 }

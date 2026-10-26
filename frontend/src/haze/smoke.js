@@ -167,7 +167,8 @@ export function simulateSmoke(f, points, opts = {}) {
       lon = next[1] + (gauss(rand) * sigmaDeg) / Math.cos((lat * Math.PI) / 180);
     }
   }
-  return { nt: f.nt, t0: f.t0, step: f.step, count, pos, release, cluster, clusters, forecastFrom: f.forecastFrom };
+  const bounds = [f.lon0, f.lat0, f.lon0 + f.dlon * (f.nlon - 1), f.lat0 + f.dlat * (f.nlat - 1)];
+  return { nt: f.nt, t0: f.t0, step: f.step, count, pos, release, cluster, clusters, bounds, forecastFrom: f.forecastFrom };
 }
 
 // Particle positions at a fractional field hour, for drawing. Calls fn(lat, lon, ageHours).
@@ -191,6 +192,14 @@ export function eachParticleAt(sim, hour, fn) {
     }
     fn(lat, lon, hour - sim.release[i]);
   }
+}
+
+// Smoke stops where the wind data stops, which drew a hard straight edge along the
+// grid's border. Fading the last stretch before the border softens that edge.
+export const EDGE_FADE_DEG = 1.5;
+export function edgeFade(lat, lon, [west, south, east, north], margin = EDGE_FADE_DEG) {
+  const d = Math.min(lon - west, east - lon, lat - south, north - lat);
+  return Math.max(0, Math.min(1, d / margin));
 }
 
 export function fieldHour(sim, iso) {
@@ -222,20 +231,22 @@ export function smokeOutlook(sim, hour, { nearKm = NEAR_KM, ahead = AHEAD_HOURS,
     }
   }
   const usesForecast = sim.forecastFrom != null && sim.t0 + last * sim.step >= sim.forecastFrom;
+  overNow.forEach((c) => onCourse.delete(c));
   return { airborne, onCourse: onCourse.size, overNow: overNow.size, usesForecast, aheadHours: last - h };
 }
 
 export function outlookText(outlook, { fires = 0 } = {}) {
-  if (!fires) return "NASA satellites saw no fires in this window, so there is no smoke to trace.";
-  if (!outlook) return "Wind for the smoke drift is not available for this hour.";
-  if (!outlook.airborne) return "No smoke from the detected fires is in the air yet at this hour.";
-  const parts = [];
-  if (outlook.overNow) parts.push(`In the simulation, smoke from ${plural(outlook.overNow, "fire cluster")} is over Singapore now.`);
-  if (outlook.onCourse) {
-    parts.push(`${outlook.overNow ? "Smoke" : "In the simulation, smoke"} from ${plural(outlook.onCourse, "fire cluster")} is on course for Singapore in the next ${outlook.aheadHours} hours${outlook.usesForecast ? ", on forecast wind" : ""}.`);
+  if (!fires) return "No fires seen in this window.";
+  if (!outlook) return "Smoke drift unavailable this hour.";
+  if (!outlook.airborne) return "Simulated: no smoke in the air yet.";
+  const wind = outlook.usesForecast ? " (forecast wind)" : "";
+  const ahead = `${outlook.aheadHours} h`;
+  if (outlook.overNow && outlook.onCourse) {
+    return `Simulated: smoke from ${plural(outlook.overNow, "fire cluster")} over Singapore; ${outlook.onCourse} more may arrive in ${ahead}${wind}.`;
   }
-  if (!parts.length) parts.push(`On these winds, none of the smoke in the air reaches Singapore in the next ${outlook.aheadHours} hours.`);
-  return parts.join(" ");
+  if (outlook.overNow) return `Simulated: smoke from ${plural(outlook.overNow, "fire cluster")} over Singapore now.`;
+  if (outlook.onCourse) return `Simulated: smoke from ${plural(outlook.onCourse, "fire cluster")} may reach Singapore in ${ahead}${wind}.`;
+  return `Simulated: no smoke reaches Singapore in ${ahead}${wind}.`;
 }
 
 function plural(n, word) {
