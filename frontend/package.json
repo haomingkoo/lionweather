@@ -37,7 +37,7 @@
     "autoprefixer": "^10.4.20",
     "fast-check": "^4.5.3",
     "jsdom": "^28.1.0",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.32",
     "tailwindcss": "^3.4.15",
     "vite": "^7.3.7",
     "vitest": "^4.1.11"
