@@ -1,6 +1,9 @@
+import logging
 import os
 import httpx
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/environmental", tags=["environmental"])
 
@@ -22,7 +25,13 @@ def fetch_api_data(endpoint: str, api_key: str = None):
             response = client.get(f"{BASE_URL}{endpoint}")
             response.raise_for_status()
             return response.json()
+    except httpx.HTTPStatusError as e:
+        retry_after = e.response.headers.get("Retry-After")
+        suffix = f" (Retry-After {retry_after})" if retry_after else ""
+        logger.warning(f"data.gov.sg {endpoint} returned HTTP {e.response.status_code}{suffix}")
+        return None
     except Exception as e:
+        logger.warning(f"data.gov.sg {endpoint} request failed: {e!r}")
         return None
 
 

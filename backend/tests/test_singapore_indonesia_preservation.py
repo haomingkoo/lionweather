@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 from hypothesis import given, strategies as st, settings, HealthCheck
 from typing import List
+from urllib.parse import parse_qs, urlparse
 
 from app.services.data_collector import DataCollector, WeatherRecord
 
@@ -214,7 +215,7 @@ class TestSingaporeIndonesiaPreservation:
         
         # Mock the _fetch_json method to return our mock response for all cities
         with patch.object(collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_open_meteo_response
+            mock_fetch.side_effect = lambda session, url: [mock_open_meteo_response] * len(parse_qs(urlparse(url).query)["latitude"][0].split(","))
             
             # Call fetch_indonesia_data
             records = await collector.fetch_indonesia_data()
@@ -441,7 +442,7 @@ class TestSingaporeIndonesiaPreservation:
         
         # Mock the _fetch_json method to return our mock response
         with patch.object(collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_response
+            mock_fetch.side_effect = lambda session, url: [mock_response] * len(parse_qs(urlparse(url).query)["latitude"][0].split(","))
             
             # Call fetch_indonesia_data
             records = await collector.fetch_indonesia_data()
@@ -707,7 +708,7 @@ class TestSingaporeIndonesiaPreservation:
         }
         
         with patch.object(collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_indonesia_response
+            mock_fetch.side_effect = lambda session, url: [mock_indonesia_response] * len(parse_qs(urlparse(url).query)["latitude"][0].split(","))
             indonesia_records = await collector.fetch_indonesia_data()
         
         # Verify all records are current observations (1 per location)

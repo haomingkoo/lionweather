@@ -7,6 +7,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import asyncio
+from urllib.parse import parse_qs, urlparse
 
 from app.services.data_collector import DataCollector, WeatherRecord, RateLimiter
 
@@ -380,11 +381,12 @@ class TestDataCollector:
     async def test_fetch_malaysia_data_with_mock(self, data_collector, mock_openmeteo_response):
         """Test fetching Malaysia weather data from mocked Open-Meteo responses"""
         with patch.object(data_collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_openmeteo_response
+            # Open-Meteo answers a multi-coordinate request with one object per coordinate.
+            mock_fetch.side_effect = lambda session, url: [mock_openmeteo_response] * len(parse_qs(urlparse(url).query)["latitude"][0].split(","))
 
             records = await data_collector.fetch_malaysia_data()
 
-            assert len(records) == mock_fetch.call_count
+            assert len(records) == 30
             assert all(r.country == "malaysia" for r in records)
             assert all(r.source_api == "open-meteo" for r in records)
             kl = next(r for r in records if r.location == "Kuala Lumpur")
@@ -399,11 +401,12 @@ class TestDataCollector:
     async def test_fetch_indonesia_data_with_mock(self, data_collector, mock_openmeteo_response):
         """Test fetching Indonesia weather data from mocked Open-Meteo responses"""
         with patch.object(data_collector, '_fetch_json', new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = mock_openmeteo_response
+            # Open-Meteo answers a multi-coordinate request with one object per coordinate.
+            mock_fetch.side_effect = lambda session, url: [mock_openmeteo_response] * len(parse_qs(urlparse(url).query)["latitude"][0].split(","))
 
             records = await data_collector.fetch_indonesia_data()
 
-            assert len(records) == mock_fetch.call_count
+            assert len(records) == 30
             assert all(r.country == "indonesia" for r in records)
             assert any(r.location == "Jakarta" for r in records)
             assert any(r.location == "Surabaya" for r in records)
