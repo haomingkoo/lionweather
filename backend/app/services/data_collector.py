@@ -5,8 +5,9 @@ This module provides the DataCollector class that fetches weather data from
 Singapore, Malaysia, and Indonesia APIs and normalizes them into a unified format.
 """
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional, Callable, Any
 import asyncio
 import logging
@@ -17,6 +18,72 @@ import numpy as np
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+# Open-Meteo takes comma-separated coordinates. Its quota is still charged per
+# location (X-RateLimit-Cost equals the location count), so batching cuts the
+# burst of parallel connections, not the quota used.
+OPEN_METEO_BATCH_SIZE = 30
+OPEN_METEO_MAX_ATTEMPTS = 3
+# A Retry-After longer than this (e.g. the daily limit) is not waited out inside a 10-minute run.
+OPEN_METEO_MAX_RETRY_WAIT_SECONDS = 60.0
+# Used when a 429 carries no Retry-After; Open-Meteo's own limit window is 60 s.
+OPEN_METEO_DEFAULT_RETRY_WAITS = (5.0, 15.0)
+
+_last_collection_summary: Optional[dict] = None
+
+
+def get_last_collection_summary() -> Optional[dict]:
+    """Summary of the most recent collect_all_sources run, or None before the first run."""
+    return _last_collection_summary
+
+
+async def _wait(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+def _parse_retry_after(value: Optional[str]) -> Optional[float]:
+    """Retry-After is either delta-seconds or an HTTP date."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
+class RateLimitedError(Exception):
+    """HTTP 429 from an upstream API, with the Retry-After it sent (seconds), if any."""
+
+    def __init__(self, url: str, retry_after: Optional[float] = None, detail: str = ""):
+        self.url = url
+        self.retry_after = retry_after
+        super().__init__(f"HTTP 429 from {url.split('?')[0]}: {detail}".rstrip(": "))
+
+
+@dataclass
+class SourceRunReport:
+    """Per-country outcome of one Open-Meteo collection run, counted in cities."""
+    country: str
+    requested: int = 0
+    ok: int = 0
+    rate_limited: int = 0
+    failed: int = 0
+    failed_cities: List[dict] = field(default_factory=list)
+
+    def fail(self, city: str, reason: str, rate_limited: bool = False) -> None:
+        if rate_limited:
+            self.rate_limited += 1
+        else:
+            self.failed += 1
+        self.failed_cities.append({"country": self.country, "city": city, "reason": reason})
 
 
 @dataclass
@@ -109,7 +176,8 @@ class DataCollector:
 
         # Create rate limiter for Singapore API (100 requests/hour)
         self.singapore_rate_limiter = RateLimiter(max_requests=100, time_window_seconds=3600)
-        
+        self.last_reports: dict[str, SourceRunReport] = {}
+
         # Store historical data for outlier detection
         self._historical_data = {
             'temperature': [],
@@ -374,45 +442,88 @@ class DataCollector:
             return []
     
     async def fetch_openmeteo_data(self, cities: list, country: str) -> List[WeatherRecord]:
-        """Fetch current weather for a list of {name, lat, lon} dicts via Open-Meteo."""
+        """Fetch current weather for a list of {name, lat, lon} dicts via Open-Meteo.
+
+        Cities go out in batches of OPEN_METEO_BATCH_SIZE coordinates per request.
+        The outcome per city is kept in self.last_reports[country].
+        """
+        report = SourceRunReport(country=country, requested=len(cities))
+        self.last_reports[country] = report
         records = []
         params = "temperature_2m,precipitation,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure"
         now = datetime.utcnow()
+        batches = [cities[i:i + OPEN_METEO_BATCH_SIZE] for i in range(0, len(cities), OPEN_METEO_BATCH_SIZE)]
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as session:
-            tasks = [
-                self._fetch_json(session, (
-                    f"https://api.open-meteo.com/v1/forecast"
-                    f"?latitude={c['lat']}&longitude={c['lon']}"
+            for batch in batches:
+                url = (
+                    f"{OPEN_METEO_URL}"
+                    f"?latitude={','.join(str(c['lat']) for c in batch)}"
+                    f"&longitude={','.join(str(c['lon']) for c in batch)}"
                     f"&current={params}&timezone=auto"
-                ))
-                for c in cities
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        for city, result in zip(cities, results):
-            if isinstance(result, Exception):
-                logger.warning(f"Open-Meteo failed for {city['name']}: {result}")
-                continue
-            try:
-                cur = result.get("current", {})
-                rec = WeatherRecord(
-                    timestamp=now,
-                    country=country,
-                    location=city["name"],
-                    latitude=city["lat"],
-                    longitude=city["lon"],
-                    temperature=float(cur.get("temperature_2m") or 0),
-                    rainfall=float(cur.get("precipitation") or 0),
-                    humidity=float(cur.get("relative_humidity_2m") or 0),
-                    wind_speed=float(cur.get("wind_speed_10m") or 0),
-                    wind_direction=float(cur.get("wind_direction_10m") or 0),
-                    pressure=float(cur.get("surface_pressure") or 0),
-                    source_api="open-meteo",
                 )
-                records.append(rec)
-            except Exception as e:
-                logger.warning(f"Failed to parse Open-Meteo data for {city['name']}: {e}")
+                try:
+                    result = await self._fetch_openmeteo_batch(session, url, country)
+                except RateLimitedError as e:
+                    logger.error(f"Open-Meteo {country}: {len(batch)} cities rate limited: {e}")
+                    for c in batch:
+                        report.fail(c["name"], "rate limited (HTTP 429)", rate_limited=True)
+                    continue
+                except Exception as e:
+                    logger.error(f"Open-Meteo {country}: batch of {len(batch)} cities failed: {e!r}")
+                    for c in batch:
+                        report.fail(c["name"], f"request failed: {type(e).__name__}")
+                    continue
+
+                items = result if isinstance(result, list) else [result]
+                by_index = {item.get("location_id", i): item for i, item in enumerate(items)}
+                for i, city in enumerate(batch):
+                    cur = (by_index.get(i) or {}).get("current")
+                    if not cur:
+                        logger.warning(f"Open-Meteo returned no current data for {city['name']}")
+                        report.fail(city["name"], "no current data in response")
+                        continue
+                    try:
+                        records.append(WeatherRecord(
+                            timestamp=now,
+                            country=country,
+                            location=city["name"],
+                            latitude=city["lat"],
+                            longitude=city["lon"],
+                            temperature=float(cur.get("temperature_2m") or 0),
+                            rainfall=float(cur.get("precipitation") or 0),
+                            humidity=float(cur.get("relative_humidity_2m") or 0),
+                            wind_speed=float(cur.get("wind_speed_10m") or 0),
+                            wind_direction=float(cur.get("wind_direction_10m") or 0),
+                            pressure=float(cur.get("surface_pressure") or 0),
+                            source_api="open-meteo",
+                        ))
+                        report.ok += 1
+                    except (TypeError, ValueError) as e:
+                        logger.warning(f"Failed to parse Open-Meteo data for {city['name']}: {e}")
+                        report.fail(city["name"], "unparseable current data")
         logger.info(f"✓ {country.capitalize()} data collection complete: {len(records)} valid records")
         return records
+
+    async def _fetch_openmeteo_batch(self, session: aiohttp.ClientSession, url: str, country: str):
+        """GET one batch, waiting out Retry-After on 429 for at most OPEN_METEO_MAX_ATTEMPTS tries."""
+        for attempt in range(1, OPEN_METEO_MAX_ATTEMPTS + 1):
+            try:
+                return await self._fetch_json(session, url)
+            except RateLimitedError as e:
+                if attempt == OPEN_METEO_MAX_ATTEMPTS:
+                    raise
+                if e.retry_after is not None and e.retry_after > OPEN_METEO_MAX_RETRY_WAIT_SECONDS:
+                    logger.error(
+                        f"Open-Meteo {country}: Retry-After {e.retry_after:.0f}s exceeds "
+                        f"{OPEN_METEO_MAX_RETRY_WAIT_SECONDS:.0f}s cap; not retrying this run"
+                    )
+                    raise
+                wait = e.retry_after if e.retry_after is not None else OPEN_METEO_DEFAULT_RETRY_WAITS[attempt - 1]
+                logger.warning(
+                    f"Open-Meteo {country}: 429 on attempt {attempt}/{OPEN_METEO_MAX_ATTEMPTS}, "
+                    f"retrying in {wait:.0f}s ({e})"
+                )
+                await _wait(wait)
 
     async def fetch_malaysia_data(self) -> List[WeatherRecord]:
         """Fetch weather for 30 Malaysian cities via Open-Meteo."""
@@ -495,6 +606,7 @@ class DataCollector:
         Returns:
             Combined list of WeatherRecord objects from all sources
         """
+        self.last_reports = {}
         results = await asyncio.gather(
             self.fetch_singapore_data(),
             self.fetch_malaysia_data(),
@@ -507,7 +619,36 @@ class DataCollector:
         sg, my, id_ = ([] if isinstance(r, Exception) else r for r in results)
         all_records = sg + my + id_
         logger.info(f"Collected {len(all_records)} total records (SG={len(sg)}, MY={len(my)}, ID={len(id_)})")
+        self._record_run_summary(singapore_records=len(sg))
         return all_records
+
+    def _record_run_summary(self, singapore_records: int) -> None:
+        """Log one Open-Meteo summary line and keep it for /status."""
+        global _last_collection_summary
+        reports = [self.last_reports[c] for c in ("malaysia", "indonesia") if c in self.last_reports]
+        for country in ("malaysia", "indonesia"):
+            if country not in self.last_reports:
+                logger.error(f"Open-Meteo {country}: collection raised before reporting; cities unaccounted for")
+        summary = {
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "requested": sum(r.requested for r in reports),
+            "ok": sum(r.ok for r in reports),
+            "rate_limited": sum(r.rate_limited for r in reports),
+            "failed": sum(r.failed for r in reports),
+            "failed_cities": [c for r in reports for c in r.failed_cities],
+            "missing_sources": [c for c in ("malaysia", "indonesia") if c not in self.last_reports],
+            "singapore_records": singapore_records,
+        }
+        _last_collection_summary = summary
+        line = (
+            f"Open-Meteo run summary: requested={summary['requested']} ok={summary['ok']} "
+            f"rate_limited={summary['rate_limited']} failed={summary['failed']}"
+        )
+        if summary["failed_cities"] or summary["missing_sources"]:
+            names = ", ".join(f"{c['city']} ({c['country']})" for c in summary["failed_cities"])
+            logger.warning(f"{line}; missing: {names or summary['missing_sources']}")
+        else:
+            logger.info(line)
     
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> dict | list:
         """
@@ -529,6 +670,9 @@ class DataCollector:
         }
         
         async with session.get(url, headers=headers) as response:
+            if response.status == 429:
+                body = (await response.text())[:200]
+                raise RateLimitedError(url, _parse_retry_after(response.headers.get("Retry-After")), body)
             response.raise_for_status()
             return await response.json()
     

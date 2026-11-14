@@ -452,9 +452,15 @@ def status_check(request: Request):
         logger.exception("Status check failed querying forecast_data")
         forecast_sources = [{"error": "query failed"}]
 
+    from app.services.data_collector import get_last_collection_summary
+
+    last_collection = get_last_collection_summary()
+    degraded = bool(last_collection and (last_collection["failed_cities"] or last_collection.get("missing_sources")))
+
     return {
-        "status": "healthy",
+        "status": "degraded" if degraded else "healthy",
         "timestamp_utc": now.isoformat(),
+        "last_collection": last_collection,
         "background_services": {
             "observations": "every 10 min -- Singapore (NEA), Malaysia (Open-Meteo), Indonesia (Open-Meteo)",
             "forecasts": "every hour -- Singapore (NEA), Malaysia (data.gov.my), Indonesia (Open-Meteo)",
