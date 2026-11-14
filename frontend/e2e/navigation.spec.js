@@ -31,6 +31,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.goto("/haze");
       const back = page.getByRole("link", { name: "← Back to forecast" });
       await expect(back).toBeVisible();
+      // The footer moves from the loading view into the sidebar once the scene arrives,
+      // so it is a new element after that. Wait for the loaded page before touching it.
+      await expect(page.getByText(/^Latest NEA reading/)).toBeVisible();
       const portfolio = page.getByRole("link", { name: "kooexperience.com", exact: true });
       await portfolio.scrollIntoViewIfNeeded();
       await expect(portfolio).toBeVisible();
